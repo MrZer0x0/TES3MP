@@ -6,6 +6,8 @@
 #include <components/debug/debugging.hpp>
 #include <components/misc/rng.hpp>
 
+#include <boost/filesystem.hpp>
+
 #include "engine.hpp"
 
 /*
@@ -385,6 +387,23 @@ namespace
     };
 }
 
+namespace
+{
+    void switchToClientDirectory(const char* argv0)
+    {
+#ifdef ANDROID
+        (void)argv0;
+#else
+        if (!argv0 || !*argv0)
+            return;
+
+        boost::filesystem::path binaryPath = boost::filesystem::system_complete(boost::filesystem::path(argv0));
+        if (!binaryPath.parent_path().empty())
+            boost::filesystem::current_path(binaryPath.parent_path());
+#endif
+    }
+}
+
 int runApplication(int argc, char *argv[])
 {
 #ifdef __APPLE__
@@ -412,6 +431,8 @@ extern "C" int SDL_main(int argc, char**argv)
 int main(int argc, char**argv)
 #endif
 {
+    switchToClientDirectory(argv[0]);
+
     /*
         Start of tes3mp addition
 
