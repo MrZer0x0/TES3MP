@@ -4,6 +4,7 @@
 #include <components/sceneutil/occlusionculling.hpp>
 
 #include <unordered_map>
+#include <algorithm>
 
 #include <osg/Version>
 #include <osg/LOD>
@@ -71,7 +72,7 @@ namespace MWRender
         }
     }
 
-    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char /*lod*/, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
         if (activeGrid && !mActiveGrid)
             return nullptr;
@@ -83,8 +84,7 @@ namespace MWRender
             return obj->asNode();
         else
         {
-            const unsigned char lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
-            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile, lod);
+            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile);
             mCache->addEntryToObjectCache(id, node.get());
             return node;
         }
@@ -404,7 +404,7 @@ namespace MWRender
 
     ObjectPaging::~ObjectPaging() = default;
 
-    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile, unsigned char lod)
+    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
         osg::Vec2i startCell = osg::Vec2i(std::floor(center.x() - size/2.f), std::floor(center.y() - size/2.f));
 
@@ -528,19 +528,6 @@ namespace MWRender
                     kfname.replace(kfname.size()-4, 4, ".kf");
                     if (mSceneManager->getVFS()->exists(kfname))
                         continue;
-                }
-            }
-            else if (!activeGrid)
-            {
-                std::lock_guard<std::mutex> lock(mLODNameCacheMutex);
-                LODNameCacheKey key(model, lod);
-                LODNameCache::const_iterator found = mLODNameCache.find(key);
-                if (found != mLODNameCache.end())
-                    model = found->second;
-                else
-                {
-                    model = Misc::ResourceHelpers::getLODMeshName(model, mSceneManager->getVFS(), lod);
-                    mLODNameCache.insert(std::make_pair(key, model));
                 }
             }
 
@@ -857,7 +844,7 @@ namespace MWRender
 
     struct GetRefnumsFunctor
     {
-        GetRefnumsFunctor(std::set<ESM::RefNum>& output) : mOutput(output) {}
+        GetRefnumsFunctor(std::vector<ESM::RefNum>& output) : mOutput(output) {}
         void operator()(MWRender::ChunkId chunkId, osg::Object* obj)
         {
             if (!std::get<2>(chunkId)) return;
@@ -870,18 +857,20 @@ namespace MWRender
             {
                 RefnumSet* refnums = dynamic_cast<RefnumSet*>(udc->getUserObject(0));
                 if (!refnums) return;
-                mOutput.insert(refnums->mRefnums.begin(), refnums->mRefnums.end());
+                mOutput.insert(mOutput.end(), refnums->mRefnums.begin(), refnums->mRefnums.end());
             }
         }
         osg::Vec4i mActiveGrid;
-        std::set<ESM::RefNum>& mOutput;
+        std::vector<ESM::RefNum>& mOutput;
     };
 
-    void ObjectPaging::getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out)
+    void ObjectPaging::getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum> &out)
     {
         GetRefnumsFunctor grf(out);
         grf.mActiveGrid = activeGrid;
         mCache->call(grf);
+        std::sort(out.begin(), out.end());
+        out.erase(std::unique(out.begin(), out.end()), out.end());
     }
 
     void ObjectPaging::reportStats(unsigned int frameNumber, osg::Stats *stats) const

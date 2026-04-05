@@ -8,6 +8,7 @@
 #include "globals.hpp"
 
 #include <set>
+#include <vector>
 #include <memory>
 #include <unordered_map>
 
@@ -89,7 +90,7 @@ namespace MWWorld
 
             osg::Vec3f mLastPlayerPos;
 
-            std::set<ESM::RefNum> mPagedRefs;
+            std::vector<ESM::RefNum> mPagedRefs;
 
             void insertCell (CellStore &cell, Loading::Listener* loadingListener, bool test = false);
             osg::Vec2i mCurrentGridCenter;

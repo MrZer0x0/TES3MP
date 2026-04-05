@@ -27,6 +27,7 @@
 #include <string>
 #include <map>
 #include <mutex>
+#include <optional>
 
 namespace osg
 {
@@ -171,6 +172,16 @@ class GenericObjectCache : public osg::Referenced
                 f(it->first, it->second.first.get());
         }
 
+        template <class K>
+        std::optional<std::pair<KeyType, osg::ref_ptr<osg::Object>>> lowerBound(const K& key)
+        {
+            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            typename ObjectCacheMap::const_iterator itr = _objectCache.lower_bound(key);
+            if (itr == _objectCache.end())
+                return std::nullopt;
+            return std::make_optional(std::make_pair(itr->first, itr->second.first));
+        }
+
         /** Get the number of objects in the cache. */
         unsigned int getCacheSize() const
         {
@@ -183,7 +194,7 @@ class GenericObjectCache : public osg::Referenced
         virtual ~GenericObjectCache() {}
 
         typedef std::pair<osg::ref_ptr<osg::Object>, double >           ObjectTimeStampPair;
-        typedef std::map<KeyType, ObjectTimeStampPair >             ObjectCacheMap;
+        typedef std::map<KeyType, ObjectTimeStampPair, std::less<> > ObjectCacheMap;
 
         ObjectCacheMap                          _objectCache;
         mutable std::mutex                      _objectCacheMutex;

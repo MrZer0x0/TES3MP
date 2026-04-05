@@ -1,5 +1,6 @@
 #include "scene.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <chrono>
 #include <thread>
@@ -112,7 +113,7 @@ namespace
     }
 
     void addObject(const MWWorld::Ptr& ptr, MWPhysics::PhysicsSystem& physics,
-                   MWRender::RenderingManager& rendering, std::set<ESM::RefNum>& pagedRefs)
+                   MWRender::RenderingManager& rendering, const std::vector<ESM::RefNum>& pagedRefs)
     {
         if (ptr.getRefData().getBaseNode() || physics.getActor(ptr))
         {
@@ -124,7 +125,7 @@ namespace
         std::string model = getModel(ptr, rendering.getResourceSystem()->getVFS());
 
         const ESM::RefNum& refnum = ptr.getCellRef().getRefNum();
-        if (!refnum.hasContentFile() || pagedRefs.find(refnum) == pagedRefs.end())
+        if (!refnum.hasContentFile() || !std::binary_search(pagedRefs.begin(), pagedRefs.end(), refnum))
             ptr.getClass().insertObjectRendering(ptr, model, rendering);
         else
             ptr.getRefData().setBaseNode(new SceneUtil::PositionAttitudeTransform); // FIXME remove this when physics code is fixed not to depend on basenode
@@ -262,6 +263,15 @@ namespace
         return std::abs(cellPosition.first) + std::abs(cellPosition.second);
     }
 
+    bool removeFromSorted(const ESM::RefNum& refnum, std::vector<ESM::RefNum>& pagedRefs)
+    {
+        const auto it = std::lower_bound(pagedRefs.begin(), pagedRefs.end(), refnum);
+        if (it == pagedRefs.end() || *it != refnum)
+            return false;
+        pagedRefs.erase(it);
+        return true;
+    }
+
 }
 
 
@@ -271,7 +281,7 @@ namespace MWWorld
     void Scene::removeFromPagedRefs(const Ptr &ptr)
     {
         const ESM::RefNum& refnum = ptr.getCellRef().getRefNum();
-        if (refnum.hasContentFile() && mPagedRefs.erase(refnum))
+        if (refnum.hasContentFile() && removeFromSorted(refnum, mPagedRefs))
         {
             if (!ptr.getRefData().getBaseNode()) return;
             ptr.getClass().insertObjectRendering(ptr, getModel(ptr, mRendering.getResourceSystem()->getVFS()), mRendering);

@@ -15,6 +15,7 @@
 #include "rendermode.hpp"
 
 #include <deque>
+#include <vector>
 #include <memory>
 
 namespace osg
@@ -243,7 +244,7 @@ namespace MWRender
         void rebuildOcclusionBuffer(const osg::Vec3f& eyePoint);
         void pagingBlacklistObject(int type, const MWWorld::ConstPtr &ptr);
         bool pagingUnlockCache();
-        void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
+        void getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum> &out);
 
     private:
         void updateProjectionMatrix();

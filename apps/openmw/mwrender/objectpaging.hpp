@@ -6,6 +6,7 @@
 #include <components/esm/loadcell.hpp>
 
 #include <mutex>
+#include <vector>
 #include <osg/ref_ptr>
 
 namespace Resource
@@ -34,7 +35,7 @@ namespace MWRender
 
         osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile) override;
 
-        osg::ref_ptr<osg::Node> createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile, unsigned char lod);
+        osg::ref_ptr<osg::Node> createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile);
 
         unsigned int getNodeMask() override;
 
@@ -52,7 +53,7 @@ namespace MWRender
 
         void reportStats(unsigned int frameNumber, osg::Stats* stats) const override;
 
-        void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
+        void getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum> &out);
 
     private:
         Resource::SceneManager* mSceneManager;
@@ -81,11 +82,6 @@ namespace MWRender
         std::mutex mSizeCacheMutex;
         typedef std::map<ESM::RefNum, float> SizeCache;
         SizeCache mSizeCache;
-
-        std::mutex mLODNameCacheMutex;
-        typedef std::pair<std::string, unsigned char> LODNameCacheKey;
-        typedef std::map<LODNameCacheKey, std::string> LODNameCache;
-        LODNameCache mLODNameCache;
     };
 
     class RefnumMarker : public osg::Object
