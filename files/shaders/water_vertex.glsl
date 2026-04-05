@@ -2,6 +2,7 @@
 
 // Интеграция файла с функциями волн и каустики
 #include "water_waves.glsl"
+#include "shadows_vertex.glsl"
     
 varying vec3  screenCoordsPassthrough;
 varying vec4  position;
@@ -15,9 +16,8 @@ void main(void)
     vec4 glvertice = gl_Vertex;
     
     vec4 campos = osg_ViewMatrixInverse * vec4(0.0, 0.0, 0.0, 1.0);
-    vec4 viewPos = (gl_ModelViewMatrix * gl_Vertex);
-    float euclideanDepth = length(viewPos.xyz);
-    vec2 dir = normalize(viewPos.xy - glvertice.xy);
+    vec4 initialViewPos = (gl_ModelViewMatrix * gl_Vertex);
+    float euclideanDepth = length(initialViewPos.xyz);
     
     float frequency = 2.0*3.1415/0.1;
 
@@ -56,6 +56,7 @@ void main(void)
         glvertice.z += 3.25;  // было 12.5, уменьшено в 2 раза для консистентности
     
     
+    vec4 viewPos = gl_ModelViewMatrix * glvertice;
     gl_Position = gl_ModelViewProjectionMatrix * glvertice;
 
     mat4 scalemat = mat4(0.5, 0.0, 0.0, 0.0,
@@ -70,5 +71,10 @@ void main(void)
     position = glvertice;
 
     linearDepth = gl_Position.z;
+
+#if (@shadows_enabled)
+    vec3 viewNormal = normalize((gl_NormalMatrix * gl_Normal).xyz);
+    setupShadowCoords(viewPos, viewNormal);
+#endif
 
 }
