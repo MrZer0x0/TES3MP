@@ -130,6 +130,34 @@ namespace
         return false;
     }
 
+
+    osgViewer::ViewerBase::ThreadingModel getViewerThreadingModelSetting()
+    {
+        const std::string value = Settings::Manager::getString("threading model", "OSG");
+
+        if (value == "SingleThreaded")
+            return osgViewer::ViewerBase::SingleThreaded;
+        if (value == "CullDrawThreadPerContext")
+            return osgViewer::ViewerBase::CullDrawThreadPerContext;
+
+        return osgViewer::ViewerBase::DrawThreadPerContext;
+    }
+
+    const char* getViewerThreadingModelName(osgViewer::ViewerBase::ThreadingModel model)
+    {
+        switch (model)
+        {
+            case osgViewer::ViewerBase::SingleThreaded:
+                return "SingleThreaded";
+            case osgViewer::ViewerBase::CullDrawThreadPerContext:
+                return "CullDrawThreadPerContext";
+            case osgViewer::ViewerBase::DrawThreadPerContext:
+                return "DrawThreadPerContext";
+            default:
+                return "DrawThreadPerContext";
+        }
+    }
+
     void appendIniKeyIfMissing(std::vector<std::string>& lines, const std::string& section, const std::string& key, const std::string& value)
     {
         if (hasIniKey(lines, section, key))
@@ -1177,11 +1205,14 @@ void OMW::Engine::go()
     // Setup viewer
     mViewer = new osgViewer::Viewer;
     mViewer->setReleaseContextAtEndOfFrameHint(false);
-    mViewer->setThreadingModel(osgViewer::ViewerBase::DrawThreadPerContext);
+    const osgViewer::ViewerBase::ThreadingModel threadingModel = getViewerThreadingModelSetting();
+    mViewer->setThreadingModel(threadingModel);
+    Log(Debug::Info) << "Using OSG threading model: " << getViewerThreadingModelName(threadingModel);
 
 #if OSG_VERSION_GREATER_OR_EQUAL(3,5,5)
-    // Do not try to outsmart the OS thread scheduler (see bug #4785).
-    mViewer->setUseConfigureAffinity(false);
+    const bool useConfigureAffinity = Settings::Manager::getBool("use configure affinity", "OSG");
+    mViewer->setUseConfigureAffinity(useConfigureAffinity);
+    Log(Debug::Info) << "OSG configure affinity: " << (useConfigureAffinity ? "enabled" : "disabled");
 #endif
 
     mScreenCaptureOperation = new WriteScreenshotToFileOperation(
