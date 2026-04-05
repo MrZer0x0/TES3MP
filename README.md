@@ -1,4 +1,4 @@
-TES3MP
+true-TES3MP
 ======
 
 Copyright (c) 2008-2015, OpenMW Team  
