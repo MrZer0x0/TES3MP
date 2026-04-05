@@ -1359,7 +1359,8 @@ namespace MWWorld
                 if (!currCellActive && newCellActive)
                 {
                     newPtr = currCell->moveTo(ptr, newCell);
-                    mWorldScene->addObjectToScene(newPtr);
+                    if (newPtr.getRefData().isEnabled())
+                        mWorldScene->addObjectToScene(newPtr);
 
                     std::string script = newPtr.getClass().getScript(newPtr);
                     if (!script.empty())
@@ -1370,7 +1371,7 @@ namespace MWWorld
                 }
                 else if (!newCellActive && currCellActive)
                 {
-                    mWorldScene->removeObjectFromScene(ptr);
+                    mWorldScene->removeObjectFromScene(ptr, true);
                     mLocalScripts.remove(ptr);
                     removeContainerScripts (ptr);
                     haveToMove = false;
@@ -1470,15 +1471,15 @@ namespace MWWorld
 
     void World::scaleObject (const Ptr& ptr, float scale)
     {
+        if (scale == ptr.getCellRef().getScale())
+            return;
+
         if (mPhysics->getActor(ptr))
             mNavigator->removeAgent(getPathfindingHalfExtents(ptr));
 
-        if (scale != ptr.getCellRef().getScale())
-        {
-            ptr.getCellRef().setScale(scale);
-            mRendering->pagingBlacklistObject(mStore.find(ptr.getCellRef().getRefId()), ptr);
-            mWorldScene->removeFromPagedRefs(ptr);
-        }
+        ptr.getCellRef().setScale(scale);
+        mRendering->pagingBlacklistObject(mStore.find(ptr.getCellRef().getRefId()), ptr);
+        mWorldScene->removeFromPagedRefs(ptr);
 
         if(ptr.getRefData().getBaseNode() != nullptr)
             mWorldScene->updateObjectScale(ptr);
@@ -1493,7 +1494,8 @@ namespace MWWorld
     {
         const float pi = static_cast<float>(osg::PI);
 
-        ESM::Position pos = ptr.getRefData().getPosition();
+        const ESM::Position oldPos = ptr.getRefData().getPosition();
+        ESM::Position pos = oldPos;
         float *objRot = pos.rot;
         if (flags & MWBase::RotationFlag_adjust)
         {
@@ -1522,6 +1524,11 @@ namespace MWWorld
             wrap(objRot[1]);
             wrap(objRot[2]);
         }
+
+        if (oldPos.rot[0] == pos.rot[0]
+            && oldPos.rot[1] == pos.rot[1]
+            && oldPos.rot[2] == pos.rot[2])
+            return;
 
         ptr.getRefData().setPosition(pos);
 
