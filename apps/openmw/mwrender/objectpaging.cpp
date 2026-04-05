@@ -71,7 +71,7 @@ namespace MWRender
         }
     }
 
-    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char /*lod*/, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
         if (activeGrid && !mActiveGrid)
             return nullptr;
@@ -83,7 +83,8 @@ namespace MWRender
             return obj->asNode();
         else
         {
-            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile);
+            const unsigned char lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
+            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile, lod);
             mCache->addEntryToObjectCache(id, node.get());
             return node;
         }
@@ -403,7 +404,7 @@ namespace MWRender
 
     ObjectPaging::~ObjectPaging() = default;
 
-    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile, unsigned char lod)
     {
         osg::Vec2i startCell = osg::Vec2i(std::floor(center.x() - size/2.f), std::floor(center.y() - size/2.f));
 
@@ -527,6 +528,19 @@ namespace MWRender
                     kfname.replace(kfname.size()-4, 4, ".kf");
                     if (mSceneManager->getVFS()->exists(kfname))
                         continue;
+                }
+            }
+            else if (!activeGrid)
+            {
+                std::lock_guard<std::mutex> lock(mLODNameCacheMutex);
+                LODNameCacheKey key(model, lod);
+                LODNameCache::const_iterator found = mLODNameCache.find(key);
+                if (found != mLODNameCache.end())
+                    model = found->second;
+                else
+                {
+                    model = Misc::ResourceHelpers::getLODMeshName(model, mSceneManager->getVFS(), lod);
+                    mLODNameCache.insert(std::make_pair(key, model));
                 }
             }
 
