@@ -69,7 +69,7 @@ namespace Files
     private:
         typedef Files::FixedPath<> FixedPathType;
 
-        typedef const boost::filesystem::path& (FixedPathType::* path_type_f)() const;
+        typedef const boost::filesystem::path& (ConfigurationManager::* path_type_f)() const;
         typedef std::map<std::string, path_type_f> TokensMappingContainer;
 
         bool loadConfig(const boost::filesystem::path& path,
@@ -83,6 +83,9 @@ namespace Files
 
         FixedPathType mFixedPath;
 
+        boost::filesystem::path mLocalPath;
+        boost::filesystem::path mUserConfigPath;
+        boost::filesystem::path mUserDataPath;
         boost::filesystem::path mLogPath;
         boost::filesystem::path mScreenshotPath;
 

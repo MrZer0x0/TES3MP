@@ -11,6 +11,7 @@
 #include <osg/Group>
 #include <osg/UserDataContainer>
 #include <osg/ComputeBoundsVisitor>
+#include <osg/Timer>
 
 #include <osgUtil/LineSegmentIntersector>
 
@@ -68,6 +69,9 @@
 #include "objectpaging.hpp"
 #include "screenshotmanager.hpp"
 #include "groundcover.hpp"
+#include "occlusionculling.hpp"
+#include <components/sceneutil/occlusionculling.hpp>
+#include <components/terrain/terrainoccluder.hpp>
 
 namespace MWRender
 {
@@ -276,7 +280,10 @@ namespace MWRender
         mRecastMesh.reset(new RecastMesh(mRootNode, Settings::Manager::getBool("enable recast mesh render", "Navigator")));
         mPathgrid.reset(new Pathgrid(mRootNode));
 
-        mObjects.reset(new Objects(mResourceSystem, sceneRoot, mUnrefQueue.get()));
+        if (Settings::Manager::getBool("occlusion culling", "Camera"))
+            mOcclusionCuller = new SceneUtil::OcclusionCuller(Settings::Manager::getInt("occlusion buffer width", "Camera"), Settings::Manager::getInt("occlusion buffer height", "Camera"));
+
+        mObjects.reset(new Objects(mResourceSystem, sceneRoot, mUnrefQueue.get(), mOcclusionCuller.get()));
 
         if (getenv("OPENMW_DONT_PRECOMPILE") == nullptr)
         {
@@ -311,9 +318,10 @@ namespace MWRender
                 compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
             if (Settings::Manager::getBool("object paging", "Terrain"))
             {
-                mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager()));
+                mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
                 static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
                 mResourceSystem->addResourceManager(mObjectPaging.get());
+
             }
         }
         else
@@ -321,6 +329,17 @@ namespace MWRender
 
         mTerrain->setTargetFrameRate(Settings::Manager::getFloat("target framerate", "Cells"));
         mTerrain->setWorkQueue(mWorkQueue.get());
+
+        if (mOcclusionCuller.valid())
+        {
+            mTerrainOccluder.reset(new Terrain::TerrainOccluder(mTerrainStorage.get(), ESM::Land::REAL_SIZE));
+            mTerrainOccluder->setLodLevel(std::max(0, Settings::Manager::getInt("occlusion terrain lod", "Camera")));
+            sceneRoot->addCullCallback(new SceneOcclusionCallback(
+                mOcclusionCuller.get(),
+                mTerrainOccluder.get(),
+                std::max(1, Settings::Manager::getInt("occlusion terrain radius", "Camera")),
+                Settings::Manager::getBool("occlusion culling terrain", "Camera")));
+        }
 
         if (Settings::Manager::getBool("enabled", "Groundcover"))
         {
@@ -737,6 +756,7 @@ namespace MWRender
         osg::Vec3d focal, cameraPos;
         mCamera->getPosition(focal, cameraPos);
         mCurrentCameraPos = cameraPos;
+
 
         bool isUnderwater = mWater->isUnderwater(cameraPos);
         mStateUpdater->setFogStart(mFog->getFogStart(isUnderwater));
@@ -1312,6 +1332,17 @@ namespace MWRender
         mRecastMesh->update(mNavigator.getRecastMeshTiles(), mNavigator.getSettings());
     }
 
+    bool RenderingManager::occlusionVisible(const MWWorld::ConstPtr& ptr) const
+    {
+        (void)ptr;
+        return true;
+    }
+
+    void RenderingManager::rebuildOcclusionBuffer(const osg::Vec3f& eyePoint)
+    {
+        (void)eyePoint;
+    }
+
     void RenderingManager::setActiveGrid(const osg::Vec4i &grid)
     {
         mTerrain->setActiveGrid(grid);
@@ -1320,6 +1351,10 @@ namespace MWRender
     {
         if (!ptr.isInCell() || !ptr.getCell()->isExterior() || !mObjectPaging)
             return false;
+
+        if (enabled && !occlusionVisible(ptr))
+            enabled = false;
+
         if (mObjectPaging->enableObject(type, ptr.getCellRef().getRefNum(), ptr.getCellRef().getPosition().asVec3(), osg::Vec2i(ptr.getCell()->getCell()->getGridX(), ptr.getCell()->getCell()->getGridY()), enabled))
         {
             mTerrain->rebuildViews();

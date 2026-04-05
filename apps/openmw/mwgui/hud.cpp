@@ -7,6 +7,10 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_ScrollView.h>
 
+#include <cmath>
+#include <iomanip>
+#include <sstream>
+
 /*
     Start of tes3mp addition
 
@@ -112,6 +116,10 @@ namespace MWGui
         , mMagicka(nullptr)
         , mStamina(nullptr)
         , mDrowning(nullptr)
+        , mHealthText(nullptr)
+        , mMagickaText(nullptr)
+        , mStaminaText(nullptr)
+        , mFpsBox(nullptr)
         , mWeapImage(nullptr)
         , mSpellImage(nullptr)
         , mWeapStatus(nullptr)
@@ -120,6 +128,7 @@ namespace MWGui
         , mMinimap(nullptr)
         , mCrosshair(nullptr)
         , mCellNameBox(nullptr)
+        , mGameTimeBox(nullptr)
         , mDrowningFrame(nullptr)
         , mDrowningFlash(nullptr)
         , mHealthManaStaminaBaseLeft(0)
@@ -130,12 +139,16 @@ namespace MWGui
         , mDragAndDrop(dragAndDrop)
         , mCellNameTimer(0.0f)
         , mWeaponSpellTimer(0.f)
+        , mGameTimeUpdateTimer(0.f)
         , mMapVisible(true)
         , mWeaponVisible(true)
         , mSpellVisible(true)
         , mWorldMouseOver(false)
         , mEnemyActorId(-1)
         , mEnemyHealthTimer(-1)
+        , mFpsUpdateTimer(0.f)
+        , mFpsAccumulatedTime(0.f)
+        , mFpsFrameCount(0)
         , mIsDrowning(false)
         , mDrowningFlashTheta(0.f)
     {
@@ -147,6 +160,10 @@ namespace MWGui
         getWidget(mMagicka, "Magicka");
         getWidget(mStamina, "Stamina");
         getWidget(mEnemyHealth, "EnemyHealth");
+        getWidget(mHealthText, "HealthText");
+        getWidget(mMagickaText, "MagickaText");
+        getWidget(mStaminaText, "StaminaText");
+        getWidget(mFpsBox, "FpsText");
         mHealthManaStaminaBaseLeft = mHealthFrame->getLeft();
 
         MyGUI::Widget *healthFrame, *magickaFrame, *fatigueFrame;
@@ -193,6 +210,7 @@ namespace MWGui
 
         getWidget(mCellNameBox, "CellName");
         getWidget(mWeaponSpellBox, "WeaponSpellName");
+        getWidget(mGameTimeBox, "GameTime");
 
         getWidget(mCrosshair, "Crosshair");
 
@@ -229,6 +247,8 @@ namespace MWGui
         {
             mHealth->setProgressRange(std::max(0, modified));
             mHealth->setProgressPosition(std::max(0, current));
+            if (mHealthText)
+                mHealthText->setCaption(valStr);
             getWidget(w, "HealthFrame");
             w->setUserString("Caption_HealthDescription", "#{sHealthDesc}\n" + valStr);
         }
@@ -236,6 +256,8 @@ namespace MWGui
         {
             mMagicka->setProgressRange(std::max(0, modified));
             mMagicka->setProgressPosition(std::max(0, current));
+            if (mMagickaText)
+                mMagickaText->setCaption(valStr);
             getWidget(w, "MagickaFrame");
             w->setUserString("Caption_HealthDescription", "#{sMagDesc}\n" + valStr);
         }
@@ -243,6 +265,8 @@ namespace MWGui
         {
             mStamina->setProgressRange(std::max(0, modified));
             mStamina->setProgressPosition(std::max(0, current));
+            if (mStaminaText)
+                mStaminaText->setCaption(valStr);
             getWidget(w, "FatigueFrame");
             w->setUserString("Caption_HealthDescription", "#{sFatDesc}\n" + valStr);
         }
@@ -412,12 +436,49 @@ namespace MWGui
     {
         LocalMapBase::onFrame(dt);
 
+
+        if (mGameTimeBox)
+        {
+            mGameTimeUpdateTimer -= dt;
+            if (mGameTimeUpdateTimer <= 0.f)
+            {
+                const float gameHour = MWBase::Environment::get().getWorld()->getTimeStamp().getHour();
+                int hours = static_cast<int>(std::floor(gameHour)) % 24;
+                int minutes = static_cast<int>(std::floor((gameHour - std::floor(gameHour)) * 60.f + 0.5f));
+                if (minutes >= 60)
+                {
+                    minutes = 0;
+                    hours = (hours + 1) % 24;
+                }
+
+                std::ostringstream stream;
+                stream << std::setfill('0') << std::setw(2) << hours << ':'
+                       << std::setfill('0') << std::setw(2) << minutes;
+                mGameTimeBox->setCaption(stream.str());
+
+                mGameTimeUpdateTimer = 0.2f;
+            }
+        }
+
         mCellNameTimer -= dt;
         mWeaponSpellTimer -= dt;
         if (mCellNameTimer < 0)
             mCellNameBox->setVisible(false);
         if (mWeaponSpellTimer < 0)
             mWeaponSpellBox->setVisible(false);
+
+        mFpsAccumulatedTime += dt;
+        ++mFpsFrameCount;
+        mFpsUpdateTimer -= dt;
+        if (mFpsBox && mFpsUpdateTimer <= 0.f)
+        {
+            const float safeTime = std::max(0.0001f, mFpsAccumulatedTime);
+            const int fps = static_cast<int>(std::lround(static_cast<double>(mFpsFrameCount) / safeTime));
+            mFpsBox->setCaption(MyGUI::utility::toString(fps));
+            mFpsUpdateTimer = 0.25f;
+            mFpsAccumulatedTime = 0.f;
+            mFpsFrameCount = 0;
+        }
 
         mEnemyHealthTimer -= dt;
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0)

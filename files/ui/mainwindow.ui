@@ -41,7 +41,6 @@
       </property>
       <property name="styleSheet">
        <string notr="true">#iconWidget {
-    background-image: url(&quot;:/images/openmw-header.png&quot;);
     background-color: palette(base);
     background-repeat: no-repeat;
     background-attachment: scroll;

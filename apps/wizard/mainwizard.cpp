@@ -452,8 +452,7 @@ bool Wizard::MainWizard::findFiles(const QString &name, const QString &path)
         return false;
 
     // TODO: add MIME handling to make sure the files are real
-    return (dir.entryList().contains(name + QLatin1String(".esm"), Qt::CaseInsensitive)
-            && dir.entryList().contains(name + QLatin1String(".bsa"), Qt::CaseInsensitive));
+    return dir.entryList().contains(name + QLatin1String(".esm"), Qt::CaseInsensitive);
 }
 
 QString Wizard::MainWizard::toQString(const boost::filesystem::path& path)

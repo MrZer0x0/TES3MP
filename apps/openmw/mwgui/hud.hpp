@@ -62,6 +62,7 @@ namespace MWGui
 
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
+        MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
         MyGUI::Widget* mHealthFrame;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
@@ -73,6 +74,7 @@ namespace MWGui
         MyGUI::ImageBox* mCrosshair;
         MyGUI::TextBox* mCellNameBox;
         MyGUI::TextBox* mWeaponSpellBox;
+        MyGUI::TextBox* mGameTimeBox;
         MyGUI::Widget *mDrowningFrame, *mDrowningFlash;
 
         // bottom left elements
@@ -88,6 +90,7 @@ namespace MWGui
         std::string mWeaponName;
         std::string mSpellName;
         float mWeaponSpellTimer;
+        float mGameTimeUpdateTimer;
 
         bool mMapVisible;
         bool mWeaponVisible;
@@ -99,6 +102,10 @@ namespace MWGui
 
         int mEnemyActorId;
         float mEnemyHealthTimer;
+
+        float mFpsUpdateTimer;
+        float mFpsAccumulatedTime;
+        int mFpsFrameCount;
 
         bool  mIsDrowning;
         float mDrowningFlashTheta;

@@ -239,6 +239,24 @@ bool parseOptions (int argc, char** argv, OMW::Engine& engine, Files::Configurat
 
     // fallback archives
     StringsVector archives = variables["fallback-archive"].as<Files::EscapeStringVector>().toStdStringVector();
+    std::set<std::string> archiveSet(archives.begin(), archives.end());
+
+    static const char* const autoArchives[] = { "Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa" };
+    for (const auto& dataDir : dataDirs)
+    {
+        for (const char* archiveName : autoArchives)
+        {
+            if (archiveSet.find(archiveName) != archiveSet.end())
+                continue;
+
+            if (boost::filesystem::exists(dataDir / archiveName))
+            {
+                engine.addArchive(archiveName);
+                archiveSet.insert(archiveName);
+            }
+        }
+    }
+
     for (StringsVector::const_iterator it = archives.begin(); it != archives.end(); ++it)
     {
         engine.addArchive(*it);
@@ -410,7 +428,7 @@ int main(int argc, char**argv)
         Instead of logging information in openmw.log, use a more descriptive filename
         that includes a timestamp
     */
-    return wrapApplication(&runApplication, argc, argv, "/tes3mp-client-" + TimedLog::getFilenameTimestamp());
+    return wrapApplication(&runApplication, argc, argv, "tes3mp-client");
     /*
         End of tes3mp change (major)
     */

@@ -1,4 +1,7 @@
 #include "objectpaging.hpp"
+#include "occlusionculling.hpp"
+
+#include <components/sceneutil/occlusionculling.hpp>
 
 #include <unordered_map>
 
@@ -384,9 +387,10 @@ namespace MWRender
         }
     };
 
-    ObjectPaging::ObjectPaging(Resource::SceneManager* sceneManager)
+    ObjectPaging::ObjectPaging(Resource::SceneManager* sceneManager, SceneUtil::OcclusionCuller* occlusionCuller)
             : GenericResourceManager<ChunkId>(nullptr)
          , mSceneManager(sceneManager)
+         , mOcclusionCuller(occlusionCuller)
          , mRefTrackerLocked(false)
     {
         mActiveGrid = Settings::Manager::getBool("object paging active grid", "Terrain");
@@ -396,6 +400,8 @@ namespace MWRender
         mMinSizeMergeFactor = Settings::Manager::getFloat("object paging min size merge factor", "Terrain");
         mMinSizeCostMultiplier = Settings::Manager::getFloat("object paging min size cost multiplier", "Terrain");
     }
+
+    ObjectPaging::~ObjectPaging() = default;
 
     osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
@@ -566,6 +572,17 @@ namespace MWRender
         osgUtil::StateToCompile stateToCompile(0, nullptr);
         CopyOp copyop;
         copyop.mCopyMask = copyMask;
+
+        const bool buildOccluders = mOcclusionCuller.valid()
+            && Settings::Manager::getBool("occlusion culling", "Camera")
+            && Settings::Manager::getBool("occlusion culling statics", "Camera");
+        osg::ref_ptr<PagedOccluderData> pagedOccluderData;
+        const float occluderMinRadius = Settings::Manager::getFloat("occlusion occluder min radius", "Camera");
+        const int occluderMeshRes = Settings::Manager::getInt("occlusion occluder mesh resolution", "Camera");
+        const int occluderMaxMeshRes = Settings::Manager::getInt("occlusion occluder max mesh resolution", "Camera");
+        const float occluderShrinkFactor = Settings::Manager::getFloat("occlusion occluder shrink factor", "Camera");
+        if (buildOccluders)
+            pagedOccluderData = new PagedOccluderData;
         for (const auto& pair : nodes)
         {
             const osg::Node* cnode = pair.first;
@@ -607,6 +624,30 @@ namespace MWRender
                 copyop.mViewVector = (viewPoint - worldCenter);
                 copyop.copy(cnode, trans);
                 copyop.mNodePath.pop_back();
+
+                if (pagedOccluderData.valid() && cnode->getBound().valid())
+                {
+                    const float scaledRadius = cnode->getBound().radius() * ref.mScale;
+                    if (scaledRadius >= occluderMinRadius)
+                    {
+                        int adaptiveRes = occluderMeshRes;
+                        if (occluderMinRadius > 0.f && scaledRadius > occluderMinRadius)
+                        {
+                            const float scale = scaledRadius / occluderMinRadius;
+                            adaptiveRes = std::max(occluderMeshRes, std::min(occluderMaxMeshRes, static_cast<int>(occluderMeshRes * scale)));
+                        }
+                        OccluderMesh occMesh = buildSimplifiedMesh(trans.get(), adaptiveRes, occluderShrinkFactor);
+                        if (!occMesh.indices.empty())
+                        {
+                            for (std::vector<osg::Vec3f>::iterator it = occMesh.vertices.begin(); it != occMesh.vertices.end(); ++it)
+                                *it += worldCenter;
+                            occMesh.aabb = osg::BoundingBox();
+                            for (std::vector<osg::Vec3f>::const_iterator it = occMesh.vertices.begin(); it != occMesh.vertices.end(); ++it)
+                                occMesh.aabb.expandBy(*it);
+                            pagedOccluderData->mOccluderMeshes.push_back(occMesh);
+                        }
+                    }
+                }
 
                 if (activeGrid)
                 {
@@ -686,6 +727,12 @@ namespace MWRender
             group->addCullCallback(new SceneUtil::LightListCallback);
         }
         udc->addUserObject(templateRefs);
+        if (pagedOccluderData.valid() && !pagedOccluderData->mOccluderMeshes.empty())
+        {
+            udc->addUserObject(pagedOccluderData);
+            if (mOcclusionCuller.valid())
+                group->addCullCallback(new PagedOccluderCallback(mOcclusionCuller.get(), Settings::Manager::getFloat("occlusion occluder max distance", "Camera")));
+        }
 
         return group;
     }

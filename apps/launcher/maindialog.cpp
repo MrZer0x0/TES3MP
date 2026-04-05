@@ -13,6 +13,8 @@
 
 #include "playpage.hpp"
 #include "graphicspage.hpp"
+#include <QTextStream>
+#include <QFile>
 #include "datafilespage.hpp"
 #include "settingspage.hpp"
 #include "advancedpage.hpp"
@@ -127,9 +129,25 @@ void Launcher::MainDialog::createPages()
     mSettingsPage = new SettingsPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mAdvancedPage = new AdvancedPage(mGameSettings, this);
 
-    // Set the combobox of the play page to imitate the combobox on the datafilespage
-    mPlayPage->setProfilesModel(mDataFilesPage->profilesModel());
-    mPlayPage->setProfilesIndex(mDataFilesPage->profilesIndex());
+    {
+        QString cfgPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str()) + "/tes3mp-client-default.cfg";
+        QFile cfgFile(cfgPath);
+        QString addr = "localhost", port = "25565";
+        if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream in(&cfgFile);
+            while (!in.atEnd())
+            {
+                QString line = in.readLine().trimmed();
+                if (line.startsWith("destinationAddress"))
+                    addr = line.section('=', 1).trimmed();
+                else if (line.startsWith("port") && !line.startsWith("password"))
+                    port = line.section('=', 1).trimmed();
+            }
+        }
+        mPlayPage->setServerAddress(addr);
+        mPlayPage->setServerPort(port);
+    }
 
     // Add the pages to the stacked widget
     pagesWidget->addWidget(mPlayPage);
@@ -143,8 +161,6 @@ void Launcher::MainDialog::createPages()
 
     connect(mPlayPage, SIGNAL(playButtonClicked()), this, SLOT(play()));
 
-    connect(mPlayPage, SIGNAL(signalProfileChanged(int)), mDataFilesPage, SLOT(slotProfileChanged(int)));
-    connect(mDataFilesPage, SIGNAL(signalProfileChanged(int)), mPlayPage, SLOT(setProfilesIndex(int)));
     // Using Qt::QueuedConnection because signal is emitted in a subthread and slot is in the main thread
     connect(mDataFilesPage, SIGNAL(signalLoadedCellsChanged(QStringList)), mAdvancedPage, SLOT(slotLoadedCellsChanged(QStringList)), Qt::QueuedConnection);
 
@@ -422,32 +438,40 @@ bool Launcher::MainDialog::setupGraphicsSettings()
 
     // Ensure to clear previous settings in case we had already loaded settings.
     mEngineSettings.clear();
-
-    // Create the settings manager and load default settings file
+    // Load default settings. Prefer defaults.bin when available, but also
+    // support a plain settings-default.cfg for portable/client-only builds.
     const std::string localDefault = (mCfgMgr.getLocalPath() / "defaults.bin").string();
     const std::string globalDefault = (mCfgMgr.getGlobalPath() / "defaults.bin").string();
+    const std::string localDefaultCfg = (mCfgMgr.getLocalPath() / "settings-default.cfg").string();
+    const std::string globalDefaultCfg = (mCfgMgr.getGlobalPath() / "settings-default.cfg").string();
     std::string defaultPath;
+    bool defaultIsTextCfg = false;
 
-    // Prefer the defaults.bin in the current directory.
     if (boost::filesystem::exists(localDefault))
         defaultPath = localDefault;
     else if (boost::filesystem::exists(globalDefault))
         defaultPath = globalDefault;
-    // Something's very wrong if we can't find the file at all.
+    else if (boost::filesystem::exists(localDefaultCfg))
+    {
+        defaultPath = localDefaultCfg;
+        defaultIsTextCfg = true;
+    }
+    else if (boost::filesystem::exists(globalDefaultCfg))
+    {
+        defaultPath = globalDefaultCfg;
+        defaultIsTextCfg = true;
+    }
     else {
         cfgError(tr("Error reading OpenMW configuration file"),
-                 tr("<br><b>Could not find defaults.bin</b><br><br> \
-                     The problem may be due to an incomplete installation of OpenMW.<br> \
-                     Reinstalling OpenMW may resolve the problem."));
+                 tr("<br><b>Could not find defaults.bin or settings-default.cfg</b><br><br>                      The problem may be due to an incomplete installation of OpenMW.<br>                      Reinstalling OpenMW may resolve the problem."));
         return false;
     }
 
-    // Load the default settings, report any parsing errors.
     try {
-        mEngineSettings.loadDefault(defaultPath);
+        mEngineSettings.loadDefault(defaultPath, !defaultIsTextCfg);
     }
     catch (std::exception& e) {
-        std::string msg = std::string("<br><b>Error reading defaults.bin</b><br><br>") + e.what();
+        std::string msg = std::string("<br><b>Error reading default settings</b><br><br>") + e.what();
         cfgError(tr("Error reading OpenMW configuration file"), tr(msg.c_str()));
         return false;
     }
@@ -610,9 +634,46 @@ void Launcher::MainDialog::play()
         return;
     }
 
-    // Launch the game detached
+    {
+        QString cfgPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str()) + "/tes3mp-client-default.cfg";
+        QFile cfgFile(cfgPath);
+        QStringList lines;
+        bool foundAddr = false, foundPort = false;
+        if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream in(&cfgFile);
+            while (!in.atEnd()) lines << in.readLine();
+            cfgFile.close();
+        }
+        const QString newAddr = mPlayPage->serverAddress();
+        const QString newPort = mPlayPage->serverPort();
+        for (QString& line : lines)
+        {
+            const QString t = line.trimmed();
+            if (t.startsWith("destinationAddress"))
+            {
+                line = "destinationAddress = " + newAddr;
+                foundAddr = true;
+            }
+            else if (t.startsWith("port") && !t.startsWith("password"))
+            {
+                line = "port = " + newPort;
+                foundPort = true;
+            }
+        }
+        if (!foundAddr) lines << "destinationAddress = " + newAddr;
+        if (!foundPort) lines << "port = " + newPort;
+        if (cfgFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        {
+            QTextStream out(&cfgFile);
+            for (const QString& line : lines) out << line << "\n";
+        }
+    }
 
-    if (mGameInvoker->startProcess(QLatin1String("tes3mp-browser"), true))
+    QStringList arguments;
+    arguments.append(QLatin1String("--connect=") + mPlayPage->serverAddress() + QLatin1String(":") + mPlayPage->serverPort());
+
+    if (mGameInvoker->startProcess(QLatin1String("tes3mp"), arguments, true))
         return qApp->quit();
 }
 

@@ -22,9 +22,7 @@ data=./data
 data-local="?userdata?data"
 resources=./resources
 
-fallback-archive=Morrowind.bsa
-fallback-archive=Tribunal.bsa
-fallback-archive=Bloodmoon.bsa
+# BSA archives are attached automatically at startup when present in the data directories.
 
 script-blacklist=Museum
 script-blacklist=MockChangeScript
