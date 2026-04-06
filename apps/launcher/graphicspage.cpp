@@ -3,6 +3,7 @@
 #include <QDesktopWidget>
 #include <QMessageBox>
 #include <QDir>
+#include <QGuiApplication>
 #include <QScreen>
 
 #ifdef MAC_OS_X_VERSION_MIN_REQUIRED
@@ -14,6 +15,53 @@
 #include <SDL_video.h>
 
 #include <numeric>
+
+QString getAspect(int x, int y);
+
+namespace
+{
+    QString formatResolutionLabel(int width, int height)
+    {
+        QString resolution = QString::number(width) + QString(" x ") + QString::number(height);
+
+        const QString aspect = getAspect(width, height);
+        if (aspect == QLatin1String("16:9") || aspect == QLatin1String("16:10"))
+            resolution.append(QObject::tr("	(Wide ") + aspect + QLatin1String(")"));
+        else if (aspect == QLatin1String("4:3"))
+            resolution.append(QObject::tr("	(Standard 4:3)"));
+
+        return resolution;
+    }
+
+    void populateFallbackDisplayInfo(QComboBox* screenComboBox, QVector<QStringList>& resolutionsPerScreen)
+    {
+        screenComboBox->clear();
+        resolutionsPerScreen.clear();
+
+        const QList<QScreen*> screens = QGuiApplication::screens();
+        for (int i = 0; i < screens.size(); ++i)
+        {
+            const QRect geometry = screens[i]->geometry();
+            QStringList resolutions;
+            if (geometry.width() > 0 && geometry.height() > 0)
+                resolutions.append(formatResolutionLabel(geometry.width(), geometry.height()));
+
+            if (resolutions.isEmpty())
+                resolutions.append(QStringLiteral("800 x 600"));
+
+            resolutions.removeDuplicates();
+            resolutionsPerScreen.append(resolutions);
+            screenComboBox->addItem(QObject::tr("Screen ") + QString::number(i + 1));
+        }
+
+        if (resolutionsPerScreen.isEmpty())
+        {
+            resolutionsPerScreen.append(QStringList{QStringLiteral("800 x 600")});
+            screenComboBox->addItem(QObject::tr("Screen 1"));
+        }
+    }
+}
+
 
 #include <components/files/configurationmanager.hpp>
 
@@ -53,32 +101,50 @@ Launcher::GraphicsPage::GraphicsPage(QWidget *parent)
 
 bool Launcher::GraphicsPage::setupSDL()
 {
-    bool sdlConnectSuccessful = initSDL();
+    const bool sdlConnectSuccessful = initSDL();
     if (!sdlConnectSuccessful)
     {
-        return false;
+        populateFallbackDisplayInfo(screenComboBox, mResolutionsPerScreen);
+        screenChanged(0);
+        return true;
     }
 
-    int displays = SDL_GetNumVideoDisplays();
+    const int displays = SDL_GetNumVideoDisplays();
 
     if (displays < 0)
     {
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(tr("Error receiving number of screens"));
-        msgBox.setIcon(QMessageBox::Critical);
-        msgBox.setStandardButtons(QMessageBox::Ok);
-        msgBox.setText(tr("<br><b>SDL_GetNumVideoDisplays failed:</b><br><br>") + QString::fromUtf8(SDL_GetError()) + "<br>");
-        msgBox.exec();
-        return false;
+        populateFallbackDisplayInfo(screenComboBox, mResolutionsPerScreen);
+        quitSDL();
+        screenChanged(0);
+        return true;
     }
 
     screenComboBox->clear();
     mResolutionsPerScreen.clear();
     for (int i = 0; i < displays; i++)
     {
-        mResolutionsPerScreen.append(getAvailableResolutions(i));
+        QStringList resolutions = getAvailableResolutions(i);
+        if (resolutions.isEmpty())
+        {
+            const QList<QScreen*> screens = QGuiApplication::screens();
+            if (i >= 0 && i < screens.size())
+            {
+                const QRect geometry = screens[i]->geometry();
+                if (geometry.width() > 0 && geometry.height() > 0)
+                    resolutions.append(formatResolutionLabel(geometry.width(), geometry.height()));
+            }
+        }
+
+        if (resolutions.isEmpty())
+            resolutions.append(QStringLiteral("800 x 600"));
+
+        mResolutionsPerScreen.append(resolutions);
         screenComboBox->addItem(QString(tr("Screen ")) + QString::number(i + 1));
     }
+
+    if (mResolutionsPerScreen.isEmpty())
+        populateFallbackDisplayInfo(screenComboBox, mResolutionsPerScreen);
+
     screenChanged(0);
 
     // Disconnect from SDL processes
@@ -112,7 +178,11 @@ bool Launcher::GraphicsPage::loadSettings()
     int width = Settings::Manager::getInt("resolution x", "Video");
     int height = Settings::Manager::getInt("resolution y", "Video");
     QString resolution = QString::number(width) + QString(" x ") + QString::number(height);
-    screenComboBox->setCurrentIndex(Settings::Manager::getInt("screen", "Video"));
+
+    int screenIndex = Settings::Manager::getInt("screen", "Video");
+    if (screenIndex < 0 || screenIndex >= screenComboBox->count())
+        screenIndex = 0;
+    screenComboBox->setCurrentIndex(screenIndex);
 
     int resIndex = resolutionComboBox->findText(resolution, Qt::MatchStartsWith);
 
@@ -351,10 +421,11 @@ QRect Launcher::GraphicsPage::getMaximumResolution()
 
 void Launcher::GraphicsPage::screenChanged(int screen)
 {
-    if (screen >= 0) {
-        resolutionComboBox->clear();
-        resolutionComboBox->addItems(mResolutionsPerScreen[screen]);
-    }
+    if (screen < 0 || screen >= mResolutionsPerScreen.size())
+        return;
+
+    resolutionComboBox->clear();
+    resolutionComboBox->addItems(mResolutionsPerScreen[screen]);
 }
 
 void Launcher::GraphicsPage::slotFullScreenChanged(int state)

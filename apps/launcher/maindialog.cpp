@@ -10,6 +10,8 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include <QTextCodec>
+#include <QGuiApplication>
+#include <QScreen>
 
 #include "playpage.hpp"
 #include "graphicspage.hpp"
@@ -496,24 +498,31 @@ bool Launcher::MainDialog::setupGraphicsSettings()
 
 void Launcher::MainDialog::loadSettings()
 {
-    bool widthOk = false;
-    bool heightOk = false;
-    bool posXOk = false;
-    bool posYOk = false;
+    bool hasWidth = false;
+    bool hasHeight = false;
+    const int width = mLauncherSettings.value(QString("General/MainWindow/width")).toInt(&hasWidth);
+    const int height = mLauncherSettings.value(QString("General/MainWindow/height")).toInt(&hasHeight);
 
-    const int savedWidth = mLauncherSettings.value(QString("General/MainWindow/width")).toInt(&widthOk);
-    const int savedHeight = mLauncherSettings.value(QString("General/MainWindow/height")).toInt(&heightOk);
-    const int savedPosX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt(&posXOk);
-    const int savedPosY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt(&posYOk);
+    if (hasWidth && hasHeight && width >= minimumWidth() && height >= minimumHeight())
+        resize(width, height);
 
-    const QSize minimum = minimumSizeHint().expandedTo(minimumSize());
-    const int width = widthOk && savedWidth > 0 ? std::max(savedWidth, minimum.width()) : this->width();
-    const int height = heightOk && savedHeight > 0 ? std::max(savedHeight, minimum.height()) : this->height();
+    bool hasPosX = false;
+    bool hasPosY = false;
+    const int posX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt(&hasPosX);
+    const int posY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt(&hasPosY);
 
-    resize(width, height);
+    if (!hasPosX || !hasPosY)
+        return;
 
-    if (posXOk && posYOk)
-        move(savedPosX, savedPosY);
+    const QRect targetGeometry(QPoint(posX, posY), size());
+    for (QScreen* screen : QGuiApplication::screens())
+    {
+        if (screen->availableGeometry().intersects(targetGeometry))
+        {
+            move(posX, posY);
+            return;
+        }
+    }
 }
 
 void Launcher::MainDialog::saveSettings()
