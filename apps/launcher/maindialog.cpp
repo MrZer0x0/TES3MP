@@ -496,14 +496,24 @@ bool Launcher::MainDialog::setupGraphicsSettings()
 
 void Launcher::MainDialog::loadSettings()
 {
-    int width = mLauncherSettings.value(QString("General/MainWindow/width")).toInt();
-    int height = mLauncherSettings.value(QString("General/MainWindow/height")).toInt();
+    bool widthOk = false;
+    bool heightOk = false;
+    bool posXOk = false;
+    bool posYOk = false;
 
-    int posX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt();
-    int posY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt();
+    const int savedWidth = mLauncherSettings.value(QString("General/MainWindow/width")).toInt(&widthOk);
+    const int savedHeight = mLauncherSettings.value(QString("General/MainWindow/height")).toInt(&heightOk);
+    const int savedPosX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt(&posXOk);
+    const int savedPosY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt(&posYOk);
+
+    const QSize minimum = minimumSizeHint().expandedTo(minimumSize());
+    const int width = widthOk && savedWidth > 0 ? std::max(savedWidth, minimum.width()) : this->width();
+    const int height = heightOk && savedHeight > 0 ? std::max(savedHeight, minimum.height()) : this->height();
 
     resize(width, height);
-    move(posX, posY);
+
+    if (posXOk && posYOk)
+        move(savedPosX, savedPosY);
 }
 
 void Launcher::MainDialog::saveSettings()
