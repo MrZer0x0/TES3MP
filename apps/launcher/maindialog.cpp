@@ -10,8 +10,6 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include <QTextCodec>
-#include <QGuiApplication>
-#include <QScreen>
 
 #include "playpage.hpp"
 #include "graphicspage.hpp"
@@ -479,8 +477,7 @@ bool Launcher::MainDialog::setupGraphicsSettings()
     }
 
     // Load user settings if they exist
-    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
-    const std::string userPath = settingsPath.string();
+    const std::string userPath = (mCfgMgr.getUserConfigPath() / "settings.cfg").string();
     // User settings are not required to exist, so if they don't we're done.
     if (!boost::filesystem::exists(userPath)) return true;
 
@@ -498,31 +495,14 @@ bool Launcher::MainDialog::setupGraphicsSettings()
 
 void Launcher::MainDialog::loadSettings()
 {
-    bool hasWidth = false;
-    bool hasHeight = false;
-    const int width = mLauncherSettings.value(QString("General/MainWindow/width")).toInt(&hasWidth);
-    const int height = mLauncherSettings.value(QString("General/MainWindow/height")).toInt(&hasHeight);
+    int width = mLauncherSettings.value(QString("General/MainWindow/width")).toInt();
+    int height = mLauncherSettings.value(QString("General/MainWindow/height")).toInt();
 
-    if (hasWidth && hasHeight && width >= minimumWidth() && height >= minimumHeight())
-        resize(width, height);
+    int posX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt();
+    int posY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt();
 
-    bool hasPosX = false;
-    bool hasPosY = false;
-    const int posX = mLauncherSettings.value(QString("General/MainWindow/posx")).toInt(&hasPosX);
-    const int posY = mLauncherSettings.value(QString("General/MainWindow/posy")).toInt(&hasPosY);
-
-    if (!hasPosX || !hasPosY)
-        return;
-
-    const QRect targetGeometry(QPoint(posX, posY), size());
-    for (QScreen* screen : QGuiApplication::screens())
-    {
-        if (screen->availableGeometry().intersects(targetGeometry))
-        {
-            move(posX, posY);
-            return;
-        }
-    }
+    resize(width, height);
+    move(posX, posY);
 }
 
 void Launcher::MainDialog::saveSettings()
@@ -582,15 +562,13 @@ bool Launcher::MainDialog::writeSettings()
     file.close();
 
     // Graphics settings
-    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
-    if (!settingsPath.parent_path().empty())
-        boost::filesystem::create_directories(settingsPath.parent_path());
+    const std::string settingsPath = (mCfgMgr.getUserConfigPath() / "settings.cfg").string();
     try {
-        mEngineSettings.saveUser(settingsPath.string());
+        mEngineSettings.saveUser(settingsPath);
     }
     catch (std::exception& e) {
         std::string msg = "<br><b>Error writing settings.cfg</b><br><br>" +
-            settingsPath.string() + "<br><br>" + e.what();
+            settingsPath + "<br><br>" + e.what();
         cfgError(tr("Error writing user settings file"), tr(msg.c_str()));
         return false;
     }
