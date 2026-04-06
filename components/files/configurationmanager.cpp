@@ -9,6 +9,15 @@
 
 #include <boost/filesystem/fstream.hpp>
 #include <boost/system/error_code.hpp>
+
+#include <cstdlib>
+
+#if defined(_WIN32) || defined(__WINDOWS__)
+#include <cstring>
+#include <shlobj.h>
+#include <boost/locale.hpp>
+namespace bconv = boost::locale::conv;
+#endif
 /**
  * \namespace Files
  */
@@ -19,6 +28,21 @@ namespace
         boost::system::error_code dirErr;
         boost::filesystem::create_directories(path, dirErr);
         return boost::filesystem::is_directory(path);
+    }
+
+    boost::filesystem::path getDocumentsPath()
+    {
+#if defined(_WIN32) || defined(__WINDOWS__)
+        WCHAR path[MAX_PATH + 1];
+        std::memset(path, 0, sizeof(path));
+        if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL | CSIDL_FLAG_CREATE, nullptr, 0, path)))
+            return boost::filesystem::path(bconv::utf_to_utf<char>(path));
+        return boost::filesystem::path(".");
+#else
+        if (const char* home = std::getenv("HOME"))
+            return boost::filesystem::path(home) / "Documents";
+        return boost::filesystem::path(".");
+#endif
     }
 }
 
@@ -404,6 +428,20 @@ namespace Files
     const boost::filesystem::path& ConfigurationManager::getScreenshotPath() const
     {
         return mScreenshotPath;
+    }
+
+    boost::filesystem::path ConfigurationManager::getDocumentsSettingsPath() const
+    {
+        return getDocumentsPath() / "NirnSave" / "OpenMW" / "settings.cfg";
+    }
+
+    boost::filesystem::path ConfigurationManager::getPrimarySettingsPath() const
+    {
+        const boost::filesystem::path documentsSettings = getDocumentsSettingsPath();
+        if (boost::filesystem::exists(documentsSettings))
+            return documentsSettings;
+
+        return mUserConfigPath / "settings.cfg";
     }
 
 } /* namespace Cfg */

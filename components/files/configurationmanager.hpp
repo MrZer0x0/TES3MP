@@ -66,6 +66,13 @@ namespace Files
         const boost::filesystem::path& getLogPath() const;
         const boost::filesystem::path& getScreenshotPath() const;
 
+        /// Return Documents/NirnSave/OpenMW/settings.cfg when it exists,
+        /// otherwise fall back to the TES3MP user settings path.
+        boost::filesystem::path getPrimarySettingsPath() const;
+
+        /// Return Documents/NirnSave/OpenMW/settings.cfg regardless of whether it exists.
+        boost::filesystem::path getDocumentsSettingsPath() const;
+
     private:
         typedef Files::FixedPath<> FixedPathType;
 

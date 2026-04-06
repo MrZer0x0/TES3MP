@@ -810,7 +810,7 @@ std::string OMW::Engine::loadSettings (Settings::Manager & settings)
     else
         throw std::runtime_error("No default settings file found! Make sure \"defaults.bin\" or \"settings-default.cfg\" was properly installed.");
 
-    const boost::filesystem::path settingsPath = mCfgMgr.getUserConfigPath() / "settings.cfg";
+    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
     ensureDisplaySettingsFile(settingsPath);
 
     // load user settings if they exist

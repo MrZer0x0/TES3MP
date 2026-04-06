@@ -477,7 +477,8 @@ bool Launcher::MainDialog::setupGraphicsSettings()
     }
 
     // Load user settings if they exist
-    const std::string userPath = (mCfgMgr.getUserConfigPath() / "settings.cfg").string();
+    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
+    const std::string userPath = settingsPath.string();
     // User settings are not required to exist, so if they don't we're done.
     if (!boost::filesystem::exists(userPath)) return true;
 
@@ -562,13 +563,15 @@ bool Launcher::MainDialog::writeSettings()
     file.close();
 
     // Graphics settings
-    const std::string settingsPath = (mCfgMgr.getUserConfigPath() / "settings.cfg").string();
+    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
+    if (!settingsPath.parent_path().empty())
+        boost::filesystem::create_directories(settingsPath.parent_path());
     try {
-        mEngineSettings.saveUser(settingsPath);
+        mEngineSettings.saveUser(settingsPath.string());
     }
     catch (std::exception& e) {
         std::string msg = "<br><b>Error writing settings.cfg</b><br><br>" +
-            settingsPath + "<br><br>" + e.what();
+            settingsPath.string() + "<br><br>" + e.what();
         cfgError(tr("Error writing user settings file"), tr(msg.c_str()));
         return false;
     }
