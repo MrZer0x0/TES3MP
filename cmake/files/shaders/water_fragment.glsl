@@ -64,6 +64,14 @@ const float LOD_NEAR = 1000.0;  // Полное качество
 const float LOD_MID = 2000.0;   // Средние волны выключаются
 const float LOD_FAR = 3000.0;   // Мелкие волны выключаются
 
+// ----------------------- ПОВЕРХНОСТНАЯ ТЕНЬ / ДЫМКА / ЛЮМЕНЫ -----------------------
+const float WATER_SHADOW_MIN = 0.42;
+const float WATER_SHADOW_FRESNEL_RELIEF = 0.16;
+const float HAZE_DIST_START = 180.0;
+const float HAZE_DIST_END = 2200.0;
+const float LUMEN_MAX_DIST = 950.0;
+const float LUMEN_GRID_SCALE = 0.035;
+
 // ========================================================================
 // УТИЛИТЫ (оптимизированы)
 // ========================================================================
@@ -352,6 +360,93 @@ float linearizeDepth(float depth) {
     return 2.0 * near * far / (far + near - z * frustumDepth);
 }
 
+
+float dawnFactor(float hour) {
+    return smoothstep(4.5, 5.8, hour) * (1.0 - smoothstep(7.0, 8.6, hour));
+}
+
+float duskFactor(float hour) {
+    return smoothstep(17.0, 18.3, hour) * (1.0 - smoothstep(19.6, 21.0, hour));
+}
+
+float deepNightFactor(float hour) {
+    return clamp(max(smoothstep(20.0, 22.0, hour), 1.0 - smoothstep(4.0, 5.8, hour)), 0.0, 1.0);
+}
+
+float waterSurfaceShadow(float shadow, vec3 normal, vec3 lightDir, float fresnel, float night) {
+    float lit = clamp(dot(normal, lightDir) * 0.65 + 0.35, 0.0, 1.0);
+    float minBrightness = WATER_SHADOW_MIN + fresnel * WATER_SHADOW_FRESNEL_RELIEF;
+    minBrightness = mix(minBrightness, min(0.82, minBrightness + 0.10), night);
+    float shaded = mix(minBrightness, 1.0, clamp(shadow, 0.0, 1.0));
+    return mix(1.0, shaded, lit);
+}
+
+vec3 applyWaterHaze(vec3 color, float hour, float distCam, vec3 viewDir, vec3 lightDir, float night) {
+    float dawn = dawnFactor(hour);
+    float dusk = duskFactor(hour);
+    float deepNight = deepNightFactor(hour);
+
+    float horizon = pow(1.0 - clamp(abs(dot(viewDir, vec3(0.0, 0.0, 1.0))), 0.0, 1.0), 1.35);
+    float distFade = smoothstep(HAZE_DIST_START, HAZE_DIST_END, distCam);
+
+    vec3 warmHaze = vec3(0.14, 0.10, 0.06);
+    vec3 coolHaze = vec3(0.05, 0.09, 0.12);
+    vec3 hazeColor = warmHaze * (dawn + dusk * 1.15) + coolHaze * (deepNight * 0.85 + night * 0.20);
+
+    float hazeStrength = horizon * distFade *
+        (0.035 * (dawn + dusk) + 0.025 * deepNight + 0.008 * night);
+    hazeStrength *= mix(0.9, 1.08, clamp(lightDir.z * 0.5 + 0.5, 0.0, 1.0));
+
+    return clamp(color + hazeColor * clamp(hazeStrength, 0.0, 0.18), 0.0, 1.0);
+}
+
+vec3 luminescentParticles(vec2 worldXY, float time, float hour, float distCam, float rainAmount) {
+    float dusk = duskFactor(hour);
+    float deepNight = deepNightFactor(hour);
+    float active = clamp(max(deepNight, dusk * 0.55) * (1.0 - rainAmount * 0.85), 0.0, 1.0);
+
+    if (active <= 0.001 || distCam >= LUMEN_MAX_DIST)
+        return vec3(0.0);
+
+    vec2 uv = worldXY * LUMEN_GRID_SCALE;
+    vec2 cell = floor(uv);
+    vec2 f = fract(uv);
+
+    vec3 glow = vec3(0.0);
+
+    for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+            vec2 id = cell + vec2(float(ox), float(oy));
+            float seed = hash(id + vec2(8.3, 1.7));
+            float presence = step(0.76, seed);
+
+            vec2 baseRnd = randOffset(id + vec2(0.31, 0.79));
+            float speed = mix(0.22, 0.55, hash(id + vec2(4.1, 2.6)));
+            float phase = hash(id + vec2(9.9, 5.7)) * 6.28318 + time * speed;
+
+            vec2 drift = vec2(sin(phase), cos(phase * 1.37)) *
+                         (0.10 + 0.08 * hash(id + vec2(7.2, 6.4)));
+            vec2 motePos = vec2(float(ox), float(oy)) + baseRnd + drift;
+
+            vec2 delta = f - motePos;
+            float dist2 = dot(delta, delta);
+
+            float flicker = 0.72 + 0.28 * sin(time * (1.4 + seed) + seed * 18.0);
+            float core = exp(-dist2 * 30.0);
+            float halo = exp(-dist2 * 8.0);
+
+            vec3 moteColor = mix(vec3(0.05, 0.36, 0.24),
+                                 vec3(0.14, 0.82, 0.62),
+                                 hash(id + vec2(2.1, 3.4)));
+
+            glow += moteColor * (core * 1.15 + halo * 0.22) * flicker * presence;
+        }
+    }
+
+    float distFade = 1.0 - smoothstep(420.0, LUMEN_MAX_DIST, distCam);
+    return glow * active * distFade * 0.12;
+}
+
 // ========================================================================
 // MAIN
 // ========================================================================
@@ -365,6 +460,7 @@ void main(void) {
 
     vec3 camPos = (gl_ModelViewMatrixInverse * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     float shadow = unshadowedLightRatio(linearDepth);
+    float surfaceView = step(-0.05, camPos.z);
 
     vec2 screenCoords = screenCoordsPassthrough.xy / screenCoordsPassthrough.z;
     screenCoords.y = 1.0 - screenCoords.y;
@@ -386,7 +482,7 @@ void main(void) {
     // LOD СИСТЕМА (ключевая оптимизация)
     // ========================================================================
     
-    float distCam = length(position.xyz - camPos.xyz);
+    float distCam = length(worldPos.xyz - camPos.xyz);
     
     // LOD факторы: 0 = близко (все детали), 1 = далеко (минимум деталей)
     float lodMid = smoothstep(LOD_NEAR, LOD_MID, distCam);
@@ -422,7 +518,7 @@ void main(void) {
     
     vec4 rain = vec4(0.0, 0.0, 1.0, 0.0);
     if (rainIntensity > RAIN_THRESHOLD && distCam < LOD_MID) {
-        rain = rainCombined(position.xy * 0.001, wTime, rainIntensity);
+        rain = rainCombined(worldPos.xy * 0.001, wTime, rainIntensity);
     }
     
     // ========================================================================
@@ -455,7 +551,7 @@ void main(void) {
     
     vec3 L = fastNormalize((gl_ModelViewMatrixInverse * 
              vec4(gl_LightSource[0].position.xyz, 0.0)).xyz);
-    vec3 V = fastNormalize(position.xyz - camPos.xyz);
+    vec3 V = fastNormalize(worldPos.xyz - camPos.xyz);
     
     float sunFade = length(gl_LightSource[0].diffuse.xyz + 
                     0.33 * gl_LightModel.ambient.xyz);
@@ -463,6 +559,9 @@ void main(void) {
     // ✅ ОПТИМИЗАЦИЯ 3: Кэширование bool и использование в условиях
     bool isNightBool = L.z <= 0.05;
     float isNight = isNightBool ? 1.0 : 0.0;
+    float dawnAmt = dawnFactor(timeOfDay);
+    float duskAmt = duskFactor(timeOfDay);
+    float deepNightAmt = deepNightFactor(timeOfDay);
     
     // ✅ ОПТИМИЗАЦИЯ 1: Общие вычисления освещения ДО #if REFRACTION
     vec3 lightCol = gl_LightSource[0].diffuse.xyz + gl_LightModel.ambient.xyz;
@@ -472,8 +571,7 @@ void main(void) {
     lightCol += AMBIENT_DIST * distF * DIST_BOOST;
     
     // ✅ ОПТИМИЗАЦИЯ 2: Вынесли sunDir из if для shore breakers
-    vec3 sunDir = fastNormalize((gl_ModelViewMatrixInverse * 
-                  vec4(gl_LightSource[0].position.xyz, 0.0)).xyz);
+    vec3 sunDir = L;
     
     // ========================================================================
     // FRESNEL
@@ -570,6 +668,14 @@ void main(void) {
         finalCol += vec3(isNight * 0.15 * max(dot(normal, L), 0.0));
         finalCol += AMBIENT_DIST * distF * DIST_BOOST * 0.3;
 
+        float surfaceShadow = waterSurfaceShadow(shadow, normal, L, fFinal, isNight);
+        finalCol *= surfaceShadow;
+        finalCol += waterColorDepth(max(waterDepth, 8.0), vec3(1.0), isNight) * (1.0 - surfaceShadow) * 0.08;
+
+        finalCol = applyWaterHaze(finalCol, timeOfDay, distCam, V, L, isNight);
+        finalCol += luminescentParticles(worldPos.xy, osg_SimulationTime * 0.65, timeOfDay, distCam, rainIntensity) *
+                    (0.35 + 0.65 * max(0.0, 1.0 - dawnAmt * 0.6)) * surfaceView;
+
         vec3 tint = dayTint(timeOfDay);
         gl_FragData[0].xyz = clamp(mix(finalCol, finalCol * tint, 0.06), 0.0, 1.0);
         gl_FragData[0].w = 1.0;
@@ -612,6 +718,15 @@ void main(void) {
         finalCol += vec3(isNight * 0.15 * max(dot(normal, L), 0.0));
         finalCol += AMBIENT_DIST * distF * DIST_BOOST * 0.3;
 
+        float surfaceShadow = waterSurfaceShadow(shadow, normal, L, fFinal, isNight);
+        finalCol *= surfaceShadow;
+        finalCol += waterCol * (1.0 - surfaceShadow) * 0.10;
+
+        finalCol = applyWaterHaze(finalCol, timeOfDay, distCam, V, L, isNight);
+        vec3 lumenGlow = luminescentParticles(worldPos.xy, osg_SimulationTime * 0.65, timeOfDay, distCam, rainIntensity) *
+                         (0.50 + 0.50 * deepNightAmt + 0.20 * duskAmt) * surfaceView;
+        finalCol += lumenGlow;
+
         vec3 tint = dayTint(timeOfDay);
         gl_FragData[0].xyz = clamp(mix(finalCol, finalCol * tint, 0.06), 0.0, 1.0);
 
@@ -622,6 +737,7 @@ void main(void) {
         float maxAlphaLimit = mix(0.72, 0.66, distanceFade);
 
         float alpha = clamp(1.0 - fFinal * 0.72, minAlpha, maxAlphaLimit);
+        alpha = max(alpha, clamp(length(lumenGlow) * 0.45, minAlpha, maxAlphaLimit));
         gl_FragData[0].w = alpha;
     }
 
@@ -630,7 +746,7 @@ void main(void) {
     // ========================================================================
     
 #if @radialFog
-    float radialDepth = distance(position.xyz, camPos);
+    float radialDepth = distance(worldPos.xyz, camPos);
     float fogVal = clamp((radialDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
 #else
     float fogVal = clamp((linearDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);

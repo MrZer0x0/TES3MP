@@ -71,9 +71,9 @@ void main()
 #endif
 
 #if @parallax
-    vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
+    vec3 parallaxCameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
     vec3 objectPos = (gl_ModelViewMatrixInverse * vec4(passViewPos, 1)).xyz;
-    vec3 eyeDir = normalize(cameraPos - objectPos);
+    vec3 eyeDir = normalize(parallaxCameraPos - objectPos);
     adjustedUV += getParallaxOffset(eyeDir, tbnTranspose, normalTex.a, 1.f);
 
     // update normal using new coordinates

@@ -115,9 +115,9 @@ void main()
 #endif
 
 #if @parallax
-    vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
+    vec3 parallaxCameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
     vec3 objectPos = (gl_ModelViewMatrixInverse * vec4(passViewPos, 1)).xyz;
-    vec3 eyeDir = normalize(cameraPos - objectPos);
+    vec3 eyeDir = normalize(parallaxCameraPos - objectPos);
     vec2 offset = getParallaxOffset(eyeDir, tbnTranspose, normalTex.a, (passTangent.w > 0.0) ? -1.f : 1.f);
     adjustedDiffuseUV += offset; // only offset diffuse for now, other textures are more likely to be using a completely different UV set
 

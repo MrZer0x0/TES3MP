@@ -115,9 +115,9 @@ void main()
 #endif
 
 #if @parallax
-    vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
+    vec3 parallaxCameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
     vec3 objectPos = (gl_ModelViewMatrixInverse * vec4(passViewPos, 1)).xyz;
-    vec3 eyeDir = normalize(cameraPos - objectPos);
+    vec3 eyeDir = normalize(parallaxCameraPos - objectPos);
     vec2 offset = getParallaxOffset(eyeDir, tbnTranspose, normalTex.a, (passTangent.w > 0.0) ? -1.f : 1.f);
     adjustedDiffuseUV += offset; // only offset diffuse for now, other textures are more likely to be using a completely different UV set
 
@@ -232,9 +232,9 @@ void main()
     // ==========================================================================
     
     // Проверяем позицию КАМЕРЫ
-    vec3 waveCameraPos = (osg_ViewMatrixInverse * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    float cameraWaterH = zDoWaveSimple(waveCameraPos.xy, osg_SimulationTime);
-    bool cameraUnderwater = waveCameraPos.z < cameraWaterH;
+    vec3 cameraPos = (osg_ViewMatrixInverse * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float cameraWaterH = zDoWaveSimple(cameraPos.xy, osg_SimulationTime);
+    bool cameraUnderwater = cameraPos.z < cameraWaterH;
     
     // Check if we're in interior
     vec3 sunPos = lcalcPosition(0);
@@ -250,7 +250,7 @@ void main()
     // ОГРАНИЧЕНИЕ КАУСТИКИ ПО ДИСТАНЦИИ
     // ==========================================================================
     // Рассчитываем дистанцию от камеры до фрагмента
-    float distanceToFragment = length(wPos.xy - waveCameraPos.xy);
+    float distanceToFragment = length(wPos.xy - cameraPos.xy);
     
     // Плавное затухание каустики на дальних расстояниях
     float causticsFade = 1.0;
