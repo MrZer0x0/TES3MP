@@ -30,6 +30,12 @@ namespace
     {
         return root->findChild<T*>(QString::fromLatin1(name));
     }
+
+    template <class T>
+    const T* uiFind(const QWidget* root, const char* name)
+    {
+        return root->findChild<T*>(QString::fromLatin1(name));
+    }
 }
 
 #define activeGridObjectPagingCheckBox uiFind<QCheckBox>(this, "activeGridObjectPagingCheckBox")
@@ -98,6 +104,7 @@ namespace
 #define startDefaultCharacterAtLabel uiFind<QLabel>(this, "startDefaultCharacterAtLabel")
 #define stealingFromKnockedOutCheckBox uiFind<QCheckBox>(this, "stealingFromKnockedOutCheckBox")
 #define stretchBackgroundCheckBox uiFind<QCheckBox>(this, "stretchBackgroundCheckBox")
+#define timePlayedCheckbox uiFind<QCheckBox>(this, "timePlayedCheckbox")
 #define swimUpwardCorrectionCheckBox uiFind<QCheckBox>(this, "swimUpwardCorrectionCheckBox")
 #define toggleSneakCheckBox uiFind<QCheckBox>(this, "toggleSneakCheckBox")
 #define trainersTrainingSkillsBasedOnBaseSkillCheckBox uiFind<QCheckBox>(this, "trainersTrainingSkillsBasedOnBaseSkillCheckBox")

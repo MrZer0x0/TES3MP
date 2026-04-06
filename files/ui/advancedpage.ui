@@ -1191,6 +1191,9 @@ True: In non-combat mode camera is positioned behind the character's shoulder. C
            </rect>
           </property>
           <layout class="QVBoxLayout" name="osgPatchScrollContentsLayout">
+          <property name="sizeConstraint">
+           <enum>QLayout::SetMinAndMaxSize</enum>
+          </property>
            <item>
             <widget class="QLabel" name="testingLabel">
          <property name="text">
