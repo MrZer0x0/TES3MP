@@ -62,10 +62,8 @@ namespace MWGui
 
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
-        MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox, *mPingBox;
-        MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame, *mEnemyHealthFrame;
-        MyGUI::Widget *mHealthBorder, *mMagickaBorder, *mFatigueBorder, *mEnemyHealthBorder;
-        MyGUI::Widget *mWeapStatusBorder, *mSpellStatusBorder;
+        MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
+        MyGUI::Widget* mHealthFrame;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
         SpellWidget *mSpellImage;
@@ -77,7 +75,7 @@ namespace MWGui
         MyGUI::TextBox* mCellNameBox;
         MyGUI::TextBox* mWeaponSpellBox;
         MyGUI::TextBox* mGameTimeBox;
-        MyGUI::Widget *mDrowningFrame, *mDrowningBorder, *mDrowningFlash;
+        MyGUI::Widget *mDrowningFrame, *mDrowningFlash;
 
         // bottom left elements
         int mHealthManaStaminaBaseLeft, mWeapBoxBaseLeft, mSpellBoxBaseLeft, mSneakBoxBaseLeft;
@@ -106,20 +104,8 @@ namespace MWGui
         float mEnemyHealthTimer;
 
         float mFpsUpdateTimer;
-        float mPingUpdateTimer;
         float mFpsAccumulatedTime;
         int mFpsFrameCount;
-
-        float mHealthVisibilityTimer;
-        float mMagickaVisibilityTimer;
-        float mFatigueVisibilityTimer;
-
-        int mLastHealthCurrent;
-        int mLastHealthModified;
-        int mLastMagickaCurrent;
-        int mLastMagickaModified;
-        int mLastFatigueCurrent;
-        int mLastFatigueModified;
 
         bool  mIsDrowning;
         float mDrowningFlashTheta;
@@ -137,12 +123,6 @@ namespace MWGui
         void doorMarkerCreated(MyGUI::Widget* marker) override;
 
         void updateEnemyHealthBar();
-        void cacheOriginalCoord(MyGUI::Widget* widget);
-        void updateCenteredBar(MyGUI::Widget* frame, MyGUI::ProgressBar* bar, float ratio, int paddingX = 2, int paddingY = 2, MyGUI::TextBox* text = nullptr);
-        void updatePingPosition();
-        float getVisibilityTimeout(int current, int modified) const;
-        void showAutoHideWidget(MyGUI::Widget* widget, float& timer, float timeout);
-        void updateAutoHideWidget(MyGUI::Widget* widget, float& timer, float dt);
 
         void updatePositions();
     };
