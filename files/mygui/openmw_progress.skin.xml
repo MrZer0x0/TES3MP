@@ -76,7 +76,7 @@
     <Resource type="ResourceSkin" name="MW_Progress_Drowning_Full" size="64 6">
         <Property key="TrackSkin" value="MW_Progress_Drowning_Full_Small"/>
         <Property key="TrackFill" value="1"/>
-        <Child type="Widget" skin="TransparentBG" offset="2 2 60 2" align="Stretch" name="Client"/>
+        <Child type="Widget" skin="TransparentBG" offset="0 0 64 6" align="Stretch" name="Client"/>
     </Resource>
 
     <Resource type="ResourceSkin" name="MW_ProgressScroll_Loading" size="64 6">
@@ -86,7 +86,7 @@
         <Property key="VerticalAlignment" value="false"/>
         <Property key="MoveToClick" value="false"/>
 
-        <Child type="Widget" skin="TransparentBG" offset="2 2 60 2" align="Stretch" name="Client"/>
+        <Child type="Widget" skin="TransparentBG" offset="0 0 64 6" align="Stretch" name="Client"/>
         <Child type="Button" skin="MW_Progress_Loading_Small" offset="0 0 1 6" align="Left VStretch" name="Track"/>
 
         <Child type="Widget" skin="MW_Box" offset="0 0 64 6" align="Stretch"/>

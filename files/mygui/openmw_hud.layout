@@ -142,17 +142,13 @@
 		
 		       <!-- Map box -->
         <Widget type="Widget" skin="" position="200 40 90 90" name="MiniMapBox" align="Right Top">
-            <Widget type="Widget" skin="HUD_Box" position="0 0 90 90" align="Center">
+            <Widget type="ScrollView" skin="MW_MapView" position="0 0 90 90" align="Stretch" name="MiniMap">
+                <Widget type="ImageBox" skin="RotatingSkin" position="0 0 30 30" align="Bottom Left" name="Compass">
+                    <Property key="ImageTexture" value="textures\compass.dds"/>
+                </Widget>
 
-                <Widget type="ScrollView" skin="MW_MapView" position="2 2 86 86" align="Left Bottom" name="MiniMap">
-                    <Widget type="ImageBox" skin="RotatingSkin" position="0 0 30 30" align="Bottom Left" name="Compass">
-                        <Property key="ImageTexture" value="textures\compass.dds"/>
-                    </Widget>
-
-                    <Widget type="Button" skin="" position_real="0 0 1 1" name="MiniMapButton" align="Stretch">
-                        <Property key="Depth" value="10"/>
-                    </Widget>
-
+                <Widget type="Button" skin="" position_real="0 0 1 1" name="MiniMapButton" align="Stretch">
+                    <Property key="Depth" value="10"/>
                 </Widget>
 
             </Widget>

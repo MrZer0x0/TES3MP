@@ -120,6 +120,9 @@ namespace MWGui
         , mMagickaText(nullptr)
         , mStaminaText(nullptr)
         , mFpsBox(nullptr)
+        , mHealthFrame(nullptr)
+        , mMagickaFrame(nullptr)
+        , mFatigueFrame(nullptr)
         , mWeapImage(nullptr)
         , mSpellImage(nullptr)
         , mWeapStatus(nullptr)
@@ -142,6 +145,8 @@ namespace MWGui
         , mGameTimeUpdateTimer(0.f)
         , mMapVisible(true)
         , mWeaponVisible(true)
+        , mHmsVisible(true)
+        , mDrowningBarEnabled(false)
         , mSpellVisible(true)
         , mWorldMouseOver(false)
         , mEnemyActorId(-1)
@@ -151,11 +156,39 @@ namespace MWGui
         , mFpsFrameCount(0)
         , mIsDrowning(false)
         , mDrowningFlashTheta(0.f)
+        , mHealthShowTimer(5.f)
+        , mMagickaShowTimer(5.f)
+        , mStaminaShowTimer(5.f)
+        , mDrowningShowTimer(0.f)
+        , mHealthAlpha(1.f)
+        , mMagickaAlpha(1.f)
+        , mStaminaAlpha(1.f)
+        , mDrowningAlpha(0.f)
+        , mLastHealthRatio(-1.f)
+        , mLastMagickaRatio(-1.f)
+        , mLastStaminaRatio(-1.f)
+        , mLastDrowningRatio(-1.f)
+        , mHealthBarBaseLeft(0)
+        , mHealthBarBaseWidth(0)
+        , mMagickaBarBaseLeft(0)
+        , mMagickaBarBaseWidth(0)
+        , mStaminaBarBaseLeft(0)
+        , mStaminaBarBaseWidth(0)
+        , mWeapStatusBaseLeft(0)
+        , mWeapStatusBaseWidth(0)
+        , mSpellStatusBaseLeft(0)
+        , mSpellStatusBaseWidth(0)
+        , mEnemyHealthBaseLeft(0)
+        , mEnemyHealthBaseWidth(0)
+        , mDrowningBarBaseLeft(0)
+        , mDrowningBarBaseWidth(0)
     {
         mMainWidget->setSize(MyGUI::RenderManager::getInstance().getViewSize());
 
         // Energy bars
         getWidget(mHealthFrame, "HealthFrame");
+        getWidget(mMagickaFrame, "MagickaFrame");
+        getWidget(mFatigueFrame, "FatigueFrame");
         getWidget(mHealth, "Health");
         getWidget(mMagicka, "Magicka");
         getWidget(mStamina, "Stamina");
@@ -165,20 +198,26 @@ namespace MWGui
         getWidget(mStaminaText, "StaminaText");
         getWidget(mFpsBox, "FpsText");
         mHealthManaStaminaBaseLeft = mHealthFrame->getLeft();
+        mHealthBarBaseLeft = mHealth->getLeft();
+        mHealthBarBaseWidth = mHealth->getWidth();
+        mMagickaBarBaseLeft = mMagicka->getLeft();
+        mMagickaBarBaseWidth = mMagicka->getWidth();
+        mStaminaBarBaseLeft = mStamina->getLeft();
+        mStaminaBarBaseWidth = mStamina->getWidth();
+        mEnemyHealthBaseLeft = mEnemyHealth->getLeft();
+        mEnemyHealthBaseWidth = mEnemyHealth->getWidth();
 
-        MyGUI::Widget *healthFrame, *magickaFrame, *fatigueFrame;
-        getWidget(healthFrame, "HealthFrame");
-        getWidget(magickaFrame, "MagickaFrame");
-        getWidget(fatigueFrame, "FatigueFrame");
-        healthFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
-        magickaFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
-        fatigueFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mHealthFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mMagickaFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mFatigueFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
 
         //Drowning bar
         getWidget(mDrowningFrame, "DrowningFrame");
         getWidget(mDrowning, "Drowning");
         getWidget(mDrowningFlash, "Flash");
         mDrowning->setProgressRange(200);
+        mDrowningBarBaseLeft = mDrowning->getLeft();
+        mDrowningBarBaseWidth = mDrowning->getWidth();
 
         const MyGUI::IntSize& viewSize = MyGUI::RenderManager::getInstance().getViewSize();
 
@@ -187,12 +226,16 @@ namespace MWGui
         getWidget(mWeapImage, "WeapImage");
         getWidget(mWeapStatus, "WeapStatus");
         mWeapBoxBaseLeft = mWeapBox->getLeft();
+        mWeapStatusBaseLeft = mWeapStatus->getLeft();
+        mWeapStatusBaseWidth = mWeapStatus->getWidth();
         mWeapBox->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onWeaponClicked);
 
         getWidget(mSpellBox, "SpellBox");
         getWidget(mSpellImage, "SpellImage");
         getWidget(mSpellStatus, "SpellStatus");
         mSpellBoxBaseLeft = mSpellBox->getLeft();
+        mSpellStatusBaseLeft = mSpellStatus->getLeft();
+        mSpellStatusBaseWidth = mSpellStatus->getWidth();
         mSpellBox->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onMagicClicked);
 
         getWidget(mSneakBox, "SneakBox");
@@ -232,6 +275,50 @@ namespace MWGui
         delete mSpellIcons;
     }
 
+    namespace
+    {
+        const float sAutoHideDelay = 2.5f;
+        const float sAutoHideFadeSpeed = 3.5f;
+        const float sHudEpsilon = 0.001f;
+        const int sMinBarWidth = 8;
+    }
+
+    void HUD::touchBarTimer(float& timer)
+    {
+        timer = sAutoHideDelay;
+    }
+
+    void HUD::updateBarGeometry(MyGUI::Widget* widget, int baseLeft, int baseWidth, float ratio)
+    {
+        ratio = std::max(0.f, std::min(1.f, ratio));
+        const int width = ratio <= 0.f ? 0 : std::max(sMinBarWidth, static_cast<int>(std::round(baseWidth * ratio)));
+        const int center = baseLeft + baseWidth / 2;
+        widget->setPosition(center - width / 2, widget->getTop());
+        widget->setSize(width, widget->getHeight());
+        widget->setVisible(width > 0);
+        if (auto* bar = widget->castType<MyGUI::ProgressBar>(false))
+        {
+            bar->setProgressRange(1);
+            bar->setProgressPosition(width > 0 ? 1 : 0);
+        }
+    }
+
+    void HUD::updateAutoHide(float dt, MyGUI::Widget* widget, float& alpha, float& timer, bool shouldShow)
+    {
+        if (timer > 0.f)
+            timer = std::max(0.f, timer - dt);
+
+        const float target = shouldShow ? 1.f : 0.f;
+        const float step = sAutoHideFadeSpeed * dt;
+        if (alpha < target)
+            alpha = std::min(target, alpha + step);
+        else if (alpha > target)
+            alpha = std::max(target, alpha - step);
+
+        widget->setVisible(alpha > 0.01f);
+        widget->setAlpha(alpha);
+    }
+
     void HUD::setValue(const std::string& id, const MWMechanics::DynamicStat<float>& value)
     {
         int current = static_cast<int>(value.getCurrent());
@@ -245,8 +332,11 @@ namespace MWGui
         std::string valStr = MyGUI::utility::toString(current) + " / " + MyGUI::utility::toString(modified);
         if (id == "HBar")
         {
-            mHealth->setProgressRange(std::max(0, modified));
-            mHealth->setProgressPosition(std::max(0, current));
+            const float ratio = modified > 0 ? std::max(0.f, std::min(1.f, current / static_cast<float>(modified))) : 0.f;
+            updateBarGeometry(mHealth, mHealthBarBaseLeft, mHealthBarBaseWidth, ratio);
+            if (std::fabs(ratio - mLastHealthRatio) > sHudEpsilon)
+                touchBarTimer(mHealthShowTimer);
+            mLastHealthRatio = ratio;
             if (mHealthText)
                 mHealthText->setCaption(valStr);
             getWidget(w, "HealthFrame");
@@ -254,8 +344,11 @@ namespace MWGui
         }
         else if (id == "MBar")
         {
-            mMagicka->setProgressRange(std::max(0, modified));
-            mMagicka->setProgressPosition(std::max(0, current));
+            const float ratio = modified > 0 ? std::max(0.f, std::min(1.f, current / static_cast<float>(modified))) : 0.f;
+            updateBarGeometry(mMagicka, mMagickaBarBaseLeft, mMagickaBarBaseWidth, ratio);
+            if (std::fabs(ratio - mLastMagickaRatio) > sHudEpsilon)
+                touchBarTimer(mMagickaShowTimer);
+            mLastMagickaRatio = ratio;
             if (mMagickaText)
                 mMagickaText->setCaption(valStr);
             getWidget(w, "MagickaFrame");
@@ -263,8 +356,11 @@ namespace MWGui
         }
         else if (id == "FBar")
         {
-            mStamina->setProgressRange(std::max(0, modified));
-            mStamina->setProgressPosition(std::max(0, current));
+            const float ratio = modified > 0 ? std::max(-1.f, std::min(1.f, current / static_cast<float>(modified))) : 0.f;
+            updateBarGeometry(mStamina, mStaminaBarBaseLeft, mStaminaBarBaseWidth, std::fabs(ratio));
+            if (std::fabs(ratio - mLastStaminaRatio) > sHudEpsilon)
+                touchBarTimer(mStaminaShowTimer);
+            mLastStaminaRatio = ratio;
             if (mStaminaText)
                 mStaminaText->setCaption(valStr);
             getWidget(w, "FatigueFrame");
@@ -274,8 +370,12 @@ namespace MWGui
 
     void HUD::setDrowningTimeLeft(float time, float maxTime)
     {
-        size_t progress = static_cast<size_t>(time / maxTime * 200);
-        mDrowning->setProgressPosition(progress);
+        const float ratio = maxTime > 0.f ? std::max(0.f, std::min(1.f, time / maxTime)) : 0.f;
+        size_t progress = static_cast<size_t>(ratio * 200);
+        updateBarGeometry(mDrowning, mDrowningBarBaseLeft, mDrowningBarBaseWidth, ratio);
+        if (std::fabs(ratio - mLastDrowningRatio) > sHudEpsilon)
+            touchBarTimer(mDrowningShowTimer);
+        mLastDrowningRatio = ratio;
 
         bool isDrowning = (progress == 0);
         if (isDrowning && !mIsDrowning) // Just started drowning
@@ -287,6 +387,11 @@ namespace MWGui
 
     void HUD::setDrowningBarVisible(bool visible)
     {
+        mDrowningBarEnabled = visible;
+        if (visible)
+            touchBarTimer(mDrowningShowTimer);
+        else
+            mDrowningShowTimer = 0.f;
         mDrowningFrame->setVisible(visible);
     }
 
@@ -480,6 +585,16 @@ namespace MWGui
             mFpsFrameCount = 0;
         }
 
+        const bool showHealth = mHmsVisible && (mHealthShowTimer > 0.f || mLastHealthRatio < 0.999f);
+        const bool showMagicka = mHmsVisible && (mMagickaShowTimer > 0.f || mLastMagickaRatio < 0.999f);
+        const bool showStamina = mHmsVisible && (mStaminaShowTimer > 0.f || mLastStaminaRatio < 0.999f);
+        const bool showDrowning = mDrowningBarEnabled && (mDrowningShowTimer > 0.f || mLastDrowningRatio < 0.999f);
+
+        updateAutoHide(dt, mHealthFrame, mHealthAlpha, mHealthShowTimer, showHealth);
+        updateAutoHide(dt, mMagickaFrame, mMagickaAlpha, mMagickaShowTimer, showMagicka);
+        updateAutoHide(dt, mFatigueFrame, mStaminaAlpha, mStaminaShowTimer, showStamina);
+        updateAutoHide(dt, mDrowningFrame, mDrowningAlpha, mDrowningShowTimer, showDrowning);
+
         mEnemyHealthTimer -= dt;
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0)
         {
@@ -519,8 +634,9 @@ namespace MWGui
             mWeaponSpellBox->setVisible(true);
         }
 
-        mSpellStatus->setProgressRange(100);
-        mSpellStatus->setProgressPosition(successChancePercent);
+        const float ratio = std::max(0.f, std::min(1.f, successChancePercent / 100.f));
+        updateBarGeometry(mSpellStatus, mSpellStatusBaseLeft, mSpellStatusBaseWidth, ratio);
+        touchBarTimer(mMagickaShowTimer);
 
         mSpellBox->setUserString("ToolTipType", "Spell");
         mSpellBox->setUserString("Spell", spellId);
@@ -548,8 +664,9 @@ namespace MWGui
             mWeaponSpellBox->setVisible(true);
         }
 
-        mSpellStatus->setProgressRange(100);
-        mSpellStatus->setProgressPosition(chargePercent);
+        const float ratio = std::max(0.f, std::min(1.f, chargePercent / 100.f));
+        updateBarGeometry(mSpellStatus, mSpellStatusBaseLeft, mSpellStatusBaseWidth, ratio);
+        touchBarTimer(mMagickaShowTimer);
 
         mSpellBox->setUserString("ToolTipType", "ItemPtr");
         mSpellBox->setUserData(MWWorld::Ptr(item));
@@ -572,8 +689,9 @@ namespace MWGui
         mWeapBox->setUserString("ToolTipType", "ItemPtr");
         mWeapBox->setUserData(MWWorld::Ptr(item));
 
-        mWeapStatus->setProgressRange(100);
-        mWeapStatus->setProgressPosition(durabilityPercent);
+        const float ratio = std::max(0.f, std::min(1.f, durabilityPercent / 100.f));
+        updateBarGeometry(mWeapStatus, mWeapStatusBaseLeft, mWeapStatusBaseWidth, ratio);
+        touchBarTimer(mStaminaShowTimer);
 
         mWeapImage->setItem(item);
     }
@@ -589,8 +707,8 @@ namespace MWGui
             mWeaponSpellBox->setVisible(true);
         }
 
-        mSpellStatus->setProgressRange(100);
-        mSpellStatus->setProgressPosition(0);
+        updateBarGeometry(mSpellStatus, mSpellStatusBaseLeft, mSpellStatusBaseWidth, 0.f);
+        touchBarTimer(mMagickaShowTimer);
         mSpellImage->setItem(MWWorld::Ptr());
         mSpellBox->clearUserStrings();
     }
@@ -606,8 +724,8 @@ namespace MWGui
             mWeaponSpellBox->setVisible(true);
         }
 
-        mWeapStatus->setProgressRange(100);
-        mWeapStatus->setProgressPosition(0);
+        updateBarGeometry(mWeapStatus, mWeapStatusBaseLeft, mWeapStatusBaseWidth, 0.f);
+        touchBarTimer(mStaminaShowTimer);
 
         MWBase::World *world = MWBase::Environment::get().getWorld();
         MWWorld::Ptr player = world->getPlayerPtr();
@@ -642,9 +760,19 @@ namespace MWGui
     
     void HUD::setHmsVisible(bool visible)
     {
-        mHealth->setVisible(visible);
-        mMagicka->setVisible(visible);
-        mStamina->setVisible(visible);
+        mHmsVisible = visible;
+        if (visible)
+        {
+            touchBarTimer(mHealthShowTimer);
+            touchBarTimer(mMagickaShowTimer);
+            touchBarTimer(mStaminaShowTimer);
+        }
+        else
+        {
+            mHealthShowTimer = 0.f;
+            mMagickaShowTimer = 0.f;
+            mStaminaShowTimer = 0.f;
+        }
         updatePositions();
     }
 
@@ -681,7 +809,7 @@ namespace MWGui
     void HUD::updatePositions()
     {
         int weapDx = 0, spellDx = 0, sneakDx = 0;
-        if (!mHealth->getVisible())
+        if (!mHmsVisible)
             sneakDx = spellDx = weapDx = mWeapBoxBaseLeft - mHealthManaStaminaBaseLeft;
 
         if (!mWeapBox->getVisible())
@@ -722,10 +850,10 @@ namespace MWGui
         if (enemy.isEmpty())
             return;
         MWMechanics::CreatureStats& stats = enemy.getClass().getCreatureStats(enemy);
-        mEnemyHealth->setProgressRange(100);
-        // Health is usually cast to int before displaying. Actors die whenever they are < 1 health.
-        // Therefore any value < 1 should show as an empty health bar. We do the same in statswindow :)
-        mEnemyHealth->setProgressPosition(static_cast<size_t>(stats.getHealth().getCurrent() / stats.getHealth().getModified() * 100));
+        const float ratio = stats.getHealth().getModified() > 0.f
+            ? std::max(0.f, std::min(1.f, stats.getHealth().getCurrent() / stats.getHealth().getModified()))
+            : 0.f;
+        updateBarGeometry(mEnemyHealth, mEnemyHealthBaseLeft, mEnemyHealthBaseWidth, ratio);
 
         static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
         if (fNPCHealthBarFade > 0.f)

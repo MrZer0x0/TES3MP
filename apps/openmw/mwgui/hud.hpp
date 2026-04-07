@@ -63,7 +63,7 @@ namespace MWGui
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
         MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
-        MyGUI::Widget* mHealthFrame;
+        MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
         SpellWidget *mSpellImage;
@@ -109,6 +109,37 @@ namespace MWGui
 
         bool  mIsDrowning;
         float mDrowningFlashTheta;
+
+        bool mHmsVisible;
+        bool mDrowningBarEnabled;
+
+        float mHealthShowTimer;
+        float mMagickaShowTimer;
+        float mStaminaShowTimer;
+        float mDrowningShowTimer;
+
+        float mHealthAlpha;
+        float mMagickaAlpha;
+        float mStaminaAlpha;
+        float mDrowningAlpha;
+
+        float mLastHealthRatio;
+        float mLastMagickaRatio;
+        float mLastStaminaRatio;
+        float mLastDrowningRatio;
+
+        int mHealthBarBaseLeft, mHealthBarBaseWidth;
+        int mMagickaBarBaseLeft, mMagickaBarBaseWidth;
+        int mStaminaBarBaseLeft, mStaminaBarBaseWidth;
+        int mWeapStatusBaseLeft, mWeapStatusBaseWidth;
+        int mSpellStatusBaseLeft, mSpellStatusBaseWidth;
+        int mEnemyHealthBaseLeft, mEnemyHealthBaseWidth;
+        int mDrowningBarBaseLeft, mDrowningBarBaseWidth;
+
+        void updateBarGeometry(MyGUI::Widget* widget, int baseLeft, int baseWidth, float ratio);
+        void updateAutoHide(float dt, MyGUI::Widget* widget, float& alpha, float& timer, bool shouldShow);
+        void touchBarTimer(float& timer);
+
 
         void onWorldClicked(MyGUI::Widget* _sender);
         void onWorldMouseOver(MyGUI::Widget* _sender, int x, int y);
