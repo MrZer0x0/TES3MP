@@ -297,8 +297,7 @@ namespace MWGui
             if (mHealthText)
                 mHealthText->setCaption(valStr);
             getWidget(w, "HealthFrame");
-            w->setUserString("Caption_HealthDescription", "#{sHealthDesc}
-" + valStr);
+            w->setUserString("Caption_HealthDescription", "#{sHealthDesc}" + valStr);
             updateCenteredBar(mHealthBorder, mHealth, modified > 0 ? static_cast<float>(current) / static_cast<float>(modified) : 0.f, 2, 2, mHealthText);
 
             if (current != mLastHealthCurrent || modified != mLastHealthModified)
@@ -315,8 +314,7 @@ namespace MWGui
             if (mMagickaText)
                 mMagickaText->setCaption(valStr);
             getWidget(w, "MagickaFrame");
-            w->setUserString("Caption_HealthDescription", "#{sMagDesc}
-" + valStr);
+            w->setUserString("Caption_HealthDescription", "#{sMagDesc}" + valStr);
             updateCenteredBar(mMagickaBorder, mMagicka, modified > 0 ? static_cast<float>(current) / static_cast<float>(modified) : 0.f, 2, 2, mMagickaText);
 
             if (current != mLastMagickaCurrent || modified != mLastMagickaModified)
@@ -333,8 +331,7 @@ namespace MWGui
             if (mStaminaText)
                 mStaminaText->setCaption(valStr);
             getWidget(w, "FatigueFrame");
-            w->setUserString("Caption_HealthDescription", "#{sFatDesc}
-" + valStr);
+            w->setUserString("Caption_HealthDescription", "#{sFatDesc}" + valStr);
             updateCenteredBar(mFatigueBorder, mStamina, modified != 0 ? static_cast<float>(current) / static_cast<float>(modified) : 0.f, 2, 2, mStaminaText);
 
             if (current != mLastFatigueCurrent || modified != mLastFatigueModified)
