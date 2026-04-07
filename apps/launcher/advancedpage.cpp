@@ -20,6 +20,21 @@ Launcher::AdvancedPage::AdvancedPage(Config::GameSettings &gameSettings, QWidget
     setObjectName ("AdvancedPage");
     setupUi(this);
 
+    // Keep the advanced tabs focused on the most useful launcher settings.
+    if (animationsGroup)
+        animationsGroup->hide();
+
+    if (AdvancedTabWidget)
+    {
+        const int bugFixesIndex = AdvancedTabWidget->indexOf(BugFixes);
+        if (bugFixesIndex != -1)
+            AdvancedTabWidget->removeTab(bugFixesIndex);
+
+        const int miscellaneousIndex = AdvancedTabWidget->indexOf(Miscellaneous);
+        if (miscellaneousIndex != -1)
+            AdvancedTabWidget->removeTab(miscellaneousIndex);
+    }
+
     connect(osgPresetApplyButton, &QPushButton::clicked,
             this, &Launcher::AdvancedPage::slotApplyOsgPreset);
     connect(osgPresetComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
