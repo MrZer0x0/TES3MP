@@ -302,7 +302,7 @@ bool Launcher::MainDialog::setupLauncherSettings()
 
     QStringList paths;
     paths.append(QString(Config::LauncherSettings::sLauncherConfigFileName));
-    paths.append(userPath + QString(Config::LauncherSettings::sLauncherConfigFileName));
+    paths.append(QDir(userPath).filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
 
     for (const QString &path : paths)
     {
@@ -337,7 +337,7 @@ bool Launcher::MainDialog::setupGameSettings()
 
     // Load the user config file first, separately
     // So we can write it properly, uncontaminated
-    QString path = userPath + QLatin1String("openmw.cfg");
+    QString path = QDir(userPath).filePath(QLatin1String("openmw.cfg"));
     QFile file(path);
 
     qDebug() << "Loading config file:" << path.toUtf8().constData();
@@ -359,9 +359,9 @@ bool Launcher::MainDialog::setupGameSettings()
 
     // Now the rest - priority: user > local > global
     QStringList paths;
-    paths.append(globalPath + QString("openmw.cfg"));
-    paths.append(localPath + QString("openmw.cfg"));
-    paths.append(userPath + QString("openmw.cfg"));
+    paths.append(QDir(globalPath).filePath(QString("openmw.cfg")));
+    paths.append(QDir(localPath).filePath(QString("openmw.cfg")));
+    paths.append(QDir(userPath).filePath(QString("openmw.cfg")));
 
     for (const QString &path2 : paths)
     {
@@ -546,7 +546,7 @@ bool Launcher::MainDialog::writeSettings()
     }
 
     // Game settings
-    QFile file(userPath + QString("openmw.cfg"));
+    QFile file(QDir(userPath).filePath(QString("openmw.cfg")));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text)) {
         // File cannot be opened or created
@@ -574,7 +574,7 @@ bool Launcher::MainDialog::writeSettings()
     }
 
     // Launcher settings
-    file.setFileName(userPath + QString(Config::LauncherSettings::sLauncherConfigFileName));
+    file.setFileName(QDir(userPath).filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text | QIODevice::Truncate)) {
         // File cannot be opened or created
