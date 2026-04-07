@@ -1,7 +1,9 @@
 #include "importer.hpp"
 
 #include <iostream>
+#include <algorithm>
 #include <sstream>
+#include <set>
 #include <components/misc/stringops.hpp>
 #include <components/esm/esmreader.hpp>
 
@@ -785,7 +787,117 @@ void MwIniImporter::insertMultistrmap(multistrmap &cfg, const std::string& key, 
     cfg[key].push_back(value);
 }
 
-void MwIniImporter::importArchives(multistrmap &cfg, const multistrmap &ini) const {
+namespace
+{
+    std::string normalizeArchiveName(const std::string& name)
+    {
+        std::string value = name;
+        Misc::StringUtils::lowerCaseInPlace(value);
+        return value;
+    }
+
+    bool fileExistsInPaths(const std::vector<std::string>& paths, const std::string& fileName)
+    {
+        for (std::vector<std::string>::const_iterator it = paths.begin(); it != paths.end(); ++it)
+        {
+            if (it->empty())
+                continue;
+
+            bfs::path path(*it);
+            if (bfs::exists(path / fileName))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool archiveExists(const MwIniImporter::multistrmap& cfg, const boost::filesystem::path& iniFilename,
+        const std::string& archiveName)
+    {
+        MwIniImporter::multistrmap::const_iterator dataIt = cfg.find("data");
+        if (dataIt != cfg.end() && fileExistsInPaths(dataIt->second, archiveName))
+            return true;
+
+        MwIniImporter::multistrmap::const_iterator resourcesIt = cfg.find("resources");
+        if (resourcesIt != cfg.end() && fileExistsInPaths(resourcesIt->second, archiveName))
+            return true;
+
+        bfs::path iniDir = iniFilename.parent_path();
+        if (!iniDir.empty())
+        {
+            if (bfs::exists(iniDir / "Data Files" / archiveName))
+                return true;
+
+            if (bfs::exists(iniDir / archiveName))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool hasOriginalArchive(const std::vector<std::string>& archives)
+    {
+        for (const std::string& archive : archives)
+        {
+            const std::string normalized = normalizeArchiveName(archive);
+            if (normalized == "morrowind.bsa" || normalized == "tribunal.bsa" || normalized == "bloodmoon.bsa")
+                return true;
+        }
+
+        return false;
+    }
+
+    void appendArchiveIfPresent(std::vector<std::string>& ordered, std::set<std::string>& seen, const std::string& archive)
+    {
+        const std::string normalized = normalizeArchiveName(archive);
+        if (seen.insert(normalized).second)
+            ordered.push_back(archive);
+    }
+
+    std::vector<std::string> sortArchivesForOpenMW(const std::vector<std::string>& archives)
+    {
+        std::vector<std::string> ordered;
+        std::set<std::string> seen;
+
+        if (hasOriginalArchive(archives))
+        {
+            static const char* originals[] = { "Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa" };
+
+            for (const char* original : originals)
+            {
+                for (const std::string& archive : archives)
+                {
+                    if (Misc::StringUtils::ciEqual(archive, original))
+                    {
+                        appendArchiveIfPresent(ordered, seen, archive);
+                        break;
+                    }
+                }
+            }
+        }
+
+        std::vector<std::string> remaining;
+        for (const std::string& archive : archives)
+        {
+            if (seen.find(normalizeArchiveName(archive)) == seen.end())
+                remaining.push_back(archive);
+        }
+
+        std::sort(remaining.begin(), remaining.end(), [](const std::string& left, const std::string& right)
+        {
+            std::string leftNormalized = normalizeArchiveName(left);
+            std::string rightNormalized = normalizeArchiveName(right);
+            return leftNormalized < rightNormalized;
+        });
+
+        for (const std::string& archive : remaining)
+            appendArchiveIfPresent(ordered, seen, archive);
+
+        return ordered;
+    }
+}
+
+void MwIniImporter::importArchives(multistrmap &cfg, const multistrmap &ini, const boost::filesystem::path& iniFilename) const {
     std::vector<std::string> archives;
     std::string baseArchive("Archives:Archive ");
     std::string archive;
@@ -806,12 +918,17 @@ void MwIniImporter::importArchives(multistrmap &cfg, const multistrmap &ini) con
         }
     }
 
+    static const char* originals[] = { "Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa" };
+    for (const char* original : originals)
+    {
+        if (archiveExists(cfg, iniFilename, original))
+            archives.push_back(original);
+    }
+
+    archives = sortArchivesForOpenMW(archives);
+
     cfg.erase("fallback-archive");
     cfg.insert( std::make_pair<std::string, std::vector<std::string> > ("fallback-archive", std::vector<std::string>()));
-
-    // Add Morrowind.bsa by default, since Vanilla loads this archive even if it
-    // does not appears in the ini file
-    cfg["fallback-archive"].push_back("Morrowind.bsa");
 
     for(std::vector<std::string>::const_iterator iter=archives.begin(); iter!=archives.end(); ++iter) {
         cfg["fallback-archive"].push_back(*iter);
@@ -870,7 +987,7 @@ void MwIniImporter::addPaths(std::vector<boost::filesystem::path>& output, std::
     }
 }
 
-void MwIniImporter::importGameFiles(multistrmap &cfg, const multistrmap &ini, const boost::filesystem::path& iniFilename) const
+void MwIniImporter::importGameFiles(multistrmap &cfg, const multistrmap &ini, const boost::filesystem::path& iniFilename, bool useGroundcover) const
 {
     std::vector<std::pair<std::time_t, boost::filesystem::path>> contentFiles;
     std::string baseGameFile("Game Files:GameFile");
@@ -962,8 +1079,24 @@ void MwIniImporter::importGameFiles(multistrmap &cfg, const multistrmap &ini, co
         }
     }
 
+    cfg.erase("groundcover");
+    cfg.insert( std::make_pair("groundcover", std::vector<std::string>() ) );
+
     for (auto& file : sortedFiles)
-        cfg["content"].push_back(file);
+    {
+        if (useGroundcover && isGroundcoverFile(file))
+            cfg["groundcover"].push_back(file);
+        else
+            cfg["content"].push_back(file);
+    }
+}
+
+bool MwIniImporter::isGroundcoverFile(const std::string& file)
+{
+    std::string normalized = file;
+    Misc::StringUtils::lowerCaseInPlace(normalized);
+    return normalized.find("grass") != std::string::npos
+        || normalized.find("groundcover") != std::string::npos;
 }
 
 void MwIniImporter::writeToFile(std::ostream &out, const multistrmap &cfg) {

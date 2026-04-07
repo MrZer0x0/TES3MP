@@ -24,8 +24,8 @@ class MwIniImporter {
     void    merge(multistrmap &cfg, const multistrmap &ini) const;
     void    mergeFallback(multistrmap &cfg, const multistrmap &ini) const;
     void    importGameFiles(multistrmap &cfg, const multistrmap &ini,
-        const boost::filesystem::path& iniFilename) const;
-    void    importArchives(multistrmap &cfg, const multistrmap &ini) const;
+        const boost::filesystem::path& iniFilename, bool useGroundcover = false) const;
+    void    importArchives(multistrmap &cfg, const multistrmap &ini, const boost::filesystem::path& iniFilename) const;
     static void    writeToFile(std::ostream &out, const multistrmap &cfg);
 
     static std::vector<std::string> dependencySort(MwIniImporter::dependencyList source);
@@ -36,6 +36,7 @@ class MwIniImporter {
 
     static void insertMultistrmap(multistrmap &cfg, const std::string& key, const std::string& value);
     static void addPaths(std::vector<boost::filesystem::path>& output, std::vector<std::string> input);
+    static bool isGroundcoverFile(const std::string& file);
 
     /// \return file's "last modified time", used in original MW to determine plug-in load order
     static std::time_t lastWriteTime(const boost::filesystem::path& filename, std::time_t defaultTime);

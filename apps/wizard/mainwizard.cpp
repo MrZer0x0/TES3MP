@@ -251,6 +251,9 @@ void Wizard::MainWizard::runSettingsImporter()
             || field(QLatin1String("installation.import-addons")).toBool() == true)
         arguments.append(QLatin1String("--game-files"));
 
+    if (field(QLatin1String("installation.use-groundcover")).toBool() == true)
+        arguments.append(QLatin1String("--groundcover"));
+
     arguments.append(QLatin1String("--encoding"));
 
     // Set encoding
