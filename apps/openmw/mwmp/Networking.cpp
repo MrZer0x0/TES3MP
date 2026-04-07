@@ -509,3 +509,11 @@ bool Networking::isConnected()
 {
     return connected;
 }
+
+int Networking::getAvgPing() const
+{
+    if (!connected)
+        return -1;
+
+    return peer->GetAveragePing(serverAddr);
+}

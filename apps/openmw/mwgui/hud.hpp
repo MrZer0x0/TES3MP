@@ -62,8 +62,10 @@ namespace MWGui
 
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
-        MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
-        MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame;
+        MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox, *mPingBox;
+        MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame, *mEnemyHealthFrame;
+        MyGUI::Widget *mHealthBorder, *mMagickaBorder, *mFatigueBorder, *mEnemyHealthBorder;
+        MyGUI::Widget *mWeapStatusBorder, *mSpellStatusBorder;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
         SpellWidget *mSpellImage;
@@ -75,7 +77,7 @@ namespace MWGui
         MyGUI::TextBox* mCellNameBox;
         MyGUI::TextBox* mWeaponSpellBox;
         MyGUI::TextBox* mGameTimeBox;
-        MyGUI::Widget *mDrowningFrame, *mDrowningFlash;
+        MyGUI::Widget *mDrowningFrame, *mDrowningBorder, *mDrowningFlash;
 
         // bottom left elements
         int mHealthManaStaminaBaseLeft, mWeapBoxBaseLeft, mSpellBoxBaseLeft, mSneakBoxBaseLeft;
@@ -104,42 +106,23 @@ namespace MWGui
         float mEnemyHealthTimer;
 
         float mFpsUpdateTimer;
+        float mPingUpdateTimer;
         float mFpsAccumulatedTime;
         int mFpsFrameCount;
 
+        float mHealthVisibilityTimer;
+        float mMagickaVisibilityTimer;
+        float mFatigueVisibilityTimer;
+
+        int mLastHealthCurrent;
+        int mLastHealthModified;
+        int mLastMagickaCurrent;
+        int mLastMagickaModified;
+        int mLastFatigueCurrent;
+        int mLastFatigueModified;
+
         bool  mIsDrowning;
         float mDrowningFlashTheta;
-
-        bool mHmsVisible;
-        bool mDrowningBarEnabled;
-
-        float mHealthShowTimer;
-        float mMagickaShowTimer;
-        float mStaminaShowTimer;
-        float mDrowningShowTimer;
-
-        float mHealthAlpha;
-        float mMagickaAlpha;
-        float mStaminaAlpha;
-        float mDrowningAlpha;
-
-        float mLastHealthRatio;
-        float mLastMagickaRatio;
-        float mLastStaminaRatio;
-        float mLastDrowningRatio;
-
-        int mHealthBarBaseLeft, mHealthBarBaseWidth;
-        int mMagickaBarBaseLeft, mMagickaBarBaseWidth;
-        int mStaminaBarBaseLeft, mStaminaBarBaseWidth;
-        int mWeapStatusBaseLeft, mWeapStatusBaseWidth;
-        int mSpellStatusBaseLeft, mSpellStatusBaseWidth;
-        int mEnemyHealthBaseLeft, mEnemyHealthBaseWidth;
-        int mDrowningBarBaseLeft, mDrowningBarBaseWidth;
-
-        void updateBarGeometry(MyGUI::Widget* widget, int baseLeft, int baseWidth, float ratio);
-        void updateAutoHide(float dt, MyGUI::Widget* widget, float& alpha, float& timer, bool shouldShow);
-        void touchBarTimer(float& timer);
-
 
         void onWorldClicked(MyGUI::Widget* _sender);
         void onWorldMouseOver(MyGUI::Widget* _sender, int x, int y);
@@ -154,6 +137,12 @@ namespace MWGui
         void doorMarkerCreated(MyGUI::Widget* marker) override;
 
         void updateEnemyHealthBar();
+        void cacheOriginalCoord(MyGUI::Widget* widget);
+        void updateCenteredBar(MyGUI::Widget* frame, MyGUI::ProgressBar* bar, float ratio, int paddingX = 2, int paddingY = 2, MyGUI::TextBox* text = nullptr);
+        void updatePingPosition();
+        float getVisibilityTimeout(int current, int modified) const;
+        void showAutoHideWidget(MyGUI::Widget* widget, float& timer, float timeout);
+        void updateAutoHideWidget(MyGUI::Widget* widget, float& timer, float dt);
 
         void updatePositions();
     };

@@ -44,6 +44,7 @@ namespace mwmp
         }
 
         bool isConnected();
+        int getAvgPing() const;
 
         LocalSystem *getLocalSystem();
         LocalPlayer *getLocalPlayer();
