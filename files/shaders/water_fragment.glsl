@@ -34,9 +34,9 @@ const vec2 WIND_DIR = vec2(0.5, -0.8);
 const float WIND_SPEED = 0.2;
 
 // ----------------------- ЦВЕТА (упаковано) -----------------------
-const vec3 WATER_COLOR = vec3(0.07, 0.09, 0.055);
-const vec3 WATER_SHALLOW = vec3(0.015, 0.04, 0.07);
-const vec3 WATER_DEEP = vec3(0.015, 0.04, 0.07);
+const vec3 WATER_COLOR = vec3(0.10, 0.10, 0.045);
+const vec3 WATER_SHALLOW = vec3(0.055, 0.070, 0.028);
+const vec3 WATER_DEEP = vec3(0.040, 0.055, 0.020);
 const vec3 NIGHT_WATER = vec3(0.08, 0.12, 0.14);
 
 const vec3 AMBIENT_NIGHT = vec3(0.12, 0.15, 0.22);
@@ -45,7 +45,7 @@ const float NIGHT_BOOST = 0.25;
 const float DIST_BOOST = 0.35;
 
 const float SCATTER_AMOUNT = 0.25;
-const vec3 SCATTER_COLOUR = vec3(0.0, 1.0, 0.95);
+const vec3 SCATTER_COLOUR = vec3(0.58, 0.72, 0.20);
 const vec3 SUN_EXT = vec3(0.45, 0.55, 0.68);
 
 const vec3 SURFACE_SHADOW_TINT = vec3(0.72, 0.78, 0.82);
@@ -264,6 +264,19 @@ vec3 waterColorDepth(float depth, vec3 light, float night) {
     return clamp(base * light * 0.5, 0.0, 1.0);
 }
 
+vec3 underwaterViewTint(vec3 color, float waterDepth, float night) {
+    float depth = max(waterDepth, 0.0);
+    float balancedDepth = min(depth, 125.0);
+    vec3 attenuated = color * calculateWaterAttenuation(balancedDepth * 0.52, false);
+    vec3 scatterColor = mix(UNDERWATER_SCATTER_DAY * vec3(0.90, 0.95, 0.76), vec3(0.14, 0.14, 0.10), night);
+    float haze = clamp(1.0 - exp(-max(balancedDepth + 2.0, 0.0) * UNITS_TO_METRES * 0.24), 0.0, 0.42);
+    float clarity = 1.0 - smoothstep(6.0, 34.0, balancedDepth);
+    vec3 lifted = mix(attenuated, attenuated * vec3(1.03, 1.03, 0.99), 0.14 + clarity * 0.09);
+    vec3 uniformTint = mix(vec3(1.0), vec3(0.95, 0.98, 0.90), smoothstep(8.0, 40.0, balancedDepth));
+    return clamp(mix(lifted * uniformTint, scatterColor, haze), 0.0, 1.0);
+}
+
+
 // ========================================================================
 // TIME OF DAY TINT (упрощен)
 // ========================================================================
@@ -368,6 +381,46 @@ float frustumDepth;
 float linearizeDepth(float depth) {
     float z = 2.0 * depth - 1.0;
     return 2.0 * near * far / (far + near - z * frustumDepth);
+}
+
+vec3 underwaterBlurSample(vec2 uv, vec2 pixelOffset)
+{
+    vec3 c0 = texture2D(refractionMap, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
+    vec3 c1 = texture2D(refractionMap, clamp(uv + pixelOffset, vec2(0.001), vec2(0.999))).rgb;
+    vec3 c2 = texture2D(refractionMap, clamp(uv - pixelOffset, vec2(0.001), vec2(0.999))).rgb;
+    return (c0 * 0.50 + c1 * 0.25 + c2 * 0.25);
+}
+
+vec3 softenUnderwaterTransmission(vec3 color, vec2 uv, vec2 pixelOffset, vec3 viewDir, vec3 normal, float waterDepth, float night)
+{
+    float cosTheta = abs(dot(-viewDir, normal));
+    float grazing = 1.0 - cosTheta;
+    float veil = smoothstep(0.10, 0.92, grazing);
+    float mediumHaze = clamp(1.0 - exp(-max(waterDepth + 2.0, 0.0) * UNITS_TO_METRES * 0.46), 0.0, 0.70);
+
+    vec2 blurOffset = pixelOffset * (1.10 + veil * 1.75) + vec2(0.0010 + veil * 0.0011);
+    vec3 blurTight = underwaterBlurSample(uv, blurOffset * 0.75);
+    vec3 blurWide = underwaterBlurSample(uv, blurOffset * 1.55);
+    vec3 blurred = mix(blurTight, blurWide, 0.42 + veil * 0.24);
+
+    float blurMix = clamp(0.32 + veil * 0.34 + mediumHaze * 0.18, 0.0, 0.84);
+    vec3 softened = mix(color, blurred, blurMix);
+
+    float luma = dot(softened, vec3(0.299, 0.587, 0.114));
+    float brightMask = smoothstep(0.32, 0.90, luma) * (0.08 + veil * 0.10);
+    softened = mix(softened, softened * vec3(0.80, 0.84, 0.74), brightMask);
+
+    vec3 veilTint = mix(UNDERWATER_SCATTER_DAY * vec3(0.84, 0.90, 0.72), vec3(0.12, 0.12, 0.09), night);
+    float veilAmount = clamp(0.07 + veil * 0.15 + mediumHaze * 0.15, 0.0, 0.32);
+    return clamp(mix(softened, veilTint, veilAmount), 0.0, 1.0);
+}
+
+float underwaterSurfaceReflectance(vec3 viewDir, vec3 normal, float waterDepth)
+{
+    float cosTheta = abs(dot(-viewDir, normal));
+    float grazing = 1.0 - cosTheta;
+    float depthSoft = smoothstep(0.0, 42.0, waterDepth);
+    return clamp(0.04 + grazing * 0.18 + depthSoft * 0.04, 0.04, 0.24);
 }
 
 // ========================================================================
@@ -515,8 +568,10 @@ void main(void) {
 
         screenOff *= clamp(waterDepthUndist / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
 
-        float depthDist = linearizeDepth(texture2D(refractionDepthMap,
-                          screenCoords - screenOff).x);
+        vec2 refractedCoords = clamp(screenCoords - screenOff, vec2(0.001), vec2(0.999));
+        float depthDistSample = linearizeDepth(texture2D(refractionDepthMap, refractedCoords).x);
+        float refrValid = smoothstep(surfDepth + 0.05, surfDepth + 1.0, depthDistSample);
+        float depthDist = mix(depthUndist, depthDistSample, refrValid);
         float waterDepth = max(depthDist - surfDepth, 0.0);
         float shoreClear = shorelineTransparency(waterDepth);
 
@@ -536,17 +591,22 @@ void main(void) {
             normal = fastNormalize(normal);
         }
 
-        vec3 refl = texture2D(reflectionMap, screenCoords + screenOff).rgb;
-        vec3 refr = texture2D(refractionMap, screenCoords - screenOff).rgb;
+        vec3 refl = texture2D(reflectionMap, screenCoords + screenOff * 0.85).rgb;
+        vec2 finalRefractCoords = mix(screenCoords, refractedCoords, refrValid);
+        vec2 refractBlurDir = vec2(screenOff.x * 0.65, max(abs(screenOff.y), 0.001) * 0.85 + 0.0012);
+        vec3 refr = texture2D(refractionMap, finalRefractCoords).rgb;
 
         if (camPos.z < 0.0) {
-            refr = clamp(refr * 1.3, 0.0, 1.0);
+            float underwaterDepth = max(waterDepth, waterDepthUndist);
+            vec3 refrSoft = softenUnderwaterTransmission(refr, finalRefractCoords, refractBlurDir, V, normal, underwaterDepth, isNight);
+            refr = underwaterViewTint(refrSoft, underwaterDepth, isNight);
+            refl = underwaterViewTint(refl, max(underwaterDepth * 0.28, 0.8), isNight) * 0.70;
         } else {
-            float absorb = 1.0 - exp(-waterDepth * 0.085);
-            float absorptionStrength = mix(0.82, 0.24, shoreClear);
+            float absorb = 1.0 - exp(-waterDepth * 0.11);
+            float absorptionStrength = mix(0.88, 0.30, shoreClear);
             refr = mix(refr, waterColorDepth(waterDepth, lightCol, isNight),
-                   clamp(absorb * absorptionStrength + 0.08, 0.0, 0.92));
-            refr *= mix(0.90, 1.03, shoreClear);
+                   clamp(absorb * absorptionStrength + 0.10, 0.0, 0.95));
+            refr *= mix(0.88, 1.02, shoreClear);
         }
 
         vec3 lN = n0 * bigW.x * 0.5 + n1 * bigW.y * 0.5;
@@ -573,6 +633,14 @@ void main(void) {
         vec3 nightReflBoost = refl * isNight * 0.2;
         vec3 b = mix(refr * fFinal, refl + nightReflBoost,
                 clamp(reflTog * 1.66, 0.0, 1.0));
+
+        if (camPos.z < 0.0) {
+            float underwaterReflect = underwaterSurfaceReflectance(V, normal, max(waterDepth, waterDepthUndist));
+            vec3 transmitted = mix(a, refr, 0.68);
+            vec3 reflected = mix(refr, refl + nightReflBoost * 0.65, underwaterReflect * 0.85);
+            b = mix(transmitted, reflected, underwaterReflect * 0.72);
+            fFinal = min(fFinal, 0.20 + underwaterReflect * 0.16);
+        }
 
         vec3 R = reflect(V, normal);
         float specDot = max(dot(R, L), 0.0);
@@ -617,14 +685,18 @@ void main(void) {
         float fFinal = mix(fresnel, fresnel * 0.85, isNight);
         vec3 nightReflBoost = refl * isNight * 0.25;
 
-        float opacityBoost = 0.66;
+        float opacityBoost = 0.74;
         float viewAngle = abs(dot(V, vec3(0.0, 0.0, 1.0)));
-        opacityBoost += viewAngle * 0.06;
-        opacityBoost = min(opacityBoost, 0.80);
+        opacityBoost += viewAngle * 0.08;
+        opacityBoost = min(opacityBoost, 0.88);
 
-        vec3 finalCol = mix(refl * 0.76 + AMBIENT_NIGHT * NIGHT_BOOST * isNight + nightReflBoost,
-                       waterCol + AMBIENT_NIGHT * NIGHT_BOOST * isNight,
-                       (1.0 - fFinal) * opacityBoost);
+        float murkDepth = clamp(1.0 - exp(-waterDepthNoRefr * 0.10), 0.0, 0.32);
+        vec3 noRefrMurkTint = mix(WATER_SHALLOW * vec3(0.92, 0.98, 0.88), WATER_DEEP * vec3(1.02, 1.05, 0.92), smoothstep(2.0, 22.0, waterDepthNoRefr));
+        vec3 murkyWaterCol = mix(waterCol, waterCol * vec3(0.90, 0.96, 0.86) + noRefrMurkTint * 0.42, 0.28 + murkDepth * 0.52);
+
+        vec3 finalCol = mix(refl * 0.70 + AMBIENT_NIGHT * NIGHT_BOOST * isNight + nightReflBoost,
+                       murkyWaterCol + AMBIENT_NIGHT * NIGHT_BOOST * isNight,
+                       clamp((1.0 - fFinal) * opacityBoost + murkDepth * 0.22, 0.0, 1.0));
 
         finalCol += tension;
 
@@ -649,13 +721,14 @@ void main(void) {
         gl_FragData[0].xyz = clamp(mix(finalCol, finalCol * tint, 0.06), 0.0, 1.0);
 
         float viewAngleVertical = abs(dot(V, vec3(0.0, 0.0, 1.0)));
-        float baseAlpha = 0.34;
-        float minAlpha = baseAlpha + viewAngleVertical * 0.16;
+        float baseAlpha = 0.42;
+        float minAlpha = baseAlpha + viewAngleVertical * 0.17;
         float distanceFade = clamp(distCam / 1500.0, 0.0, 1.0);
-        float maxAlphaLimit = mix(0.84, 0.76, distanceFade);
+        float maxAlphaLimit = mix(0.90, 0.82, distanceFade);
 
-        float alpha = clamp(1.0 - fFinal * 0.58, minAlpha, maxAlphaLimit);
-        alpha = mix(alpha, alpha * 0.58, shoreClear);
+        float alpha = clamp(1.0 - fFinal * 0.52, minAlpha, maxAlphaLimit);
+        alpha = mix(alpha, alpha * 0.66, shoreClear);
+        alpha = min(alpha + clamp(waterDepthNoRefr * 0.024, 0.0, 0.28) + murkDepth * 0.10, maxAlphaLimit);
         gl_FragData[0].w = alpha;
     }
 
