@@ -35,6 +35,8 @@ Launcher::ServerDialog::ServerDialog(QWidget* parent)
     , mProcess(new QProcess(this))
     , mRestartCounter(0)
     , mStopRequested(false)
+    , mRapidCrashCount(0)
+    , mLastStartMs(0)
 {
     setWindowTitle(tr("TES3MP Server"));
     resize(860, 620);
@@ -124,10 +126,16 @@ void Launcher::ServerDialog::startServer()
         return;
     }
 
-    mProcess->setProgram(executable);
+    mProcess->setProgram(QDir::toNativeSeparators(executable));
     mProcess->setArguments(QStringList());
     mProcess->setProcessChannelMode(QProcess::SeparateChannels);
-    mProcess->setWorkingDirectory(applicationBasePath());
+
+    const QString workingDirectory = QFileInfo(config.configPath).absolutePath();
+    mProcess->setWorkingDirectory(workingDirectory);
+
+    mLastStartMs = QDateTime::currentMSecsSinceEpoch();
+    appendStatusLine(tr("Working directory: %1").arg(QDir::toNativeSeparators(workingDirectory)));
+
     mProcess->start();
 
     if (!mProcess->waitForStarted(3000))
@@ -170,11 +178,30 @@ void Launcher::ServerDialog::processFinished(int exitCode, QProcess::ExitStatus 
 
     appendStatusLine(tr("Server stopped. Exit code: %1").arg(exitCode));
 
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const bool rapidCrash = !mStopRequested
+        && exitStatus == QProcess::CrashExit
+        && mLastStartMs > 0
+        && (nowMs - mLastStartMs) < 15000;
+
+    if (rapidCrash)
+        ++mRapidCrashCount;
+    else
+        mRapidCrashCount = 0;
+
     if (!mStopRequested && mRestartCheckBox->isChecked())
     {
-        appendStatusLine(tr("Restarting server..."));
-        startServer();
-        return;
+        if (mRapidCrashCount >= 3)
+        {
+            appendStatusLine(tr("Server crashed too many times in a short period. Auto restart disabled."));
+            mRestartCheckBox->setChecked(false);
+        }
+        else
+        {
+            appendStatusLine(tr("Restarting server..."));
+            startServer();
+            return;
+        }
     }
 
     if (exitStatus == QProcess::CrashExit && !mStopRequested)
