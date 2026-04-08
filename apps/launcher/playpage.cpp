@@ -31,13 +31,8 @@ namespace
     QString replaceConfigAssignment(const QString& text, const QString& key, const QString& value)
     {
         const QRegularExpression pattern(QStringLiteral("(^|\\n)(\\s*config\\.%1\\s*=\\s*)([^\\r\\n]+)").arg(QRegularExpression::escape(key)));
-        const QRegularExpressionMatch match = pattern.match(text);
-        if (!match.hasMatch())
-            return text;
-
         QString result = text;
-        const QString replacement = match.captured(1) + match.captured(2) + value;
-        result.replace(match.capturedStart(0), match.capturedLength(0), replacement);
+        result.replace(pattern, QStringLiteral("\\1\\2") + value, 1);
         return result;
     }
 
@@ -155,6 +150,11 @@ QString Launcher::PlayPage::serverConfigPath() const
     return QDir::cleanPath(baseDir.filePath(QStringLiteral("server/scripts/config.lua")));
 }
 
+QString Launcher::PlayPage::replaceRawValue(const QString& text, const QString& key, const QString& value) const
+{
+    return replaceConfigAssignment(text, key, value);
+}
+
 void Launcher::PlayPage::setServerSettingsStatus(const QString& text, bool isError)
 {
     serverSettingsStatusLabel->setText(text);
@@ -224,11 +224,6 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
         text = replaceConfigAssignment(text, key, QStringLiteral("\"") + value + QStringLiteral("\""));
     };
 
-    const auto replaceRawValue = [&text](const QString& key, const QString& value)
-    {
-        text = replaceConfigAssignment(text, key, value);
-    };
-
     const auto replaceNumber = [&text](const QString& key, int value)
     {
         text = replaceConfigAssignment(text, key, QString::number(value));
@@ -245,7 +240,7 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
     if (!dataPathValue.isEmpty())
     {
         if (dataPathValue == QStringLiteral("tes3mp.GetDataPath()"))
-            replaceRawValue(QStringLiteral("dataPath"), dataPathValue);
+            text = replaceRawValue(text, QStringLiteral("dataPath"), dataPathValue);
         else
             replaceString(QStringLiteral("dataPath"), dataPathValue);
     }

@@ -41,6 +41,7 @@ namespace Launcher
 
     private:
         QString serverConfigPath() const;
+        QString replaceRawValue(const QString& text, const QString& key, const QString& value) const;
         QString updatedConfigFromForm(const QString& input) const;
         void populateFormFromConfig(const QString& text);
         void setServerSettingsStatus(const QString& text, bool isError = false);
