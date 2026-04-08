@@ -3,13 +3,14 @@
 
 #include <QDialog>
 #include <QByteArray>
+#include <QProcess>
+#include <QString>
 
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
 class QComboBox;
 class QCheckBox;
-class QProcess;
 class QTextCodec;
 
 namespace Launcher
