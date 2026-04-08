@@ -23,9 +23,9 @@ namespace Launcher
         QString serverAddress() const;
         QString serverPort() const;
 
-        void switchToServerConsoleTab();
-        void loadServerSettings();
-        bool saveServerSettings();
+       void switchToServerConsoleTab();
+       void loadServerSettings();
+       bool saveServerSettings();
 
     signals:
         void playButtonClicked();
