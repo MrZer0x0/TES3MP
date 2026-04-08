@@ -32,7 +32,7 @@ namespace
     {
         const QRegularExpression pattern(QStringLiteral("(^|\\n)(\\s*config\\.%1\\s*=\\s*)([^\\r\\n]+)").arg(QRegularExpression::escape(key)));
         QString result = text;
-        result.replace(pattern, QStringLiteral("\\1\\2") + value, 1);
+        result.replace(pattern, QStringLiteral("\\1\\2") + value);
         return result;
     }
 
@@ -120,6 +120,12 @@ void Launcher::PlayPage::setServerConsoleWidget(QWidget* widget)
 
     if (mEmbeddedServerConsole == widget)
         return;
+
+    if (mEmbeddedServerConsole != nullptr)
+    {
+        serverConsoleHostLayout->removeWidget(mEmbeddedServerConsole);
+        mEmbeddedServerConsole->setParent(nullptr);
+    }
 
     mEmbeddedServerConsole = widget;
     widget->setParent(serverConsoleHost);
@@ -237,13 +243,10 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
     replaceString(QStringLiteral("gameMode"), gameModeEdit->text().trimmed());
 
     const QString dataPathValue = dataPathEdit->text().trimmed();
-    if (!dataPathValue.isEmpty())
-    {
-        if (dataPathValue == QStringLiteral("tes3mp.GetDataPath()"))
-            text = replaceRawValue(text, QStringLiteral("dataPath"), dataPathValue);
-        else
-            replaceString(QStringLiteral("dataPath"), dataPathValue);
-    }
+    if (dataPathValue == QStringLiteral("tes3mp.GetDataPath()"))
+        text = replaceRawValue(text, QStringLiteral("dataPath"), dataPathValue);
+    else
+        replaceString(QStringLiteral("dataPath"), dataPathValue);
 
     replaceNumber(QStringLiteral("loginTime"), loginTimeSpinBox->value());
     replaceNumber(QStringLiteral("maxClientsPerIP"), maxClientsPerIPSpinBox->value());
