@@ -31,8 +31,13 @@ namespace
     QString replaceConfigAssignment(const QString& text, const QString& key, const QString& value)
     {
         const QRegularExpression pattern(QStringLiteral("(^|\\n)(\\s*config\\.%1\\s*=\\s*)([^\\r\\n]+)").arg(QRegularExpression::escape(key)));
+        const QRegularExpressionMatch match = pattern.match(text);
+        if (!match.hasMatch())
+            return text;
+
         QString result = text;
-        result.replace(pattern, QStringLiteral("\\1\\2") + value, 1);
+        const QString replacement = match.captured(1) + match.captured(2) + value;
+        result.replace(match.capturedStart(0), match.capturedLength(0), replacement);
         return result;
     }
 
@@ -217,6 +222,11 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
     const auto replaceString = [&text](const QString& key, const QString& value)
     {
         text = replaceConfigAssignment(text, key, QStringLiteral("\"") + value + QStringLiteral("\""));
+    };
+
+    const auto replaceRawValue = [&text](const QString& key, const QString& value)
+    {
+        text = replaceConfigAssignment(text, key, value);
     };
 
     const auto replaceNumber = [&text](const QString& key, int value)
