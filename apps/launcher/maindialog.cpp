@@ -684,7 +684,12 @@ void Launcher::MainDialog::play()
     arguments.append(QLatin1String("--connect=") + mPlayPage->serverAddress() + QLatin1String(":") + mPlayPage->serverPort());
 
     if (mGameInvoker->startProcess(QLatin1String("tes3mp"), arguments, true))
+    {
+        if (mServerDialog != nullptr && mServerDialog->isRunning())
+            return;
+
         return qApp->quit();
+    }
 }
 
 void Launcher::MainDialog::runServer()

@@ -24,6 +24,7 @@ namespace Launcher
         ~ServerDialog();
 
         void startServer();
+        bool isRunning() const;
 
     private slots:
         void processReadyReadStandardOutput();

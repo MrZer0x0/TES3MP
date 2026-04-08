@@ -151,6 +151,13 @@ void Launcher::ServerDialog::startServer()
     activateWindow();
 }
 
+
+
+bool Launcher::ServerDialog::isRunning() const
+{
+    return mProcess != nullptr && mProcess->state() != QProcess::NotRunning;
+}
+
 void Launcher::ServerDialog::processReadyReadStandardOutput()
 {
     appendRawLog(mProcess->readAllStandardOutput());
