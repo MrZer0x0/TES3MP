@@ -18,6 +18,7 @@
 #include "datafilespage.hpp"
 #include "settingspage.hpp"
 #include "advancedpage.hpp"
+#include "serverdialog.hpp"
 
 using namespace Process;
 
@@ -37,6 +38,7 @@ Launcher::MainDialog::MainDialog(QWidget *parent)
 
     mGameInvoker = new ProcessInvoker();
     mWizardInvoker = new ProcessInvoker();
+    mServerDialog = new ServerDialog(this);
 
     connect(mWizardInvoker->getProcess(), SIGNAL(started()),
             this, SLOT(wizardStarted()));
@@ -56,12 +58,15 @@ Launcher::MainDialog::MainDialog(QWidget *parent)
 
     QPushButton *helpButton = new QPushButton(tr("Help"));
     QPushButton *playButton = new QPushButton(tr("Play"));
+    QPushButton *serverButton = new QPushButton(tr("Run Server"));
     buttonBox->button(QDialogButtonBox::Close)->setText(tr("Close"));
     buttonBox->addButton(helpButton, QDialogButtonBox::HelpRole);
+    buttonBox->addButton(serverButton, QDialogButtonBox::ActionRole);
     buttonBox->addButton(playButton, QDialogButtonBox::AcceptRole);
 
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(close()));
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(play()));
+    connect(serverButton, SIGNAL(clicked()), this, SLOT(runServer()));
     connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
 
     // Remove what's this? button
@@ -160,6 +165,7 @@ void Launcher::MainDialog::createPages()
     iconWidget->setCurrentItem(iconWidget->item(0), QItemSelectionModel::Select);
 
     connect(mPlayPage, SIGNAL(playButtonClicked()), this, SLOT(play()));
+    connect(mPlayPage, SIGNAL(serverButtonClicked()), this, SLOT(runServer()));
 
     // Using Qt::QueuedConnection because signal is emitted in a subthread and slot is in the main thread
     connect(mDataFilesPage, SIGNAL(signalLoadedCellsChanged(QStringList)), mAdvancedPage, SLOT(slotLoadedCellsChanged(QStringList)), Qt::QueuedConnection);
@@ -299,10 +305,11 @@ bool Launcher::MainDialog::setupLauncherSettings()
     mLauncherSettings.setMultiValueEnabled(true);
 
     QString userPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str());
+    QDir userDir(userPath);
 
     QStringList paths;
     paths.append(QString(Config::LauncherSettings::sLauncherConfigFileName));
-    paths.append(QDir(userPath).filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
+    paths.append(userDir.filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
 
     for (const QString &path : paths)
     {
@@ -334,10 +341,13 @@ bool Launcher::MainDialog::setupGameSettings()
     QString localPath = QString::fromUtf8(mCfgMgr.getLocalPath().string().c_str());
     QString userPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str());
     QString globalPath = QString::fromUtf8(mCfgMgr.getGlobalPath().string().c_str());
+    QDir localDir(localPath);
+    QDir userDir(userPath);
+    QDir globalDir(globalPath);
 
     // Load the user config file first, separately
     // So we can write it properly, uncontaminated
-    QString path = QDir(userPath).filePath(QLatin1String("openmw.cfg"));
+    QString path = userDir.filePath(QLatin1String("openmw.cfg"));
     QFile file(path);
 
     qDebug() << "Loading config file:" << path.toUtf8().constData();
@@ -359,9 +369,9 @@ bool Launcher::MainDialog::setupGameSettings()
 
     // Now the rest - priority: user > local > global
     QStringList paths;
-    paths.append(QDir(globalPath).filePath(QString("openmw.cfg")));
-    paths.append(QDir(localPath).filePath(QString("openmw.cfg")));
-    paths.append(QDir(userPath).filePath(QString("openmw.cfg")));
+    paths.append(globalDir.filePath(QString("openmw.cfg")));
+    paths.append(localDir.filePath(QString("openmw.cfg")));
+    paths.append(userDir.filePath(QString("openmw.cfg")));
 
     for (const QString &path2 : paths)
     {
@@ -546,7 +556,7 @@ bool Launcher::MainDialog::writeSettings()
     }
 
     // Game settings
-    QFile file(QDir(userPath).filePath(QString("openmw.cfg")));
+    QFile file(dir.filePath(QString("openmw.cfg")));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text)) {
         // File cannot be opened or created
@@ -574,7 +584,7 @@ bool Launcher::MainDialog::writeSettings()
     }
 
     // Launcher settings
-    file.setFileName(QDir(userPath).filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
+    file.setFileName(dir.filePath(QString(Config::LauncherSettings::sLauncherConfigFileName)));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text | QIODevice::Truncate)) {
         // File cannot be opened or created
@@ -675,6 +685,14 @@ void Launcher::MainDialog::play()
 
     if (mGameInvoker->startProcess(QLatin1String("tes3mp"), arguments, true))
         return qApp->quit();
+}
+
+void Launcher::MainDialog::runServer()
+{
+    if (!writeSettings())
+        return;
+
+    mServerDialog->startServer();
 }
 
 void Launcher::MainDialog::help()

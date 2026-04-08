@@ -23,9 +23,11 @@ namespace Launcher
 
     signals:
         void playButtonClicked();
+        void serverButtonClicked();
 
     private slots:
         void slotPlayClicked();
+        void slotServerClicked();
     };
 }
 #endif

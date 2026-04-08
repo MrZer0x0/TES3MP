@@ -29,6 +29,7 @@ namespace Launcher
     class UnshieldThread;
     class SettingsPage;
     class AdvancedPage;
+    class ServerDialog;
 
     enum FirstRunDialogResult
     {
@@ -57,6 +58,7 @@ namespace Launcher
     public slots:
         void changePage(QListWidgetItem *current, QListWidgetItem *previous);
         void play();
+        void runServer();
         void help();
 
     private slots:
@@ -92,6 +94,7 @@ namespace Launcher
 
         Process::ProcessInvoker *mGameInvoker;
         Process::ProcessInvoker *mWizardInvoker;
+        ServerDialog *mServerDialog;
 
         Files::ConfigurationManager mCfgMgr;
 

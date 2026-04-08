@@ -168,7 +168,14 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex &index, int 
     case Qt::DisplayRole:
     {
         if (column >=0 && column <=EsmFile::FileProperty_GameFile)
-            return file->fileProperty(static_cast<EsmFile::FileProperty>(column));
+        {
+            QVariant value = file->fileProperty(static_cast<EsmFile::FileProperty>(column));
+
+            if (role == Qt::DisplayRole && column == 0 && file->isGroundcoverCandidate())
+                return value.toString() + QLatin1String(" [Groundcover]");
+
+            return value;
+        }
 
         return QVariant();
     }
@@ -193,7 +200,11 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex &index, int 
         if (column != 0)
             return QVariant();
 
-        return toolTip(file);
+        QString value = toolTip(file);
+        if (file->isGroundcoverCandidate())
+            value += QLatin1String("<br/><br/><b>Groundcover candidate:</b> filename contains 'grass' or 'groundcover'.");
+
+        return value;
     }
 
     case Qt::CheckStateRole:

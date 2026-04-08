@@ -13,6 +13,7 @@ Launcher::PlayPage::PlayPage(QWidget *parent) : QWidget(parent)
     setupUi(this);
 
     connect(playButton, SIGNAL(clicked()), this, SLOT(slotPlayClicked()));
+    connect(serverButton, SIGNAL(clicked()), this, SLOT(slotServerClicked()));
 }
 
 void Launcher::PlayPage::setServerAddress(const QString& addr)
@@ -40,4 +41,9 @@ QString Launcher::PlayPage::serverPort() const
 void Launcher::PlayPage::slotPlayClicked()
 {
     emit playButtonClicked();
+}
+
+void Launcher::PlayPage::slotServerClicked()
+{
+    emit serverButtonClicked();
 }

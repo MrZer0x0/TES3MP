@@ -53,13 +53,7 @@
    <item>
     <widget class="QCheckBox" name="groundcoverCheckBox">
      <property name="text">
-      <string>Treat plugins with &quot;grass&quot; or &quot;groundcover&quot; in the filename as groundcover</string>
-     </property>
-     <property name="toolTip">
-      <string>When enabled, imported plugins whose filename contains grass or groundcover will be written to the groundcover list instead of the regular content list.</string>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
+      <string>Import plugins with &quot;grass&quot; or &quot;groundcover&quot; in the filename as groundcover</string>
      </property>
     </widget>
    </item>
