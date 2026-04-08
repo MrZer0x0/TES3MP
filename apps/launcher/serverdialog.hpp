@@ -1,7 +1,7 @@
 #ifndef LAUNCHER_SERVERDIALOG_HPP
 #define LAUNCHER_SERVERDIALOG_HPP
 
-#include <QDialog>
+#include <QWidget>
 #include <QByteArray>
 #include <QProcess>
 
@@ -10,12 +10,11 @@ class QPlainTextEdit;
 class QPushButton;
 class QComboBox;
 class QCheckBox;
-class QProcess;
 class QTextCodec;
 
 namespace Launcher
 {
-    class ServerDialog : public QDialog
+    class ServerDialog : public QWidget
     {
         Q_OBJECT
 

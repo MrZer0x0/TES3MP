@@ -10,6 +10,9 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include <QTextCodec>
+#include <QLabel>
+#include <QResizeEvent>
+#include <QByteArray>
 
 #include "playpage.hpp"
 #include "graphicspage.hpp"
@@ -39,6 +42,16 @@ Launcher::MainDialog::MainDialog(QWidget *parent)
     mGameInvoker = new ProcessInvoker();
     mWizardInvoker = new ProcessInvoker();
     mServerDialog = new ServerDialog(this);
+    mWatermarkLabel = new QLabel(centralwidget);
+    const QByteArray watermarkEncoded = QByteArray("VEVTM01QIDAuOC4xIFplcjBDdXN0b20=");
+    const QString watermarkText = QString::fromUtf8(QByteArray::fromBase64(watermarkEncoded));
+    mWatermarkLabel->setText(watermarkText);
+    mWatermarkLabel->setObjectName(QStringLiteral("zer0customWatermark"));
+    mWatermarkLabel->setProperty("wm_b64", QString::fromUtf8(watermarkEncoded));
+    mWatermarkLabel->setProperty("wm_guard", QString::number(qHash(QString::fromUtf8(watermarkEncoded))));
+    mWatermarkLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    mWatermarkLabel->setStyleSheet(QStringLiteral("QLabel#zer0customWatermark { color: rgba(255, 255, 255, 88); font-size: 16px; font-weight: 600; background: transparent; }"));
+    mWatermarkLabel->adjustSize();
 
     connect(mWizardInvoker->getProcess(), SIGNAL(started()),
             this, SLOT(wizardStarted()));
@@ -73,6 +86,7 @@ Launcher::MainDialog::MainDialog(QWidget *parent)
     setWindowFlags(this->windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     createIcons();
+    updateWatermarkPosition();
 }
 
 Launcher::MainDialog::~MainDialog()
@@ -133,6 +147,7 @@ void Launcher::MainDialog::createPages()
     mGraphicsPage = new GraphicsPage(this);
     mSettingsPage = new SettingsPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mAdvancedPage = new AdvancedPage(mGameSettings, this);
+    mPlayPage->setServerConsoleWidget(mServerDialog);
 
     {
         QString cfgPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str()) + "/tes3mp-client-default.cfg";
@@ -217,23 +232,7 @@ Launcher::FirstRunDialogResult Launcher::MainDialog::showFirstRunDialog()
 
 void Launcher::MainDialog::setVersionLabel()
 {
-    // Add version information to bottom of the window
-    Version::Version v = Version::getOpenmwVersion(mGameSettings.value("resources").toUtf8().constData());
-
-    QString revision(QString::fromUtf8(v.mCommitHash.c_str()));
-    QString tag(QString::fromUtf8(v.mTagHash.c_str()));
-
-    versionLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    if (!v.mVersion.empty() && (revision.isEmpty() || revision == tag))
-        versionLabel->setText(tr("OpenMW %1 release").arg(QString::fromUtf8(v.mVersion.c_str())));
-    else
-        versionLabel->setText(tr("OpenMW development (%1)").arg(revision.left(10)));
-
-    // Add the compile date and time
-    auto compileDate = QLocale(QLocale::C).toDate(QString(__DATE__).simplified(), QLatin1String("MMM d yyyy"));
-    auto compileTime = QLocale(QLocale::C).toTime(QString(__TIME__).simplified(), QLatin1String("hh:mm:ss"));
-    versionLabel->setToolTip(tr("Compiled on %1 %2").arg(QLocale::system().toString(compileDate, QLocale::LongFormat),
-                                                         QLocale::system().toString(compileTime, QLocale::ShortFormat)));
+    versionLabel->setText(QStringLiteral("TES3MP 0.8.1 Zer0Custom"));
 }
 
 bool Launcher::MainDialog::setup()
@@ -541,6 +540,7 @@ bool Launcher::MainDialog::writeSettings()
     mGraphicsPage->saveSettings();
     mSettingsPage->saveSettings();
     mAdvancedPage->saveSettings();
+    mPlayPage->saveServerSettings();
 
     QString userPath = QString::fromUtf8(mCfgMgr.getUserConfigPath().string().c_str());
     QDir dir(userPath);
@@ -605,6 +605,25 @@ bool Launcher::MainDialog::writeSettings()
     return true;
 }
 
+void Launcher::MainDialog::updateWatermarkPosition()
+{
+    if (mWatermarkLabel == nullptr)
+        return;
+
+    mWatermarkLabel->adjustSize();
+    const int margin = 14;
+    const QSize size = mWatermarkLabel->sizeHint();
+    mWatermarkLabel->move(centralwidget->width() - size.width() - margin,
+                          centralwidget->height() - size.height() - margin);
+    mWatermarkLabel->raise();
+}
+
+void Launcher::MainDialog::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    updateWatermarkPosition();
+}
+
 void Launcher::MainDialog::closeEvent(QCloseEvent *event)
 {
     writeSettings();
@@ -625,7 +644,11 @@ void Launcher::MainDialog::wizardFinished(int exitCode, QProcess::ExitStatus exi
     setup();
 
     if (setupGameData() && reloadSettings())
+    {
         show();
+        raise();
+        activateWindow();
+    }
 }
 
 void Launcher::MainDialog::play()
@@ -697,6 +720,8 @@ void Launcher::MainDialog::runServer()
     if (!writeSettings())
         return;
 
+    mPlayPage->saveServerSettings();
+    mPlayPage->switchToServerConsoleTab();
     mServerDialog->startServer();
 }
 

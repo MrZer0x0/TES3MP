@@ -5,9 +5,10 @@
 
 #include <QString>
 
+class QWidget;
+
 namespace Launcher
 {
-    // EncoreMP PlayPage: IP/Port input instead of profile selector
     class PlayPage : public QWidget, private Ui::PlayPage
     {
         Q_OBJECT
@@ -17,9 +18,14 @@ namespace Launcher
 
         void setServerAddress(const QString& addr);
         void setServerPort(const QString& port);
+        void setServerConsoleWidget(QWidget* widget);
 
         QString serverAddress() const;
         QString serverPort() const;
+
+        void switchToServerConsoleTab();
+        void loadServerSettings();
+        bool saveServerSettings();
 
     signals:
         void playButtonClicked();
@@ -28,6 +34,12 @@ namespace Launcher
     private slots:
         void slotPlayClicked();
         void slotServerClicked();
+        void slotReloadServerSettings();
+        void slotSaveServerSettings();
+
+    private:
+        QString serverConfigPath() const;
+        QWidget* mEmbeddedServerConsole;
     };
 }
 #endif

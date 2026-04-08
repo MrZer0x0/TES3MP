@@ -23,7 +23,7 @@
 #include <QVBoxLayout>
 
 Launcher::ServerDialog::ServerDialog(QWidget* parent)
-    : QDialog(parent)
+    : QWidget(parent)
     , mAddressLabel(nullptr)
     , mPortLabel(nullptr)
     , mEncodingLabel(nullptr)
@@ -40,8 +40,7 @@ Launcher::ServerDialog::ServerDialog(QWidget* parent)
 {
     setWindowTitle(tr("TES3MP Server"));
     resize(860, 620);
-    setModal(false);
-
+    
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
     QHBoxLayout* infoLayout = new QHBoxLayout();
@@ -75,12 +74,11 @@ Launcher::ServerDialog::ServerDialog(QWidget* parent)
 
     QDialogButtonBox* buttons = new QDialogButtonBox(this);
     mStopButton = buttons->addButton(tr("Stop Server"), QDialogButtonBox::ActionRole);
-    mCloseButton = buttons->addButton(QDialogButtonBox::Close);
-    mCloseButton->setEnabled(false);
+    mCloseButton = buttons->addButton(tr("Clear Log"), QDialogButtonBox::ResetRole);
     mainLayout->addWidget(buttons);
 
     connect(mStopButton, SIGNAL(clicked()), this, SLOT(stopServer()));
-    connect(mCloseButton, SIGNAL(clicked()), this, SLOT(close()));
+    connect(mCloseButton, SIGNAL(clicked()), mLogView, SLOT(clear()));
     connect(mEncodingCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(refreshDecodedLog()));
     connect(mProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(processReadyReadStandardOutput()));
     connect(mProcess, SIGNAL(readyReadStandardError()), this, SLOT(processReadyReadStandardError()));
@@ -96,13 +94,11 @@ void Launcher::ServerDialog::startServer()
 {
     if (mProcess->state() != QProcess::NotRunning)
     {
-        raise();
-        activateWindow();
         return;
     }
 
     mStopRequested = false;
-    mCloseButton->setEnabled(false);
+    mCloseButton->setEnabled(true);
     mStopButton->setEnabled(true);
     if (!mRawLog.isEmpty())
         appendStatusLine(QStringLiteral("----------------------------------------"));
@@ -121,7 +117,6 @@ void Launcher::ServerDialog::startServer()
     {
         QMessageBox::warning(this, tr("Error starting executable"),
             tr("Could not find tes3mp-server executable next to the launcher."));
-        mCloseButton->setEnabled(true);
         mStopButton->setEnabled(false);
         return;
     }
@@ -141,14 +136,10 @@ void Launcher::ServerDialog::startServer()
     if (!mProcess->waitForStarted(3000))
     {
         QMessageBox::critical(this, tr("Error starting executable"), mProcess->errorString());
-        mCloseButton->setEnabled(true);
         mStopButton->setEnabled(false);
         return;
     }
 
-    show();
-    raise();
-    activateWindow();
 }
 
 
@@ -217,7 +208,6 @@ void Launcher::ServerDialog::processFinished(int exitCode, QProcess::ExitStatus 
     }
 
     mStopButton->setEnabled(false);
-    mCloseButton->setEnabled(true);
 }
 
 void Launcher::ServerDialog::processError(QProcess::ProcessError error)
@@ -235,8 +225,7 @@ void Launcher::ServerDialog::stopServer()
     if (mProcess->state() == QProcess::NotRunning)
     {
         mStopButton->setEnabled(false);
-        mCloseButton->setEnabled(true);
-        return;
+            return;
     }
 
     appendStatusLine(tr("Stopping server..."));

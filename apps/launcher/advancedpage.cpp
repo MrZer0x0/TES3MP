@@ -24,6 +24,9 @@ Launcher::AdvancedPage::AdvancedPage(Config::GameSettings &gameSettings, QWidget
     if (animationsGroup)
         animationsGroup->hide();
 
+    if (osgTestingGroupBox)
+        osgTestingGroupBox->hide();
+
     if (AdvancedTabWidget)
     {
         const int bugFixesIndex = AdvancedTabWidget->indexOf(BugFixes);

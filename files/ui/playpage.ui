@@ -3,30 +3,43 @@
  <class>PlayPage</class>
  <widget class="QWidget" name="PlayPage">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>320</width><height>340</height></rect>
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>640</width>
+    <height>440</height>
+   </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QWidget" name="Scroll" native="true">
-     <property name="styleSheet">
-      <string notr="true">#Scroll {
+    <widget class="QTabWidget" name="pageTabs">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="playTab">
+      <attribute name="title">
+       <string>Play</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="playTabLayout">
+       <item>
+        <widget class="QWidget" name="Scroll" native="true">
+         <property name="styleSheet">
+          <string notr="true">#Scroll {
     background: transparent;
 }
 </string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <property name="leftMargin"><number>30</number></property>
-      <property name="topMargin"><number>100</number></property>
-      <property name="rightMargin"><number>30</number></property>
-      <property name="verticalSpacing"><number>6</number></property>
-
-      <!-- Play button row 1 -->
-      <item row="1" column="1">
-       <widget class="QPushButton" name="playButton">
-        <property name="minimumSize"><size><width>200</width><height>70</height></size></property>
-        <property name="maximumSize"><size><width>200</width><height>70</height></size></property>
-        <property name="styleSheet">
-         <string notr="true">#playButton, #serverButton {
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <property name="leftMargin"><number>30</number></property>
+          <property name="topMargin"><number>60</number></property>
+          <property name="rightMargin"><number>30</number></property>
+          <property name="verticalSpacing"><number>6</number></property>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="playButton">
+            <property name="minimumSize"><size><width>200</width><height>70</height></size></property>
+            <property name="maximumSize"><size><width>200</width><height>70</height></size></property>
+            <property name="styleSheet">
+             <string notr="true">#playButton, #serverButton {
     height: 50px;
     margin-bottom: 16px;
     background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1,
@@ -47,16 +60,16 @@
         stop:0.2 rgba(255,255,255,55), stop:1 rgba(255,255,255,155));
     border: 1px solid rgba(0,0,0,55);
 }</string>
-        </property>
-        <property name="text"><string>Play</string></property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QPushButton" name="serverButton">
-        <property name="minimumSize"><size><width>200</width><height>70</height></size></property>
-        <property name="maximumSize"><size><width>200</width><height>70</height></size></property>
-        <property name="styleSheet">
-         <string notr="true">#playButton, #serverButton {
+            </property>
+            <property name="text"><string>Play</string></property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="serverButton">
+            <property name="minimumSize"><size><width>200</width><height>70</height></size></property>
+            <property name="maximumSize"><size><width>200</width><height>70</height></size></property>
+            <property name="styleSheet">
+             <string notr="true">#playButton, #serverButton {
     height: 50px;
     margin-bottom: 16px;
     background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1,
@@ -77,70 +90,138 @@
         stop:0.2 rgba(255,255,255,55), stop:1 rgba(255,255,255,155));
     border: 1px solid rgba(0,0,0,55);
 }</string>
-        </property>
-        <property name="text"><string>Run Server</string></property>
-       </widget>
-      </item>
-
-      <!-- Server label row 2 -->
-      <item row="2" column="1" colspan="2">
-       <widget class="QLabel" name="serverLabel">
-        <property name="styleSheet">
-         <string notr="true">#serverLabel { font-size: 13pt; color: black; margin-top: 8px; }</string>
-        </property>
-        <property name="text"><string>Server Address:</string></property>
-       </widget>
-      </item>
-
-      <!-- IP input row 3 -->
-      <item row="3" column="1" colspan="2">
-       <widget class="QLineEdit" name="serverAddressEdit">
-        <property name="placeholderText"><string>localhost</string></property>
-        <property name="styleSheet">
-         <string notr="true">#serverAddressEdit {
+            </property>
+            <property name="text"><string>Run Server</string></property>
+           </widget>
+          </item>
+          <item row="2" column="1" colspan="2">
+           <widget class="QLabel" name="serverLabel">
+            <property name="styleSheet">
+             <string notr="true">#serverLabel { font-size: 13pt; color: black; margin-top: 8px; }</string>
+            </property>
+            <property name="text"><string>Server Address:</string></property>
+           </widget>
+          </item>
+          <item row="3" column="1" colspan="2">
+           <widget class="QLineEdit" name="serverAddressEdit">
+            <property name="placeholderText"><string>localhost</string></property>
+            <property name="styleSheet">
+             <string notr="true">#serverAddressEdit {
     font-size: 12pt; color: black;
     background: rgba(255,255,255,200);
     border: 1px solid rgba(0,0,0,120);
     border-radius: 3px; padding: 3px 6px;
 }</string>
-        </property>
-       </widget>
-      </item>
-
-      <!-- Port label row 4 -->
-      <item row="4" column="1" colspan="2">
-       <widget class="QLabel" name="portLabel">
-        <property name="styleSheet">
-         <string notr="true">#portLabel { font-size: 13pt; color: black; margin-top: 4px; }</string>
-        </property>
-        <property name="text"><string>Port:</string></property>
-       </widget>
-      </item>
-
-      <!-- Port input row 5 -->
-      <item row="5" column="1" colspan="2">
-       <widget class="QLineEdit" name="serverPortEdit">
-        <property name="placeholderText"><string>25565</string></property>
-        <property name="styleSheet">
-         <string notr="true">#serverPortEdit {
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1" colspan="2">
+           <widget class="QLabel" name="portLabel">
+            <property name="styleSheet">
+             <string notr="true">#portLabel { font-size: 13pt; color: black; margin-top: 4px; }</string>
+            </property>
+            <property name="text"><string>Port:</string></property>
+           </widget>
+          </item>
+          <item row="5" column="1" colspan="2">
+           <widget class="QLineEdit" name="serverPortEdit">
+            <property name="placeholderText"><string>25565</string></property>
+            <property name="styleSheet">
+             <string notr="true">#serverPortEdit {
     font-size: 12pt; color: black;
     background: rgba(255,255,255,200);
     border: 1px solid rgba(0,0,0,120);
     border-radius: 3px; padding: 3px 6px;
 }</string>
-        </property>
-       </widget>
-      </item>
-
-      <!-- Spacer row 6 -->
-      <item row="6" column="1" colspan="2">
-       <spacer name="verticalSpacer">
-        <property name="orientation"><enum>Qt::Vertical</enum></property>
-        <property name="sizeHint" stdset="0"><size><width>20</width><height>30</height></size></property>
-       </spacer>
-      </item>
-
-     </layout>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1" colspan="2">
+           <spacer name="verticalSpacer">
+            <property name="orientation"><enum>Qt::Vertical</enum></property>
+            <property name="sizeHint" stdset="0"><size><width>20</width><height>30</height></size></property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="serverConsoleTab">
+      <attribute name="title">
+       <string>Server Consol</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="serverConsoleTabLayout">
+       <item>
+        <widget class="QWidget" name="serverConsoleHost" native="true">
+         <layout class="QVBoxLayout" name="serverConsoleHostLayout">
+          <property name="leftMargin"><number>0</number></property>
+          <property name="topMargin"><number>0</number></property>
+          <property name="rightMargin"><number>0</number></property>
+          <property name="bottomMargin"><number>0</number></property>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="serverSettingsTab">
+      <attribute name="title">
+       <string>Server Settings</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="serverSettingsTabLayout">
+       <item>
+        <layout class="QHBoxLayout" name="serverSettingsTopLayout">
+         <item>
+          <widget class="QLabel" name="serverSettingsTitleLabel">
+           <property name="text">
+            <string>config.lua editor</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacerServerSettings">
+           <property name="orientation"><enum>Qt::Horizontal</enum></property>
+           <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="reloadServerSettingsButton">
+           <property name="text"><string>Reload</string></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="saveServerSettingsButton">
+           <property name="text"><string>Save</string></property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="serverSettingsPathLabel">
+         <property name="text">
+          <string>server/scripts/config.lua</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPlainTextEdit" name="serverSettingsEditor">
+         <property name="lineWrapMode">
+          <enum>QPlainTextEdit::NoWrap</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="serverSettingsStatusLabel">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
   </layout>
