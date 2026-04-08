@@ -31,14 +31,8 @@ namespace
     QString replaceConfigAssignment(const QString& text, const QString& key, const QString& value)
     {
         const QRegularExpression pattern(QStringLiteral("(^|\\n)(\\s*config\\.%1\\s*=\\s*)([^\\r\\n]+)").arg(QRegularExpression::escape(key)));
-        const QRegularExpressionMatch match = pattern.match(text);
-        if (!match.hasMatch())
-            return text;
-
         QString result = text;
-        const int start = match.capturedStart(3);
-        const int length = match.capturedLength(3);
-        result.replace(start, length, value);
+        result.replace(pattern, QStringLiteral("\\1\\2") + value, 1);
         return result;
     }
 
@@ -239,7 +233,12 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
 
     const QString dataPathValue = dataPathEdit->text().trimmed();
     if (!dataPathValue.isEmpty())
-        replaceString(QStringLiteral("dataPath"), dataPathValue);
+    {
+        if (dataPathValue == QStringLiteral("tes3mp.GetDataPath()"))
+            replaceRawValue(QStringLiteral("dataPath"), dataPathValue);
+        else
+            replaceString(QStringLiteral("dataPath"), dataPathValue);
+    }
 
     replaceNumber(QStringLiteral("loginTime"), loginTimeSpinBox->value());
     replaceNumber(QStringLiteral("maxClientsPerIP"), maxClientsPerIPSpinBox->value());
