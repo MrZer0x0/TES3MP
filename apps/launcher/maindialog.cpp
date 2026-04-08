@@ -1,7 +1,6 @@
 #include "maindialog.hpp"
 
 #include <components/version/version.hpp>
-#include <components/misc/helpviewer.hpp>
 
 #include <QDate>
 #include <QMessageBox>
@@ -69,18 +68,18 @@ Launcher::MainDialog::MainDialog(QWidget *parent)
     iconWidget->setCurrentRow(0);
     iconWidget->setFlow(QListView::LeftToRight);
 
-    QPushButton *helpButton = new QPushButton(tr("Help"));
+    QPushButton *wizardButton = new QPushButton(tr("Wizard"));
     QPushButton *playButton = new QPushButton(tr("Play"));
     QPushButton *serverButton = new QPushButton(tr("Run Server"));
     buttonBox->button(QDialogButtonBox::Close)->setText(tr("Close"));
-    buttonBox->addButton(helpButton, QDialogButtonBox::HelpRole);
+    buttonBox->addButton(wizardButton, QDialogButtonBox::HelpRole);
     buttonBox->addButton(serverButton, QDialogButtonBox::ActionRole);
     buttonBox->addButton(playButton, QDialogButtonBox::AcceptRole);
 
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(close()));
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(play()));
     connect(serverButton, SIGNAL(clicked()), this, SLOT(runServer()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
+    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(runWizard()));
 
     // Remove what's this? button
     setWindowFlags(this->windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -725,7 +724,13 @@ void Launcher::MainDialog::runServer()
     mServerDialog->startServer();
 }
 
-void Launcher::MainDialog::help()
+void Launcher::MainDialog::runWizard()
 {
-    Misc::HelpViewer::openHelp("reference/index.html");
+    if (!writeSettings())
+        return;
+
+    if (mWizardInvoker->startProcess(QLatin1String("openmw-wizard"), false))
+    {
+        // Wizard started successfully - MainDialog will hide via wizardStarted() slot
+    }
 }
