@@ -36,9 +36,14 @@ namespace Launcher
         void slotServerClicked();
         void slotReloadServerSettings();
         void slotSaveServerSettings();
+        void slotApplyFormToRawConfig();
+        void slotSyncFormFromRawConfig();
 
     private:
         QString serverConfigPath() const;
+        QString updatedConfigFromForm(const QString& input) const;
+        void populateFormFromConfig(const QString& text);
+        void setServerSettingsStatus(const QString& text, bool isError = false);
         QWidget* mEmbeddedServerConsole;
     };
 }
