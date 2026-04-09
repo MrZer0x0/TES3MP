@@ -101,12 +101,30 @@ namespace
     bool hasIniKey(const std::vector<std::string>& lines, const std::string& section, const std::string& key)
     {
         std::string currentSection;
+        const std::string invalidPrefix = "# invalid setting: ";
 
         for (const std::string& rawLine : lines)
         {
             const std::string line = trimCopy(rawLine);
-            if (line.empty() || line[0] == '#' || line[0] == ';')
+            if (line.empty() || line[0] == ';')
                 continue;
+
+            // Handle comments — but also peek inside "# invalid setting:" lines
+            // so we don't keep appending duplicate keys that were previously
+            // commented out by the launcher.
+            if (line[0] == '#')
+            {
+                if (currentSection == section
+                    && line.size() > invalidPrefix.size()
+                    && line.compare(0, invalidPrefix.size(), invalidPrefix) == 0)
+                {
+                    const std::string rest = line.substr(invalidPrefix.size());
+                    const std::string::size_type equals = rest.find('=');
+                    if (equals != std::string::npos && trimCopy(rest.substr(0, equals)) == key)
+                        return true;
+                }
+                continue;
+            }
 
             if (line.front() == '[')
             {
