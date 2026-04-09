@@ -59,7 +59,7 @@ namespace Launcher
         void changePage(QListWidgetItem *current, QListWidgetItem *previous);
         void play();
         void runServer();
-        void runWizard();
+        void help();
 
     private slots:
         void wizardStarted();
