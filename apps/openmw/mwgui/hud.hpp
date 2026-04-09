@@ -62,8 +62,9 @@ namespace MWGui
 
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
+        MyGUI::Widget* mEnemyHealthFrame;
         MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
-        MyGUI::Widget* mHealthFrame;
+        MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
         SpellWidget *mSpellImage;
@@ -109,6 +110,24 @@ namespace MWGui
 
         bool  mIsDrowning;
         float mDrowningFlashTheta;
+
+        struct AutoHideBarState
+        {
+            int current = 0;
+            int modified = 0;
+            float idleTimer = 0.f;
+            float alpha = 1.f;
+            bool initialized = false;
+        };
+
+        AutoHideBarState mHealthBarState;
+        AutoHideBarState mMagickaBarState;
+        AutoHideBarState mStaminaBarState;
+        bool mHmsBaseVisible;
+
+        void registerBarChange(AutoHideBarState& state, int current, int modified);
+        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt);
+        void applyBarAlpha(MyGUI::Widget* widget, float alpha);
 
         void onWorldClicked(MyGUI::Widget* _sender);
         void onWorldMouseOver(MyGUI::Widget* _sender, int x, int y);

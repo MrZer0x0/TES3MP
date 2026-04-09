@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <MyGUI type="Layout">
-    <!-- The entire screen -->
     <Widget type="Widget" layer="LoadingScreen" position="0 0 300 300" name="_Main" align="Stretch">
 
-        <Widget type="Window" skin="MW_Dialog" position="0 245 300 48" align="Bottom HCenter" name="LoadingBox">
-
-            <Widget type="TextBox" skin="SandText" position="16 5 260 18" align="Stretch" name="LoadingText">
+        <Widget type="Window" skin="MW_Dialog" position="0 235 340 62" align="Bottom HCenter" name="LoadingBox">
+            <Widget type="TextBox" skin="SandText" position="20 8 300 18" align="Top HCenter" name="LoadingText">
                 <Property key="TextAlign" value="Center"/>
             </Widget>
 
-            <Widget type="ScrollBar" skin="MW_ProgressScroll_Loading" position="16 26 260 6" align="Top HCenter" name="ProgressBar">
+            <Widget type="ImageBox" skin="ImageBox" position="27 32 286 24" align="Top HCenter" name="LoadingBarFrame">
+                <Property key="ImageTexture" value="textures\ui\enemybar.dds"/>
+                <Widget type="ScrollBar" skin="MW_ProgressScroll_Loading" position="18 9 250 6" align="Stretch" name="ProgressBar">
+                </Widget>
             </Widget>
-
         </Widget>
 
     </Widget>

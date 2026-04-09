@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <MyGUI type="Layout">
-    <Widget type="Window" skin="MW_Dialog" layer="LoadingScreen" position="0 0 300 48" align="Center" name="_Main">
+    <Widget type="Window" skin="MW_Dialog" layer="LoadingScreen" position="0 0 340 62" align="Center" name="_Main">
 
-        <Widget type="TextBox" skin="SandText" position="16 4 260 18" align="Stretch" name="LoadingText">
+        <Widget type="TextBox" skin="SandText" position="20 8 300 18" align="Top HCenter" name="LoadingText">
             <Property key="TextAlign" value="Center"/>
             <Property key="Caption" value="#{sInPrisonTitle}"/>
         </Widget>
 
-        <Widget type="ScrollBar" skin="MW_ProgressScroll_Loading" position="16 26 260 6" name="ProgressBar">
+        <Widget type="ImageBox" skin="ImageBox" position="27 32 286 24" align="Top HCenter" name="JailProgressFrame">
+            <Property key="ImageTexture" value="textures\ui\enemybar.dds"/>
+            <Widget type="ScrollBar" skin="MW_ProgressScroll_Loading" position="18 9 250 6" name="ProgressBar" align="Stretch">
+            </Widget>
         </Widget>
 
     </Widget>

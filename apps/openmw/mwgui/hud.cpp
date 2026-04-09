@@ -116,6 +116,7 @@ namespace MWGui
         , mMagicka(nullptr)
         , mStamina(nullptr)
         , mDrowning(nullptr)
+        , mEnemyHealthFrame(nullptr)
         , mHealthText(nullptr)
         , mMagickaText(nullptr)
         , mStaminaText(nullptr)
@@ -151,28 +152,29 @@ namespace MWGui
         , mFpsFrameCount(0)
         , mIsDrowning(false)
         , mDrowningFlashTheta(0.f)
+        , mHmsBaseVisible(true)
     {
         mMainWidget->setSize(MyGUI::RenderManager::getInstance().getViewSize());
 
         // Energy bars
         getWidget(mHealthFrame, "HealthFrame");
+        getWidget(mMagickaFrame, "MagickaFrame");
+        getWidget(mFatigueFrame, "FatigueFrame");
         getWidget(mHealth, "Health");
         getWidget(mMagicka, "Magicka");
         getWidget(mStamina, "Stamina");
+        getWidget(mEnemyHealthFrame, "EnemyHealthFrame");
         getWidget(mEnemyHealth, "EnemyHealth");
+        mEnemyHealthFrame->setVisible(false);
         getWidget(mHealthText, "HealthText");
         getWidget(mMagickaText, "MagickaText");
         getWidget(mStaminaText, "StaminaText");
         getWidget(mFpsBox, "FpsText");
         mHealthManaStaminaBaseLeft = mHealthFrame->getLeft();
 
-        MyGUI::Widget *healthFrame, *magickaFrame, *fatigueFrame;
-        getWidget(healthFrame, "HealthFrame");
-        getWidget(magickaFrame, "MagickaFrame");
-        getWidget(fatigueFrame, "FatigueFrame");
-        healthFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
-        magickaFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
-        fatigueFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mHealthFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mMagickaFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
+        mFatigueFrame->eventMouseButtonClick += MyGUI::newDelegate(this, &HUD::onHMSClicked);
 
         //Drowning bar
         getWidget(mDrowningFrame, "DrowningFrame");
@@ -241,7 +243,6 @@ namespace MWGui
         if (id != "FBar")
             current = std::max(0, current);
 
-        MyGUI::Widget* w;
         std::string valStr = MyGUI::utility::toString(current) + " / " + MyGUI::utility::toString(modified);
         if (id == "HBar")
         {
@@ -249,8 +250,8 @@ namespace MWGui
             mHealth->setProgressPosition(std::max(0, current));
             if (mHealthText)
                 mHealthText->setCaption(valStr);
-            getWidget(w, "HealthFrame");
-            w->setUserString("Caption_HealthDescription", "#{sHealthDesc}\n" + valStr);
+            mHealthFrame->setUserString("Caption_HealthDescription", "#{sHealthDesc}\n" + valStr);
+            registerBarChange(mHealthBarState, current, modified);
         }
         else if (id == "MBar")
         {
@@ -258,8 +259,8 @@ namespace MWGui
             mMagicka->setProgressPosition(std::max(0, current));
             if (mMagickaText)
                 mMagickaText->setCaption(valStr);
-            getWidget(w, "MagickaFrame");
-            w->setUserString("Caption_HealthDescription", "#{sMagDesc}\n" + valStr);
+            mMagickaFrame->setUserString("Caption_HealthDescription", "#{sMagDesc}\n" + valStr);
+            registerBarChange(mMagickaBarState, current, modified);
         }
         else if (id == "FBar")
         {
@@ -267,8 +268,8 @@ namespace MWGui
             mStamina->setProgressPosition(std::max(0, current));
             if (mStaminaText)
                 mStaminaText->setCaption(valStr);
-            getWidget(w, "FatigueFrame");
-            w->setUserString("Caption_HealthDescription", "#{sFatDesc}\n" + valStr);
+            mFatigueFrame->setUserString("Caption_HealthDescription", "#{sFatDesc}\n" + valStr);
+            registerBarChange(mStaminaBarState, current, modified);
         }
     }
 
@@ -484,6 +485,7 @@ namespace MWGui
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0)
         {
             mEnemyHealth->setVisible(false);
+            mEnemyHealthFrame->setVisible(false);
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() + MyGUI::IntPoint(0,20));
         }
 
@@ -503,6 +505,58 @@ namespace MWGui
 
             mDrowningFlash->setAlpha(intensity);
         }
+
+        updateAutoHideBar(mHealthFrame, mHealthBarState, dt);
+        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt);
+        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt);
+    }
+
+
+    void HUD::registerBarChange(AutoHideBarState& state, int current, int modified)
+    {
+        const bool changed = !state.initialized || state.current != current || state.modified != modified;
+        state.current = current;
+        state.modified = modified;
+        state.initialized = true;
+
+        if (changed)
+            state.idleTimer = 0.f;
+
+        state.alpha = 1.f;
+    }
+
+    void HUD::applyBarAlpha(MyGUI::Widget* widget, float alpha)
+    {
+        if (!widget)
+            return;
+
+        widget->setAlpha(std::max(0.f, std::min(1.f, alpha)));
+    }
+
+    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt)
+    {
+        if (!frame || !state.initialized)
+            return;
+
+        if (!mHmsBaseVisible)
+        {
+            frame->setVisible(false);
+            return;
+        }
+
+        state.idleTimer += dt;
+
+        const bool isFull = state.modified <= 0 || state.current >= state.modified;
+        const float hideDelay = isFull ? 7.f : 20.f;
+        const float fadeDuration = 0.35f;
+
+        float targetAlpha = 1.f;
+        if (state.idleTimer > hideDelay)
+            targetAlpha = std::max(0.f, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
+
+        state.alpha = targetAlpha;
+        frame->setVisible(state.alpha > 0.f);
+        applyBarAlpha(frame, state.alpha);
     }
 
     void HUD::setSelectedSpell(const std::string& spellId, int successChancePercent)
@@ -642,9 +696,23 @@ namespace MWGui
     
     void HUD::setHmsVisible(bool visible)
     {
+        mHmsBaseVisible = visible;
         mHealth->setVisible(visible);
         mMagicka->setVisible(visible);
         mStamina->setVisible(visible);
+
+        if (!visible)
+        {
+            mHealthFrame->setVisible(false);
+            mMagickaFrame->setVisible(false);
+            mFatigueFrame->setVisible(false);
+        }
+        else
+        {
+            registerBarChange(mHealthBarState, mHealthBarState.current, mHealthBarState.modified);
+            registerBarChange(mMagickaBarState, mMagickaBarState.current, mMagickaBarState.modified);
+            registerBarChange(mStaminaBarState, mStaminaBarState.current, mStaminaBarState.modified);
+        }
         updatePositions();
     }
 
@@ -729,7 +797,11 @@ namespace MWGui
 
         static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
         if (fNPCHealthBarFade > 0.f)
-            mEnemyHealth->setAlpha(std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade)));
+        {
+            const float alpha = std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade));
+            mEnemyHealth->setAlpha(alpha);
+            mEnemyHealthFrame->setAlpha(alpha);
+        }
 
     }
 
@@ -739,6 +811,7 @@ namespace MWGui
         mEnemyHealthTimer = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarTime")->mValue.getFloat();
         if (!mEnemyHealth->getVisible())
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() - MyGUI::IntPoint(0,20));
+        mEnemyHealthFrame->setVisible(true);
         mEnemyHealth->setVisible(true);
         updateEnemyHealthBar();
     }

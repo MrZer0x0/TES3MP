@@ -60,14 +60,14 @@
     </Resource>
 
     <!-- Defines crosshair color -->
-    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair" texture="textures\crosshair.dds">
+    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair" texture="textures\ui\crosshair.dds">
         <BasisSkin type="MainSkin">
             <State name="normal"/>
         </BasisSkin>
     </Resource>
 
     <!-- Defines owned crosshair color -->
-    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair_Owned" texture="textures\crosshair.dds">
+    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair_Owned" texture="textures\ui\crosshair.dds">
         <Property key="Colour" value="#{setting=GUI,color crosshair owned}"/>
         <BasisSkin type="MainSkin">
             <State name="normal"/>
