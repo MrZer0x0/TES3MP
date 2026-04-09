@@ -116,7 +116,6 @@ namespace MWGui
         , mMagicka(nullptr)
         , mStamina(nullptr)
         , mDrowning(nullptr)
-        , mEnemyHealthFrame(nullptr)
         , mHealthText(nullptr)
         , mMagickaText(nullptr)
         , mStaminaText(nullptr)
@@ -163,9 +162,7 @@ namespace MWGui
         getWidget(mHealth, "Health");
         getWidget(mMagicka, "Magicka");
         getWidget(mStamina, "Stamina");
-        getWidget(mEnemyHealthFrame, "EnemyHealthFrame");
         getWidget(mEnemyHealth, "EnemyHealth");
-        mEnemyHealthFrame->setVisible(false);
         getWidget(mHealthText, "HealthText");
         getWidget(mMagickaText, "MagickaText");
         getWidget(mStaminaText, "StaminaText");
@@ -485,7 +482,6 @@ namespace MWGui
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0)
         {
             mEnemyHealth->setVisible(false);
-            mEnemyHealthFrame->setVisible(false);
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() + MyGUI::IntPoint(0,20));
         }
 
@@ -697,6 +693,7 @@ namespace MWGui
     void HUD::setHmsVisible(bool visible)
     {
         mHmsBaseVisible = visible;
+
         mHealth->setVisible(visible);
         mMagicka->setVisible(visible);
         mStamina->setVisible(visible);
@@ -712,7 +709,15 @@ namespace MWGui
             registerBarChange(mHealthBarState, mHealthBarState.current, mHealthBarState.modified);
             registerBarChange(mMagickaBarState, mMagickaBarState.current, mMagickaBarState.modified);
             registerBarChange(mStaminaBarState, mStaminaBarState.current, mStaminaBarState.modified);
+
+            mHealthFrame->setVisible(true);
+            mMagickaFrame->setVisible(true);
+            mFatigueFrame->setVisible(true);
+            applyBarAlpha(mHealthFrame, 1.f);
+            applyBarAlpha(mMagickaFrame, 1.f);
+            applyBarAlpha(mFatigueFrame, 1.f);
         }
+
         updatePositions();
     }
 
@@ -797,11 +802,7 @@ namespace MWGui
 
         static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
         if (fNPCHealthBarFade > 0.f)
-        {
-            const float alpha = std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade));
-            mEnemyHealth->setAlpha(alpha);
-            mEnemyHealthFrame->setAlpha(alpha);
-        }
+            mEnemyHealth->setAlpha(std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade)));
 
     }
 
@@ -811,7 +812,6 @@ namespace MWGui
         mEnemyHealthTimer = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarTime")->mValue.getFloat();
         if (!mEnemyHealth->getVisible())
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() - MyGUI::IntPoint(0,20));
-        mEnemyHealthFrame->setVisible(true);
         mEnemyHealth->setVisible(true);
         updateEnemyHealthBar();
     }
