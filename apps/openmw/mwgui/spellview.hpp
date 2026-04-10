@@ -7,8 +7,6 @@
 #include <MyGUI_Widget.h>
 
 #include "spellmodel.hpp"
-#include "spelllistwidget.hpp"
-#include "itemlistwidgetheader.hpp"
 
 namespace MyGUI
 {
@@ -17,6 +15,7 @@ namespace MyGUI
 
 namespace MWGui
 {
+
     class SpellModel;
 
     ///@brief Displays a SpellModel in a list widget
@@ -44,36 +43,35 @@ namespace MWGui
         /// simplified update called each frame
         void incrementalUpdate();
 
-        typedef MyGUI::delegates::CMultiDelegate1<SpellListWidget*> EventHandle_Spell;
         typedef MyGUI::delegates::CMultiDelegate1<SpellModel::ModelIndex> EventHandle_ModelIndex;
         /// Fired when a spell was clicked
         EventHandle_ModelIndex eventSpellClicked;
-        EventHandle_Spell eventItemFocused; 
 
+        void initialiseOverride() override;
 
-        void initialiseOverride() final;
-
-        void setSize(const MyGUI::IntSize& _value) final;
-        void setCoord(const MyGUI::IntCoord& _value) final;
+        void setSize(const MyGUI::IntSize& _value) override;
+        void setCoord(const MyGUI::IntCoord& _value) override;
 
         void resetScrollbars();
 
-        ItemListWidgetHeader* getHeader();
-
     private:
         MyGUI::ScrollView* mScrollView;
-        ItemListWidgetHeader* mHeader; 
 
         std::unique_ptr<SpellModel> mModel;
 
         /// tracks a row in the spell view
         struct LineInfo
         {
-            SpellListWidget* mItem;
+            /// the widget on the left side of the row
+            MyGUI::Widget* mLeftWidget;
+
+            /// the widget on the left side of the row (if there is one)
+            MyGUI::Widget* mRightWidget;
+
             /// index to item in mModel that row is showing information for
             SpellModel::ModelIndex mSpellIndex;
 
-            LineInfo(SpellListWidget* widget, SpellModel::ModelIndex spellIndex);
+            LineInfo(MyGUI::Widget* leftWidget, MyGUI::Widget* rightWidget, SpellModel::ModelIndex spellIndex);
         };
 
         /// magic number indicating LineInfo does not correspond to an item in mModel
@@ -85,12 +83,11 @@ namespace MWGui
         bool mHighlightSelected;
 
         void layoutWidgets();
-        void adjustSpellWidget(const Spell& spell, SpellModel::ModelIndex index, SpellListWidget* widget);
+        void addGroup(const std::string& label1, const std::string& label2);
+        void adjustSpellWidget(const Spell& spell, SpellModel::ModelIndex index, MyGUI::Widget* widget);
 
         void onSpellSelected(MyGUI::Widget* _sender);
         void onMouseWheelMoved(MyGUI::Widget* _sender, int _rel);
-        void onItemFocused(SpellListWidget* item);
-        void onKeyButtonPressed(MyGUI::Widget *sender, MyGUI::KeyCode key, MyGUI::Char character);
 
         SpellModel::ModelIndex getSpellModelIndex(MyGUI::Widget* _sender);
 

@@ -26,8 +26,15 @@
 #include <components/interpreter/runtime.hpp>
 #include <components/interpreter/opcodes.hpp>
 
+#include <components/misc/rng.hpp>
+#include <components/misc/resourcehelpers.hpp>
+
+#include <components/resource/resourcesystem.hpp>
+
 #include <components/esm/loadmgef.hpp>
 #include <components/esm/loadcrea.hpp>
+
+#include <components/vfs/manager.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -52,14 +59,16 @@
 #include "interpretercontext.hpp"
 #include "ref.hpp"
 
+#include <chrono> 
+
 namespace
 {
 
     void addToLevList(ESM::LevelledListBase* list, const std::string& itemId, int level)
     {
-        for (std::vector<ESM::LevelledListBase::LevelItem>::iterator it = list->mList.begin(); it != list->mList.end(); ++it)
+        for (auto& levelItem : list->mList)
         {
-            if (it->mLevel == level && itemId == it->mId)
+            if (levelItem.mLevel == level && itemId == levelItem.mId)
                 return;
         }
 
@@ -189,7 +198,7 @@ namespace MWScript
                         Start of tes3mp addition
 
                         Send an ID_OBJECT_STATE packet whenever an object should be enabled, as long as the
-                        player is logged in on the server and ï¿½ if triggered from a clientside script ï¿½ our
+                        player is logged in on the server and — if triggered from a clientside script — our
                         last packet regarding its state did not already attempt to enable it (to prevent
                         packet spam)
                     */
@@ -240,7 +249,7 @@ namespace MWScript
                         Start of tes3mp addition
 
                         Send an ID_OBJECT_STATE packet whenever an object should be disabled, as long as the
-                        player is logged in on the server and ï¿½ if triggered from a clientside script ï¿½ our
+                        player is logged in on the server and — if triggered from a clientside script — our
                         last packet regarding its state did not already attempt to disable it (to prevent
                         packet spam)
                     */
@@ -294,7 +303,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 std::string name = runtime.getStringLiteral (runtime[0].mInteger);
                 runtime.pop();
@@ -329,7 +338,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 runtime.push (MWBase::Environment::get().getWindowManager ()->getPlayerSleeping());
             }
@@ -339,7 +348,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWBase::World* world = MWBase::Environment::get().getWorld();
                 runtime.push (world->getPlayer().getJumping());
@@ -350,7 +359,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWBase::Environment::get().getWindowManager ()->wakeUpPlayer();
             }
@@ -360,7 +369,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     runtime.push (0);
                 }
@@ -371,7 +380,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -384,14 +393,14 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     InterpreterContext& context =
                         static_cast<InterpreterContext&> (runtime.getContext());
 
                     MWWorld::Ptr ptr = R()(runtime);
 
-                    if (ptr.getRefData().activateByScript())
+                    if (ptr.getRefData().activateByScript() || ptr.getContainerStore())
                         context.executeActivation(ptr, MWMechanics::getPlayer());
                 }
         };
@@ -401,7 +410,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime, unsigned int arg0)
+                void execute (Interpreter::Runtime& runtime, unsigned int arg0) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -416,7 +425,6 @@ namespace MWScript
                         runtime.pop();
                     }
 
-                    ptr.getCellRef().lock (lockLevel);
                     /*
                         Start of tes3mp addition
 
@@ -462,11 +470,10 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
-                    ptr.getCellRef().unlock ();
                     /*
                         Start of tes3mp addition
 
@@ -503,7 +510,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_CollisionDebug);
@@ -518,7 +525,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_CollisionDebug);
@@ -532,7 +539,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_Wireframe);
@@ -546,7 +553,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleBorders();
@@ -559,7 +566,7 @@ namespace MWScript
         class OpTogglePathgrid : public Interpreter::Opcode0
         {
         public:
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 bool enabled =
                     MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_Pathgrid);
@@ -573,7 +580,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     Interpreter::Type_Float time = runtime[0].mFloat;
                     runtime.pop();
@@ -586,7 +593,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     Interpreter::Type_Float time = runtime[0].mFloat;
                     runtime.pop();
@@ -599,7 +606,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     Interpreter::Type_Float alpha = runtime[0].mFloat;
                     runtime.pop();
@@ -615,7 +622,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     runtime.getContext().report(MWBase::Environment::get().getWorld()->toggleWater() ? "Water -> On"
                                                                                                      : "Water -> Off");
@@ -626,7 +633,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     runtime.getContext().report(MWBase::Environment::get().getWorld()->toggleWorld() ? "World -> On"
                                                                                                      : "World -> Off");
@@ -637,7 +644,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     // We are ignoring the DontSaveObject statement for now. Probably not worth
                     // bothering with. The incompatibility we are creating should be marginal at most.
@@ -648,7 +655,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 if (!MWBase::Environment::get().getWorld()->isFirstPerson())
                     MWBase::Environment::get().getWorld()->togglePOV(true);
@@ -657,7 +664,7 @@ namespace MWScript
 
         class OpPcForce3rdPerson : public Interpreter::Opcode0
         {
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 if (MWBase::Environment::get().getWorld()->isFirstPerson())
                     MWBase::Environment::get().getWorld()->togglePOV(true);
@@ -667,7 +674,7 @@ namespace MWScript
         class OpPcGet3rdPerson : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime& runtime)
+            void execute(Interpreter::Runtime& runtime) override
             {
                 runtime.push(!MWBase::Environment::get().getWorld()->isFirstPerson());
             }
@@ -679,7 +686,7 @@ namespace MWScript
 
         public:
 
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 MWBase::World *world =
                     MWBase::Environment::get().getWorld();
@@ -699,7 +706,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -712,7 +719,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -740,9 +747,9 @@ namespace MWScript
                         effects += store.getMagicEffects();
                     }
 
-                    for (MWMechanics::MagicEffects::Collection::const_iterator it = effects.begin(); it != effects.end(); ++it)
+                    for (const auto& activeEffect : effects)
                     {
-                        if (it->first.mId == key && it->second.getModifier() > 0)
+                        if (activeEffect.first.mId == key && activeEffect.second.getModifier() > 0)
                         {
                             runtime.push(1);
                             return;
@@ -757,7 +764,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -789,7 +796,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime, unsigned int arg0)
+                void execute (Interpreter::Runtime& runtime, unsigned int arg0) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -820,7 +827,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
 
                     MWWorld::Ptr ptr = R()(runtime);
@@ -907,7 +914,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
 
                     MWWorld::Ptr ptr = R()(runtime);
@@ -937,7 +944,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -950,7 +957,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -964,7 +971,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -977,7 +984,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     std::string id = runtime.getStringLiteral(runtime[0].mInteger);
@@ -998,7 +1005,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 runtime.push(MWBase::Environment::get().getWorld()->getTimeStamp().getHour());
             }
@@ -1009,14 +1016,13 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     int parameter = runtime[0].mInteger;
                     runtime.pop();
 
                     if (parameter == 1)
-                        MWBase::Environment::get().getWorld()->deleteObject(ptr);
                     {
                         /*
                             Start of tes3mp addition
@@ -1063,7 +1069,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     float param = runtime[0].mFloat;
                     runtime.pop();
@@ -1077,7 +1083,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                 }
         };
@@ -1087,7 +1093,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     runtime.push (MWBase::Environment::get().getWorld()->getPlayerStandingOn(ptr));
@@ -1099,7 +1105,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     runtime.push (MWBase::Environment::get().getWorld()->getActorStandingOn(ptr));
@@ -1111,7 +1117,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     runtime.push (MWBase::Environment::get().getWorld()->getPlayerCollidingWith(ptr));
@@ -1123,7 +1129,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     runtime.push (MWBase::Environment::get().getWorld()->getActorCollidingWith(ptr));
@@ -1135,7 +1141,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     float healthDiffPerSecond = runtime[0].mFloat;
@@ -1150,7 +1156,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
                     float healthDiffPerSecond = runtime[0].mFloat;
@@ -1164,7 +1170,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     runtime.push(MWBase::Environment::get().getWorld()->getWindSpeed());
                 }
@@ -1175,7 +1181,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -1194,7 +1200,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -1213,7 +1219,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWBase::World *world = MWBase::Environment::get().getWorld();
                     world->enableTeleporting(Enable);
@@ -1225,7 +1231,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     MWBase::World *world = MWBase::Environment::get().getWorld();
                     world->enableLevitation(Enable);
@@ -1237,7 +1243,7 @@ namespace MWScript
         {
         public:
 
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWWorld::Ptr ptr = R()(runtime, false);
                 std::string var = runtime.getStringLiteral(runtime[0].mInteger);
@@ -1374,7 +1380,7 @@ namespace MWScript
             }
 
         public:
-            virtual void execute(Interpreter::Runtime& runtime)
+            void execute(Interpreter::Runtime& runtime) override
             {
                 MWWorld::Ptr ptr = R()(runtime, false);
                 if (!ptr.isEmpty())
@@ -1390,7 +1396,7 @@ namespace MWScript
         class OpToggleScripts : public Interpreter::Opcode0
         {
         public:
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 bool enabled = MWBase::Environment::get().getWorld()->toggleScripts();
 
@@ -1401,7 +1407,7 @@ namespace MWScript
         class OpToggleGodMode : public Interpreter::Opcode0
         {
             public:
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled = MWBase::Environment::get().getWorld()->toggleGodMode();
 
@@ -1413,7 +1419,7 @@ namespace MWScript
         class OpCast : public Interpreter::Opcode0
         {
         public:
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWWorld::Ptr ptr = R()(runtime);
 
@@ -1459,7 +1465,7 @@ namespace MWScript
         class OpExplodeSpell : public Interpreter::Opcode0
         {
         public:
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWWorld::Ptr ptr = R()(runtime);
 
@@ -1496,7 +1502,7 @@ namespace MWScript
         class OpGoToJail : public Interpreter::Opcode0
         {
         public:
-            virtual void execute (Interpreter::Runtime& runtime)
+            void execute (Interpreter::Runtime& runtime) override
             {
                 MWBase::World* world = MWBase::Environment::get().getWorld();
                 world->goToJail();
@@ -1506,7 +1512,7 @@ namespace MWScript
         class OpPayFine : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 MWWorld::Ptr player = MWMechanics::getPlayer();
                 player.getClass().getNpcStats(player).setBounty(0);
@@ -1518,7 +1524,7 @@ namespace MWScript
         class OpPayFineThief : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 MWWorld::Ptr player = MWMechanics::getPlayer();
                 player.getClass().getNpcStats(player).setBounty(0);
@@ -1530,7 +1536,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime &runtime)
+                void execute (Interpreter::Runtime &runtime) override
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->isPlayerInJail());
                 }
@@ -1540,7 +1546,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime &runtime)
+                void execute (Interpreter::Runtime &runtime) override
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->isPlayerTraveling());
                 }
@@ -1550,7 +1556,7 @@ namespace MWScript
         class OpBetaComment : public Interpreter::Opcode1
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime, unsigned int arg0)
+            void execute(Interpreter::Runtime &runtime, unsigned int arg0) override
             {
                 MWWorld::Ptr ptr = R()(runtime);
 
@@ -1589,7 +1595,15 @@ namespace MWScript
                         msg << "Grid: " << cell->getCell()->getGridX() << " " << cell->getCell()->getGridY() << std::endl;
                     osg::Vec3f pos (ptr.getRefData().getPosition().asVec3());
                     msg << "Coordinates: " << pos.x() << " " << pos.y() << " " << pos.z() << std::endl;
-                    msg << "Model: " << ptr.getClass().getModel(ptr) << std::endl;
+                    auto vfs = MWBase::Environment::get().getResourceSystem()->getVFS();
+                    std::string model = ::Misc::ResourceHelpers::correctActorModelPath(ptr.getClass().getModel(ptr), vfs);
+                    msg << "Model: " << model << std::endl;
+                    if(!model.empty())
+                    {
+                        const std::string archive = vfs->getArchive(model);
+                        if(!archive.empty())
+                            msg << "(" << archive << ")" << std::endl;
+                    }
                     if (!ptr.getClass().getScript(ptr).empty())
                         msg << "Script: " << ptr.getClass().getScript(ptr) << std::endl;
                 }
@@ -1612,7 +1626,7 @@ namespace MWScript
         class OpAddToLevCreature : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 const std::string& levId = runtime.getStringLiteral(runtime[0].mInteger);
                 runtime.pop();
@@ -1630,7 +1644,7 @@ namespace MWScript
         class OpRemoveFromLevCreature : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 const std::string& levId = runtime.getStringLiteral(runtime[0].mInteger);
                 runtime.pop();
@@ -1648,7 +1662,7 @@ namespace MWScript
         class OpAddToLevItem : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 const std::string& levId = runtime.getStringLiteral(runtime[0].mInteger);
                 runtime.pop();
@@ -1666,7 +1680,7 @@ namespace MWScript
         class OpRemoveFromLevItem : public Interpreter::Opcode0
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime)
+            void execute(Interpreter::Runtime &runtime) override
             {
                 const std::string& levId = runtime.getStringLiteral(runtime[0].mInteger);
                 runtime.pop();
@@ -1685,7 +1699,7 @@ namespace MWScript
         class OpShowSceneGraph : public Interpreter::Opcode1
         {
         public:
-            virtual void execute(Interpreter::Runtime &runtime, unsigned int arg0)
+            void execute(Interpreter::Runtime &runtime, unsigned int arg0) override
             {
                 MWWorld::Ptr ptr = R()(runtime, false);
 
@@ -1710,7 +1724,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_NavMesh);
@@ -1724,7 +1738,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_ActorsPaths);
@@ -1738,7 +1752,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     const auto navMeshNumber = runtime[0].mInteger;
                     runtime.pop();
@@ -1758,7 +1772,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     // Broken in vanilla and deliberately no-op.
                     runtime.push(0);
@@ -1769,7 +1783,7 @@ namespace MWScript
         {
             public:
 
-                virtual void execute (Interpreter::Runtime& runtime)
+                void execute (Interpreter::Runtime& runtime) override
                 {
                     bool enabled =
                         MWBase::Environment::get().getWorld()->toggleRenderMode (MWRender::Render_RecastMesh);
@@ -1781,6 +1795,19 @@ namespace MWScript
 
         void installOpcodes (Interpreter::Interpreter& interpreter)
         {
+            interpreter.installSegment5 (Compiler::Misc::opcodeMenuMode, new OpMenuMode);
+            interpreter.installSegment5 (Compiler::Misc::opcodeRandom, new OpRandom);
+            interpreter.installSegment5 (Compiler::Misc::opcodeScriptRunning, new OpScriptRunning);
+            interpreter.installSegment5 (Compiler::Misc::opcodeStartScript, new OpStartScript<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeStartScriptExplicit, new OpStartScript<ExplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeStopScript, new OpStopScript);
+            interpreter.installSegment5 (Compiler::Misc::opcodeGetSecondsPassed, new OpGetSecondsPassed);
+            interpreter.installSegment5 (Compiler::Misc::opcodeEnable, new OpEnable<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeEnableExplicit, new OpEnable<ExplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeDisable, new OpDisable<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeDisableExplicit, new OpDisable<ExplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeGetDisabled, new OpGetDisabled<ImplicitRef>);
+            interpreter.installSegment5 (Compiler::Misc::opcodeGetDisabledExplicit, new OpGetDisabled<ExplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeXBox, new OpXBox);
             interpreter.installSegment5 (Compiler::Misc::opcodeOnActivate, new OpOnActivate<ImplicitRef>);
             interpreter.installSegment5 (Compiler::Misc::opcodeOnActivateExplicit, new OpOnActivate<ExplicitRef>);

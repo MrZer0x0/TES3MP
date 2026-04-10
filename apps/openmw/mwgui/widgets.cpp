@@ -101,7 +101,7 @@ namespace MWGui
                 button->eventMouseButtonClick += MyGUI::newDelegate(this, &MWSkill::onClicked);
             }
 
-            button = 0;
+            button = nullptr;
             assignWidget(button, "StatValueButton");
             if (button)
             {
@@ -192,7 +192,7 @@ namespace MWGui
                 button->eventMouseButtonClick += MyGUI::newDelegate(this, &MWAttribute::onClicked);
             }
 
-            button = 0;
+            button = nullptr;
             assignWidget(button, "StatValueButton");
             if (button)
             {
@@ -443,6 +443,9 @@ namespace MWGui
             // constant effects have no duration and no target
             if (!mEffectParams.mIsConstant)
             {
+                if (!(magicEffect->mData.mFlags & ESM::MagicEffect::AppliedOnce))
+                    mEffectParams.mDuration = std::max(1, mEffectParams.mDuration);
+
                 if (mEffectParams.mDuration > 0 && !(magicEffect->mData.mFlags & ESM::MagicEffect::NoDuration))
                 {
                     spellLine += " " + MWBase::Environment::get().getWindowManager()->getGameSettingString("sfor", "") + " " + MyGUI::utility::toString(mEffectParams.mDuration) + ((mEffectParams.mDuration == 1) ? sec : secs);

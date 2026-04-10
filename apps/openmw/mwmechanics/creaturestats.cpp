@@ -22,7 +22,6 @@
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
-#include "../mwbase/mechanicsmanager.hpp"
 
 namespace MWMechanics
 {
@@ -34,51 +33,10 @@ namespace MWMechanics
           mKnockdown(false), mKnockdownOneFrame(false), mKnockdownOverOneFrame(false),
           mHitRecovery(false), mBlock(false), mMovementFlags(0),
           mFallHeight(0), mRecalcMagicka(false), mLastRestock(0,0), mGoldPool(0), mActorId(-1), mHitAttemptActorId(-1),
-          mDeathAnimation(-1), mTimeOfDeath(), mGreetingState(Greet_None),
-          mGreetingTimer(0), mTargetAngleRadians(0), mIsTurningToPlayer(false), mLevel (0)
+          mDeathAnimation(-1), mTimeOfDeath(), mSideMovementAngle(0), mLevel (0)
     {
         for (int i=0; i<4; ++i)
             mAiSettings[i] = 0;
-    }
-
-    int MWMechanics::CreatureStats::getGreetingTimer() const
-    {
-        return mGreetingTimer;
-    }
-
-    void MWMechanics::CreatureStats::setGreetingTimer(int timer)
-    {
-        mGreetingTimer = timer;
-    }
-
-    float MWMechanics::CreatureStats::getAngleToPlayer() const
-    {
-        return mTargetAngleRadians;
-    }
-
-    void MWMechanics::CreatureStats::setAngleToPlayer(float angle)
-    {
-        mTargetAngleRadians = angle;
-    }
-
-    GreetingState MWMechanics::CreatureStats::getGreetingState() const
-    {
-        return mGreetingState;
-    }
-
-    void MWMechanics::CreatureStats::setGreetingState(GreetingState state)
-    {
-        mGreetingState = state;
-    }
-
-    bool MWMechanics::CreatureStats::isTurningToPlayer() const
-    {
-        return mIsTurningToPlayer;
-    }
-
-    void MWMechanics::CreatureStats::setTurningToPlayer(bool turning)
-    {
-        mIsTurningToPlayer = turning;
     }
 
     const AiSequence& CreatureStats::getAiSequence() const
@@ -187,7 +145,7 @@ namespace MWMechanics
         return mMagicEffects;
     }
 
-    void CreatureStats::setAttribute(int index, int base)
+    void CreatureStats::setAttribute(int index, float base)
     {
         AttributeValue current = getAttribute(index);
         current.setBase(base);
@@ -213,10 +171,10 @@ namespace MWMechanics
                      index == ESM::Attribute::Agility ||
                      index == ESM::Attribute::Endurance)
             {
-                int strength     = getAttribute(ESM::Attribute::Strength).getModified();
-                int willpower    = getAttribute(ESM::Attribute::Willpower).getModified();
-                int agility      = getAttribute(ESM::Attribute::Agility).getModified();
-                int endurance    = getAttribute(ESM::Attribute::Endurance).getModified();
+                float strength     = getAttribute(ESM::Attribute::Strength).getModified();
+                float willpower    = getAttribute(ESM::Attribute::Willpower).getModified();
+                float agility      = getAttribute(ESM::Attribute::Agility).getModified();
+                float endurance    = getAttribute(ESM::Attribute::Endurance).getModified();
                 DynamicStat<float> fatigue = getFatigue();
                 float diff = (strength+willpower+agility+endurance) - fatigue.getBase();
                 float currentToBaseRatio = fatigue.getBase() > 0 ? (fatigue.getCurrent() / fatigue.getBase()) : 0;
@@ -625,6 +583,14 @@ namespace MWMechanics
         state.mHasAiSettings = true;
         for (int i=0; i<4; ++i)
             mAiSettings[i].writeState (state.mAiSettings[i]);
+
+        for (auto it = mCorprusSpells.begin(); it != mCorprusSpells.end(); ++it)
+        {
+            for (int i=0; i<ESM::Attribute::Length; ++i)
+                state.mCorprusSpells[it->first].mWorsenings[i] = mCorprusSpells.at(it->first).mWorsenings[i];
+
+            state.mCorprusSpells[it->first].mNextWorsening = mCorprusSpells.at(it->first).mNextWorsening.toEsm();
+        }
     }
 
     void CreatureStats::readState (const ESM::CreatureStats& state)
@@ -663,10 +629,32 @@ namespace MWMechanics
         mTimeOfDeath = MWWorld::TimeStamp(state.mTimeOfDeath);
         //mHitAttemptActorId = state.mHitAttemptActorId;
 
-        mSpells.readState(state.mSpells);
+        mSpells.readState(state.mSpells, this);
         mActiveSpells.readState(state.mActiveSpells);
         mAiSequence.readState(state.mAiSequence);
         mMagicEffects.readState(state.mMagicEffects);
+
+        // Rebuild the bound item cache
+        for(int effectId = ESM::MagicEffect::BoundDagger; effectId <= ESM::MagicEffect::BoundGloves; effectId++)
+        {
+            if(mMagicEffects.get(effectId).getMagnitude() > 0)
+                mBoundItems.insert(effectId);
+            else
+            {
+                // Check active spell effects
+                // We can't use mActiveSpells::getMagicEffects here because it doesn't include expired effects
+                auto spell = std::find_if(mActiveSpells.begin(), mActiveSpells.end(), [&] (const auto& spell)
+                {
+                    const auto& effects = spell.second.mEffects;
+                    return std::find_if(effects.begin(), effects.end(), [&] (const auto& effect)
+                    {
+                        return effect.mEffectId == effectId;
+                    }) != effects.end();
+                });
+                if(spell != mActiveSpells.end())
+                    mBoundItems.insert(effectId);
+            }
+        }
 
         mSummonedCreatures = state.mSummonedCreatureMap;
         mSummonGraveyard = state.mSummonGraveyard;
@@ -674,6 +662,15 @@ namespace MWMechanics
         if (state.mHasAiSettings)
             for (int i=0; i<4; ++i)
                 mAiSettings[i].readState(state.mAiSettings[i]);
+
+        mCorprusSpells.clear();
+        for (auto it = state.mCorprusSpells.begin(); it != state.mCorprusSpells.end(); ++it)
+        {
+            for (int i=0; i<ESM::Attribute::Length; ++i)
+                mCorprusSpells[it->first].mWorsenings[i] = state.mCorprusSpells.at(it->first).mWorsenings[i];
+
+            mCorprusSpells[it->first].mNextWorsening = MWWorld::TimeStamp(state.mCorprusSpells.at(it->first).mNextWorsening);
+        }
     }
 
     void CreatureStats::setLastRestockTime(MWWorld::TimeStamp tradeTime)
@@ -740,7 +737,7 @@ namespace MWMechanics
         return mTimeOfDeath;
     }
 
-    std::map<CreatureStats::SummonKey, int>& CreatureStats::getSummonedCreatureMap()
+    std::map<ESM::SummonKey, int>& CreatureStats::getSummonedCreatureMap()
     {
         return mSummonedCreatures;
     }

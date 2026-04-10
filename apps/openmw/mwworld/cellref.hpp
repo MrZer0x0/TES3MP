@@ -73,12 +73,6 @@ namespace MWWorld
         // if it should open through animation.
         bool getTeleport() const;
 
-        // Teleport location for the door, if this is a teleporting door.
-        ESM::Position getDoorDest() const;
-
-        // Destination cell for doors (optional)
-        std::string getDestCell() const;
-
         /*
             Start of tes3mp addition
 

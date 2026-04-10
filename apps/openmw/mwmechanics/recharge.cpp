@@ -75,9 +75,6 @@ bool rechargeItem(const MWWorld::Ptr &item, const MWWorld::Ptr &gem)
         item.getCellRef().setEnchantmentCharge(
             std::min(item.getCellRef().getEnchantmentCharge() + restored, static_cast<float>(enchantment->mData.mCharge)));
 
-        MWBase::Environment::get().getWindowManager()->playSound("Enchant Success");
-
-        player.getClass().getContainerStore(player).restack(item);
         /*
             Start of tes3mp change (minor)
 

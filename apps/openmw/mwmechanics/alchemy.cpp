@@ -35,7 +35,6 @@
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/cellstore.hpp"
-#include "../mwworld/manualref.hpp"
 
 #include "magiceffects.hpp"
 #include "creaturestats.hpp"
@@ -269,7 +268,7 @@ const ESM::Potion *MWMechanics::Alchemy::getRecord(const ESM::Potion& toFind) co
             return &(*iter);
     }
 
-    return 0;
+    return nullptr;
 }
 
 void MWMechanics::Alchemy::removeIngredients()
@@ -324,11 +323,6 @@ void MWMechanics::Alchemy::addPotion (const std::string& name)
 
     newRecord.mEffects.mList = mEffects;
 
-    const ESM::Potion* record = getRecord(newRecord);
-    if (!record)
-        record = MWBase::Environment::get().getWorld()->createRecord (newRecord);
-
-    mAlchemist.getClass().getContainerStore (mAlchemist).add (record->mId, 1, mAlchemist);
     /*
         Start of tes3mp change (major)
 
@@ -512,7 +506,7 @@ MWMechanics::Alchemy::TEffectsIterator MWMechanics::Alchemy::endEffects() const
 
 bool MWMechanics::Alchemy::knownEffect(unsigned int potionEffectIndex, const MWWorld::Ptr &npc)
 {
-    int alchemySkill = npc.getClass().getSkill (npc, ESM::Skill::Alchemy);
+    float alchemySkill = npc.getClass().getSkill (npc, ESM::Skill::Alchemy);
     static const float fWortChanceValue =
             MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fWortChanceValue")->mValue.getFloat();
     return (potionEffectIndex <= 1 && alchemySkill >= fWortChanceValue)
@@ -559,8 +553,6 @@ MWMechanics::Alchemy::Result MWMechanics::Alchemy::create (const std::string& na
     if (readyStatus == Result_NoEffects)
         removeIngredients();
 
-    if (readyStatus != Result_Success)
-        return readyStatus;
     /*
         Start of tes3mp change (minor)
 

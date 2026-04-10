@@ -22,10 +22,8 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/nullaction.hpp"
 #include "../mwworld/esmstore.hpp"
-#include "../mwworld/inventorystore.hpp"
 
 #include "../mwmechanics/alchemy.hpp"
-#include "../mwmechanics/actorutil.hpp"
 
 namespace
 {
@@ -33,18 +31,18 @@ namespace
     {
         // this defines the sorting order of types. types that are first in the vector appear before other types.
         std::vector<std::string> mapping;
-        mapping.push_back( typeid(ESM::Weapon).name() );
-        mapping.push_back( typeid(ESM::Armor).name() );
-        mapping.push_back( typeid(ESM::Clothing).name() );
-        mapping.push_back( typeid(ESM::Potion).name() );
-        mapping.push_back( typeid(ESM::Ingredient).name() );
-        mapping.push_back( typeid(ESM::Apparatus).name() );
-        mapping.push_back( typeid(ESM::Book).name() );
-        mapping.push_back( typeid(ESM::Light).name() );
-        mapping.push_back( typeid(ESM::Miscellaneous).name() );
-        mapping.push_back( typeid(ESM::Lockpick).name() );
-        mapping.push_back( typeid(ESM::Repair).name() );
-        mapping.push_back( typeid(ESM::Probe).name() );
+        mapping.emplace_back(typeid(ESM::Weapon).name() );
+        mapping.emplace_back(typeid(ESM::Armor).name() );
+        mapping.emplace_back(typeid(ESM::Clothing).name() );
+        mapping.emplace_back(typeid(ESM::Potion).name() );
+        mapping.emplace_back(typeid(ESM::Ingredient).name() );
+        mapping.emplace_back(typeid(ESM::Apparatus).name() );
+        mapping.emplace_back(typeid(ESM::Book).name() );
+        mapping.emplace_back(typeid(ESM::Light).name() );
+        mapping.emplace_back(typeid(ESM::Miscellaneous).name() );
+        mapping.emplace_back(typeid(ESM::Lockpick).name() );
+        mapping.emplace_back(typeid(ESM::Repair).name() );
+        mapping.emplace_back(typeid(ESM::Probe).name() );
 
         assert( std::find(mapping.begin(), mapping.end(), type1) != mapping.end() );
         assert( std::find(mapping.begin(), mapping.end(), type2) != mapping.end() );
@@ -52,87 +50,10 @@ namespace
         return std::find(mapping.begin(), mapping.end(), type1) < std::find(mapping.begin(), mapping.end(), type2);
     }
 
-    bool CompareName(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-
-        MWWorld::Ptr player = MWMechanics::getPlayer();
-        MWWorld::InventoryStore& store = player.getClass().getInventoryStore(player);
-
-        // show barter items, then equipped items when sorting by name in ascending order
-        if (left.mType == MWGui::ItemStack::Type_Barter)
-            return true;
-        if (right.mType == MWGui::ItemStack::Type_Barter)
-            return false; 
-
-        if (store.isEquipped(right.mBase))
-            return true; 
-        if (store.isEquipped(left.mBase))
-            return false;
-
-        std::string leftName = Misc::StringUtils::lowerCase(left.mBase.getClass().getName(left.mBase));
-        std::string rightName = Misc::StringUtils::lowerCase(right.mBase.getClass().getName(right.mBase));
-        int result = leftName.compare(rightName);
-        if (result != 0)
-            return result < 0;
-        else 
-            return false;  
-    }
-
-    bool CompareValue(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-        return left.mBase.getClass().getValue(left.mBase) > right.mBase.getClass().getValue(right.mBase);
-    }
-
-    bool CompareWeight(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-        return (left.mBase.getClass().getWeight(left.mBase) * left.mCount) > (right.mBase.getClass().getWeight(right.mBase) * right.mCount);
-    }
-
-    bool CompareRatio(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-
-        float lw = left.mBase.getClass().getWeight(left.mBase); 
-        float lv =  left.mBase.getClass().getValue(left.mBase);
-        float rw = right.mBase.getClass().getWeight(right.mBase);
-        float rv = right.mBase.getClass().getValue(right.mBase);
-        
-        if (lw == 0)
-            return true; 
-        if (rw == 0)
-            return false; 
-        return (lv/lw) > (rv/rw);
-    }
-
-    bool CompareWeaponType(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-
-        int result = left.mBase.get<ESM::Weapon>()->mBase->mData.mType - right.mBase.get<ESM::Weapon>()->mBase->mData.mType;  
-        if (result != 0)
-            return result < 0;
-        else 
-            return false;  
-    }
-
-    bool CompareArmorType(const MWGui::ItemStack& left, const MWGui::ItemStack& right)
-    {
-        if (left.mBase.isEmpty() || right.mBase.isEmpty()) return false;
-
-        int result = left.mBase.getClass().getEquipmentSkill(left.mBase) - right.mBase.getClass().getEquipmentSkill(right.mBase);
-        if (result != 0)
-            return result > 0;
-        else 
-            return false;  
-    }
-
     struct Compare
     {
         bool mSortByType;
-        Compare(bool sortByType) : mSortByType(sortByType) {}
+        Compare() : mSortByType(true) {}
         bool operator() (const MWGui::ItemStack& left, const MWGui::ItemStack& right)
         {
             if (mSortByType && left.mType != right.mType)
@@ -148,8 +69,8 @@ namespace
                 return compareType(leftName, rightName);
 
             // compare items by name
-            leftName = Misc::StringUtils::lowerCase(left.mBase.getClass().getName(left.mBase));
-            rightName = Misc::StringUtils::lowerCase(right.mBase.getClass().getName(right.mBase));
+            leftName = Misc::StringUtils::lowerCaseUtf8(left.mBase.getClass().getName(left.mBase));
+            rightName = Misc::StringUtils::lowerCaseUtf8(right.mBase.getClass().getName(right.mBase));
 
             result = leftName.compare(rightName);
             if (result != 0)
@@ -230,12 +151,10 @@ namespace MWGui
 
     SortFilterItemModel::SortFilterItemModel(ItemModel *sourceModel)
         : mCategory(Category_All)
-        , mSort(Sort_Default)
         , mFilter(0)
         , mSortByType(true)
         , mNameFilter("")
         , mEffectFilter("")
-        , mIncreasing(true)
     {
         mSourceModel = sourceModel;
     }
@@ -247,7 +166,7 @@ namespace MWGui
 
     void SortFilterItemModel::addDragItem (const MWWorld::Ptr& dragItem, size_t count)
     {
-        mDragItems.push_back(std::make_pair(dragItem, count));
+        mDragItems.emplace_back(dragItem, count);
     }
 
     void SortFilterItemModel::clearDragItems()
@@ -255,69 +174,33 @@ namespace MWGui
         mDragItems.clear();
     }
 
-    void SortFilterItemModel::toggleSort(int sort)
-    {
-        mIncreasing = !mIncreasing;
-        mSort = sort;
-    }
-
-    void SortFilterItemModel::setSort(int sort)
-    {
-         mSort = sort; 
-    }
-    
-    int SortFilterItemModel::getSort() const 
-    {
-        return mSort; 
-    }
-
     bool SortFilterItemModel::filterAccepts (const ItemStack& item)
     {
         MWWorld::Ptr base = item.mBase;
-        int category = 0;
 
+        int category = 0;
         if (base.getTypeName() == typeid(ESM::Armor).name()
                 || base.getTypeName() == typeid(ESM::Clothing).name())
             category = Category_Apparel;
+        else if (base.getTypeName() == typeid(ESM::Weapon).name())
+            category = Category_Weapon;
         else if (base.getTypeName() == typeid(ESM::Ingredient).name()
                      || base.getTypeName() == typeid(ESM::Potion).name())
             category = Category_Magic;
-        if (base.getTypeName() == typeid(ESM::Armor).name())   
-            category = Category_Armor;
-        else if (base.getTypeName() == typeid(ESM::Weapon).name())
-            category = Category_Weapon;
-        else if (base.getTypeName() == typeid(ESM::Clothing).name())   
-            category = Category_Cloth;
-        else if (base.getTypeName() == typeid(ESM::Potion).name())   
-            category = Category_Potion;
-        else if (base.getTypeName() == typeid(ESM::Ingredient).name())   
-            category = Category_Ingredient;
-        else if (base.getTypeName() == typeid(ESM::Lockpick).name()
-            || base.getTypeName() == typeid(ESM::Probe).name()
-            || base.getTypeName() == typeid(ESM::Repair).name()
-            || base.getTypeName() == typeid(ESM::Apparatus).name())   
-            category = Category_Tool;
-        else if (base.getTypeName() == typeid(ESM::Book).name())   
-        {
-            if (base.get<ESM::Book>()->mBase->mData.mIsScroll && (item.mFlags & ItemStack::Flag_Enchanted))
-                category = Category_Magic;
-            else
-                category = Category_Book;
-        }
-        else if ( base.getTypeName() == typeid(ESM::Light).name())
+        else if (base.getTypeName() == typeid(ESM::Miscellaneous).name()
+                 || base.getTypeName() == typeid(ESM::Ingredient).name()
+                 || base.getTypeName() == typeid(ESM::Repair).name()
+                 || base.getTypeName() == typeid(ESM::Lockpick).name()
+                 || base.getTypeName() == typeid(ESM::Light).name()
+                 || base.getTypeName() == typeid(ESM::Apparatus).name()
+                 || base.getTypeName() == typeid(ESM::Book).name()
+                 || base.getTypeName() == typeid(ESM::Probe).name())
             category = Category_Misc;
-        else if (base.getTypeName() == typeid(ESM::Miscellaneous).name())   
-        {
-            if (base.getCellRef().getSoul() != "")
-                category = Category_Magic;
-            else 
-                category = Category_Misc;
-        }
 
         if (item.mFlags & ItemStack::Flag_Enchanted)
             category |= Category_Magic;
 
-        if (!(category & mCategory) && (mCategory != Category_Simple))
+        if (!(category & mCategory))
             return false;
 
         if (mFilter & Filter_OnlyIngredients)
@@ -330,7 +213,7 @@ namespace MWGui
 
             if (!mNameFilter.empty())
             {
-                const auto itemName = Misc::StringUtils::lowerCase(base.getClass().getName(base));
+                const auto itemName = Misc::StringUtils::lowerCaseUtf8(base.getClass().getName(base));
                 return itemName.find(mNameFilter) != std::string::npos;
             }
 
@@ -343,7 +226,7 @@ namespace MWGui
 
                 for (const auto& effect : effects)
                 {
-                    const auto ciEffect = Misc::StringUtils::lowerCase(effect);
+                    const auto ciEffect = Misc::StringUtils::lowerCaseUtf8(effect);
 
                     if (ciEffect.find(mEffectFilter) != std::string::npos)
                         return true;
@@ -402,7 +285,7 @@ namespace MWGui
                 return false;
         }
 
-        std::string compare = Misc::StringUtils::lowerCase(item.mBase.getClass().getName(item.mBase));
+        std::string compare = Misc::StringUtils::lowerCaseUtf8(item.mBase.getClass().getName(item.mBase));
         if(compare.find(mNameFilter) == std::string::npos)
             return false;
 
@@ -428,11 +311,6 @@ namespace MWGui
         mCategory = category;
     }
 
-    int SortFilterItemModel::getCategory () const 
-    {
-        return mCategory;
-    }
-
     void SortFilterItemModel::setFilter (int filter)
     {
         mFilter = filter;
@@ -440,12 +318,12 @@ namespace MWGui
 
     void SortFilterItemModel::setNameFilter (const std::string& filter)
     {
-        mNameFilter = Misc::StringUtils::lowerCase(filter);
+        mNameFilter = Misc::StringUtils::lowerCaseUtf8(filter);
     }
 
     void SortFilterItemModel::setEffectFilter (const std::string& filter)
     {
-        mEffectFilter = Misc::StringUtils::lowerCase(filter);
+        mEffectFilter = Misc::StringUtils::lowerCaseUtf8(filter);
     }
 
     void SortFilterItemModel::update()
@@ -473,69 +351,9 @@ namespace MWGui
                 mItems.push_back(item);
         }
 
-        updateSort();
-    }
-
-    void SortFilterItemModel::updateSort()
-    {
-        switch(mSort)
-        {
-            case Sort_Name:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareName);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareName);
-                break;
-            }
-            case Sort_Value:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareValue);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareValue);
-                break;
-            }   
-            case Sort_Weight:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareWeight);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareWeight);
-                break;
-            }
-            case Sort_Ratio:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareRatio);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareRatio);
-                break;
-            }
-            case Sort_WeaponType:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareWeaponType);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareWeaponType);
-                break;
-            }
-            case Sort_ArmorType:
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), CompareArmorType);
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), CompareArmorType);
-                break;
-            }
-            default: 
-            {
-                if (mIncreasing)
-                    std::sort(mItems.begin(), mItems.end(), Compare(mSortByType));
-                else 
-                    std::sort(mItems.rbegin(), mItems.rend(), Compare(mSortByType));
-            }
-        }
+        Compare cmp;
+        cmp.mSortByType = mSortByType;
+        std::sort(mItems.begin(), mItems.end(), cmp);
     }
 
     void SortFilterItemModel::onClose()

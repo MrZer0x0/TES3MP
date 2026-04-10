@@ -189,9 +189,9 @@ namespace MWClass
 
         std::string text;
 
-        info.weight = MWGui::ToolTips::getWeightString(ref->mBase->mData.mWeight, "#{sWeight}");
+        text += MWGui::ToolTips::getWeightString(ref->mBase->mData.mWeight, "#{sWeight}");
         if (!gold && !ref->mBase->mData.mIsKey)
-            info.value = MWGui::ToolTips::getValueString(getValue(ptr), "#{sValue}");
+            text += MWGui::ToolTips::getValueString(getValue(ptr), "#{sValue}");
 
         if (MWBase::Environment::get().getWindowManager()->getFullHelp()) {
             text += MWGui::ToolTips::getCellRefString(ptr.getCellRef());

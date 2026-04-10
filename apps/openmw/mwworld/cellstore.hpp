@@ -41,6 +41,7 @@ namespace ESM
     struct CellState;
     struct FogState;
     struct CellId;
+    struct RefNum;
 }
 
 namespace MWWorld

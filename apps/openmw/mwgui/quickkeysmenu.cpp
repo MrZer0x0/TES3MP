@@ -49,9 +49,9 @@ namespace MWGui
         , mKey(std::vector<keyData>(10))
         , mSelected(nullptr)
         , mActivated(nullptr)
-        , mAssignDialog(0)
-        , mItemSelectionDialog(0)
-        , mMagicSelectionDialog(0)
+        , mAssignDialog(nullptr)
+        , mItemSelectionDialog(nullptr)
+        , mMagicSelectionDialog(nullptr)
 
     {
         getWidget(mOkButton, "OKButton");
@@ -160,8 +160,6 @@ namespace MWGui
             textBox->setCaption(MyGUI::utility::toString(key->index));
             textBox->setNeedMouseFocus(false);
         }
-    }
-
 
         /*
             Start of tes3mp addition
@@ -416,7 +414,8 @@ namespace MWGui
                 || playerStats.getKnockedDown()
                 || playerStats.getHitRecovery();
 
-        bool isReturnNeeded = playerStats.isParalyzed() || playerStats.isDead();
+        bool godmode = MWBase::Environment::get().getWorld()->getGodModeState();
+        bool isReturnNeeded = (!godmode && playerStats.isParalyzed()) || playerStats.isDead();
 
         if (isReturnNeeded && key->type != Type_Item)
         {
@@ -508,17 +507,7 @@ namespace MWGui
             else if (key->type == Type_MagicItem)
             {
                 // equip, if it can be equipped and isn't yet equipped
-                if (!item.getClass().getEquipmentSlots(item).first.empty() && !store.isEquipped(item))
-                {
-                    MWBase::Environment::get().getWindowManager()->useItem(item);
 
-                    // make sure that item was successfully equipped
-                    if (!store.isEquipped(item))
-                        return;
-                }
-
-                store.setSelectedEnchantItem(it);
-                MWBase::Environment::get().getWorld()->getPlayer().setDrawState(MWMechanics::DrawState_Spell);
                 /*
                     Start of tes3mp change (major)
 
@@ -581,15 +570,6 @@ namespace MWGui
         }
     }
 
-    bool QuickKeysMenu::isAssigned(const MWWorld::Ptr &item) const
-    {
-        if (item.isEmpty())
-            return false;
-        for (const keyData& quickKey : mKey)
-            if (quickKey.id == item.getCellRef().getRefId())
-                return true; 
-        return false; 
-    }
     /*
         Start of tes3mp addition
 
@@ -779,8 +759,6 @@ namespace MWGui
         WindowModal::onOpen();
 
         mMagicList->setModel(new SpellModel(MWMechanics::getPlayer()));
-        mMagicList->getModel()->setCategory(SpellModel::Category_Simple);
-        mMagicList->update();
         mMagicList->resetScrollbars();
     }
 

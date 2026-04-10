@@ -40,10 +40,7 @@ namespace MWGui
 
     MessageBoxManager::~MessageBoxManager ()
     {
-        for (MessageBox* messageBox : mMessageBoxes)
-        {
-            delete messageBox;
-        }
+        MessageBoxManager::clear();
     }
 
     int MessageBoxManager::getMessagesCount()
@@ -149,7 +146,6 @@ namespace MWGui
         mStaticMessageBox = nullptr;
     }
 
-    bool MessageBoxManager::createInteractiveMessageBox (const std::string& message, const std::vector<std::string>& buttons)
     /*
         Start of tes3mp change (major)
 

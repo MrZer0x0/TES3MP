@@ -3,8 +3,6 @@
 
 #include <deque>
 
-#include <components/esm/loadmgef.hpp>
-
 #include "../mwworld/ptr.hpp"
 #include "../mwworld/containerstore.hpp"
 
@@ -195,6 +193,9 @@ class CharacterController : public MWRender::Animation::TextKeyListener
 
     float mTimeUntilWake;
 
+    bool mIsMovingBackward;
+    osg::Vec2f mSmoothedSpeed;
+
     void setAttackTypeBasedOnMovement();
 
     void refreshCurrentAnims(CharacterState idle, CharacterState movement, JumpingState jump, bool force=false);
@@ -238,15 +239,14 @@ public:
     CharacterController(const MWWorld::Ptr &ptr, MWRender::Animation *anim);
     virtual ~CharacterController();
 
-    virtual void handleTextKey(const std::string &groupname, const std::multimap<float, std::string>::const_iterator &key,
-                       const std::multimap<float, std::string>& map);
+    void handleTextKey(const std::string &groupname, SceneUtil::TextKeyMap::ConstIterator key, const SceneUtil::TextKeyMap& map) override;
 
     // Be careful when to call this, see comment in Actors
     void updateContinuousVfx();
 
     void updatePtr(const MWWorld::Ptr &ptr);
 
-    void update(float duration, bool animationOnly=false);
+    void update(float duration);
 
     bool onOpen();
     void onClose();

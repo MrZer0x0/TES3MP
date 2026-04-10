@@ -43,27 +43,20 @@
 
 namespace MWClass
 {
-    class DoorCustomData : public MWWorld::CustomData
+    class DoorCustomData : public MWWorld::TypedCustomData<DoorCustomData>
     {
     public:
         MWWorld::DoorState mDoorState = MWWorld::DoorState::Idle;
 
-        virtual MWWorld::CustomData *clone() const;
-
-        virtual DoorCustomData& asDoorCustomData()
+        DoorCustomData& asDoorCustomData() override
         {
             return *this;
         }
-        virtual const DoorCustomData& asDoorCustomData() const
+        const DoorCustomData& asDoorCustomData() const override
         {
             return *this;
         }
     };
-
-    MWWorld::CustomData *DoorCustomData::clone() const
-    {
-        return new DoorCustomData (*this);
-    }
 
     void Door::insertObjectRendering (const MWWorld::Ptr& ptr, const std::string& model, MWRender::RenderingInterface& renderingInterface) const
     {
@@ -151,12 +144,14 @@ namespace MWClass
             MWBase::Environment::get().getWorld()->getMaxActivationDistance())
         {
             MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(ptr);
+            if(animation)
+            {
+                const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
+                int index = ESM::MagicEffect::effectStringToId("sEffectTelekinesis");
+                const ESM::MagicEffect *effect = store.get<ESM::MagicEffect>().find(index);
 
-            const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
-            int index = ESM::MagicEffect::effectStringToId("sEffectTelekinesis");
-            const ESM::MagicEffect *effect = store.get<ESM::MagicEffect>().find(index);
-
-            animation->addSpellCastGlow(effect, 1); // 1 second glow to match the time taken for a door opening or closing
+                animation->addSpellCastGlow(effect, 1); // 1 second glow to match the time taken for a door opening or closing
+            }
         }
 
         const std::string keyId = ptr.getCellRef().getKey();
@@ -174,14 +169,6 @@ namespace MWClass
         {
             if(actor == MWMechanics::getPlayer())
                 MWBase::Environment::get().getWindowManager()->messageBox(keyName + " #{sKeyUsed}");
-            ptr.getCellRef().unlock(); //Call the function here. because that makes sense.
-            // using a key disarms the trap
-            if(isTrapped)
-            {
-                ptr.getCellRef().setTrap("");
-                MWBase::Environment::get().getSoundManager()->playSound3D(ptr, "Disarm Trap", 1.0f, 1.0f);
-                isTrapped = false;
-            }
 
             /*
                 Start of tes3mp change (major)
@@ -264,7 +251,6 @@ namespace MWClass
                 }
                 else
                 {
-                    std::shared_ptr<MWWorld::Action> action(new MWWorld::ActionTeleport (ptr.getCellRef().getDestCell(), ptr.getCellRef().getDoorDest(), true));
                     /*
                         Start of tes3mp change (major)
 
@@ -388,32 +374,19 @@ namespace MWClass
         return info;
     }
 
-    std::string Door::getDestination (const MWWorld::LiveCellRef<ESM::Door>& door)
+    std::string Door::getDestination(const MWWorld::LiveCellRef<ESM::Door>& door)
     {
         const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
 
-        std::string dest;
-        if (door.mRef.getDestCell() != "")
-        {
-            // door leads to an interior, use interior name as tooltip
-            dest = door.mRef.getDestCell();
-        }
-        else
+        std::string dest = door.mRef.getDestCell();
+        if (dest.empty())
         {
             // door leads to exterior, use cell name (if any), otherwise translated region name
-            int x,y;
-            MWBase::Environment::get().getWorld()->positionToIndex (door.mRef.getDoorDest().pos[0], door.mRef.getDoorDest().pos[1], x, y);
-            const ESM::Cell* cell = store.get<ESM::Cell>().find(x,y);
-            if (cell->mName != "")
-                dest = cell->mName;
-            else
-            {
-                const ESM::Region* region =
-                    store.get<ESM::Region>().find(cell->mRegion);
-
-                //name as is, not a token
-                return MyGUI::TextIterator::toTagsString(region->mName);
-            }
+            int x, y;
+            auto world = MWBase::Environment::get().getWorld();
+            world->positionToIndex(door.mRef.getDoorDest().pos[0], door.mRef.getDoorDest().pos[1], x, y);
+            const ESM::Cell* cell = world->getStore().get<ESM::Cell>().search(x, y);
+            dest = world->getCellName(cell);
         }
         /*
             Start of tes3mp addition
@@ -441,8 +414,7 @@ namespace MWClass
     {
         if (!ptr.getRefData().getCustomData())
         {
-            std::unique_ptr<DoorCustomData> data(new DoorCustomData);
-            ptr.getRefData().setCustomData(data.release());
+            ptr.getRefData().setCustomData(std::make_unique<DoorCustomData>());
         }
     }
 

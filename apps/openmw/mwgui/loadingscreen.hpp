@@ -20,30 +20,31 @@ namespace osg
     class Texture2D;
 }
 
-namespace VFS
+namespace Resource
 {
-    class Manager;
+    class ResourceSystem;
 }
 
 namespace MWGui
 {
     class BackgroundImage;
+    class CopyFramebufferToTextureCallback;
 
     class LoadingScreen : public WindowBase, public Loading::Listener
     {
     public:
-        LoadingScreen(const VFS::Manager* vfs, osgViewer::Viewer* viewer);
+        LoadingScreen(Resource::ResourceSystem* resourceSystem, osgViewer::Viewer* viewer);
         virtual ~LoadingScreen();
 
         /// Overridden from Loading::Listener, see the Loading::Listener documentation for usage details
-        virtual void setLabel (const std::string& label, bool important, bool center);
-        virtual void loadingOn(bool visible=true);
-        virtual void loadingOff();
-        virtual void setProgressRange (size_t range);
-        virtual void setProgress (size_t value);
-        virtual void increaseProgress (size_t increase=1);
+        void setLabel (const std::string& label, bool important) override;
+        void loadingOn(bool visible=true) override;
+        void loadingOff() override;
+        void setProgressRange (size_t range) override;
+        void setProgress (size_t value) override;
+        void increaseProgress (size_t increase=1) override;
 
-        virtual void setVisible(bool visible);
+        void setVisible(bool visible) override;
 
         double getTargetFrameRate() const;
 
@@ -53,7 +54,7 @@ namespace MWGui
 
         void setupCopyFramebufferToTextureCallback();
 
-        const VFS::Manager* mVFS;
+        Resource::ResourceSystem* mResourceSystem;
         osg::ref_ptr<osgViewer::Viewer> mViewer;
 
         double mTargetFrameRate;
@@ -66,10 +67,13 @@ namespace MWGui
         bool mImportantLabel;
 
         bool mVisible;
+        int mNestedLoadingCount;
 
         size_t mProgress;
 
         bool mShowWallpaper;
+        float mOldIcoMin = 0.f;
+        unsigned int mOldIcoMax = 0;
 
         MyGUI::Widget* mLoadingBox;
 
@@ -81,6 +85,7 @@ namespace MWGui
         std::vector<std::string> mSplashScreens;
 
         osg::ref_ptr<osg::Texture2D> mTexture;
+        osg::ref_ptr<CopyFramebufferToTextureCallback> mCopyFramebufferToTextureCallback;
         std::unique_ptr<MyGUI::ITexture> mGuiTexture;
 
         void changeWallpaper();

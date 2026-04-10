@@ -19,8 +19,8 @@
 
 #include <components/interpreter/interpreter.hpp>
 #include <components/interpreter/defines.hpp>
-
 #include <components/settings/settings.hpp>
+
 /*
     Start of tes3mp addition
 
@@ -158,6 +158,7 @@ namespace MWDialogue
         mTalkedTo = creatureStats.hasTalkedToPlayer();
 
         mActorKnownTopics.clear();
+        mActorKnownTopicsFlag.clear();
 
         //greeting
         const MWWorld::Store<ESM::Dialogue> &dialogs =
@@ -278,6 +279,30 @@ namespace MWDialogue
         }
     }
 
+    bool DialogueManager::inJournal (const std::string& topicId, const std::string& infoId)
+    {
+        const MWDialogue::Topic *topicHistory = nullptr;
+        MWBase::Journal *journal = MWBase::Environment::get().getJournal();
+        for (auto it = journal->topicBegin(); it != journal->topicEnd(); ++it)
+        {
+            if (it->first == topicId)
+            {
+                topicHistory = &it->second;
+                break;
+            }
+        }
+
+        if (!topicHistory)
+            return false;
+
+        for(const auto& topic : *topicHistory)
+        {
+            if (topic.mInfoId == infoId)
+                return true;
+        }
+        return false;
+    }
+
     void DialogueManager::executeTopic (const std::string& topic, ResponseCallback* callback)
     {
         Filter filter (mActor, mChoice, mTalkedTo);
@@ -326,11 +351,11 @@ namespace MWDialogue
                 }
             }
 
+            mLastTopic = topic;
+
             executeScript (info->mResultScript, mActor);
 
             parseText (info->mResponse);
-
-            mLastTopic = topic;
         }
     }
 
@@ -349,23 +374,36 @@ namespace MWDialogue
         updateGlobals();
 
         mActorKnownTopics.clear();
+        mActorKnownTopicsFlag.clear();
 
-        const MWWorld::Store<ESM::Dialogue> &dialogs =
-            MWBase::Environment::get().getWorld()->getStore().get<ESM::Dialogue>();
+        const auto& dialogs = MWBase::Environment::get().getWorld()->getStore().get<ESM::Dialogue>();
 
         Filter filter (mActor, -1, mTalkedTo);
 
-        for (MWWorld::Store<ESM::Dialogue>::iterator iter = dialogs.begin(); iter != dialogs.end(); ++iter)
+        for (const auto& dialog : dialogs)
         {
-            if (iter->mType == ESM::Dialogue::Topic)
+            if (dialog.mType == ESM::Dialogue::Topic)
             {
-                if (filter.responseAvailable (*iter))
+                const auto* answer = filter.search(dialog, true);
+                auto topicId = Misc::StringUtils::lowerCase(dialog.mId);
+
+                if (answer != nullptr)
                 {
-                    mActorKnownTopics.insert (iter->mId);
+                    int flag = 0;
+                    if(!inJournal(topicId, answer->mId))
+                    {
+                        // Does this dialogue contains some actor-specific answer?
+                        if (Misc::StringUtils::ciEqual(answer->mActor, mActor.getCellRef().getRefId()))
+                            flag |= MWBase::DialogueManager::TopicType::Specific;
+                    }
+                    else
+                        flag |= MWBase::DialogueManager::TopicType::Exhausted;
+                    mActorKnownTopics.insert (dialog.mId);
+                    mActorKnownTopicsFlag[dialog.mId] = flag;
                 }
+
             }
         }
-
     }
 
     std::list<std::string> DialogueManager::getAvailableTopics()
@@ -384,6 +422,11 @@ namespace MWDialogue
         // sort again, because the previous sort was case-sensitive
         keywordList.sort(Misc::StringUtils::ciLess);
         return keywordList;
+    }
+
+    int DialogueManager::getTopicFlag(const std::string& topicId)
+    {
+        return mActorKnownTopicsFlag[topicId];
     }
 
     void DialogueManager::keywordSelected (const std::string& keyword, ResponseCallback* callback)
@@ -475,7 +518,7 @@ namespace MWDialogue
     void DialogueManager::addChoice (const std::string& text, int choice)
     {
         mIsInChoice = true;
-        mChoices.push_back(std::make_pair(text, choice));
+        mChoices.emplace_back(text, choice);
     }
 
     const std::vector<std::pair<std::string, int> >& DialogueManager::getChoices()
@@ -558,9 +601,9 @@ namespace MWDialogue
             mPermanentDispositionChange += delta;
     }
 
-    bool DialogueManager::checkServiceRefused(ResponseCallback* callback)
+    bool DialogueManager::checkServiceRefused(ResponseCallback* callback, ServiceType service)
     {
-        Filter filter (mActor, mChoice, mTalkedTo);
+        Filter filter (mActor, service, mTalkedTo);
 
         const MWWorld::Store<ESM::Dialogue> &dialogues =
             MWBase::Environment::get().getWorld()->getStore().get<ESM::Dialogue>();
@@ -617,8 +660,6 @@ namespace MWDialogue
         if(info != nullptr)
         {
             MWBase::WindowManager *winMgr = MWBase::Environment::get().getWindowManager();
-            if(winMgr->getSubtitlesEnabled())
-                winMgr->messageBox(info->mResponse);
             if (winMgr->getSubtitlesEnabled())
             /*
                 Start of tes3mp change (minor)

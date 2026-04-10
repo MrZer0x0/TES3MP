@@ -23,6 +23,10 @@
 
 #include <components/compiler/exception.hpp>
 #include <components/compiler/extensions0.hpp>
+#include <components/compiler/lineparser.hpp>
+#include <components/compiler/scanner.hpp>
+#include <components/compiler/locals.hpp>
+#include <components/interpreter/interpreter.hpp>
 
 #include "../mwscript/extensions.hpp"
 
@@ -44,13 +48,13 @@ namespace MWGui
 
             ConsoleInterpreterContext (Console& console, MWWorld::Ptr reference);
 
-            virtual void report (const std::string& message);
+            void report (const std::string& message) override;
     };
 
     ConsoleInterpreterContext::ConsoleInterpreterContext (Console& console,
         MWWorld::Ptr reference)
     : MWScript::InterpreterContext (
-        reference.isEmpty() ? 0 : &reference.getRefData().getLocals(), reference),
+        reference.isEmpty() ? nullptr : &reference.getRefData().getLocals(), reference),
       mConsole (console)
     {}
 
@@ -293,7 +297,7 @@ namespace MWGui
                 size_t length = mCommandLine->getTextCursor() - max;
                 if(length > 0)
                 {
-                    std::string text = caption;
+                    auto text = caption;
                     text.erase(max, length);
                     mCommandLine->setCaption(text);
                     mCommandLine->setTextCursor(max);
@@ -303,7 +307,7 @@ namespace MWGui
             {
                 if(mCommandLine->getTextCursor() > 0)
                 {
-                    std::string text = mCommandLine->getCaption();
+                    auto text = mCommandLine->getCaption();
                     text.erase(0, mCommandLine->getTextCursor());
                     mCommandLine->setCaption(text);
                     mCommandLine->setTextCursor(0);
@@ -516,6 +520,12 @@ namespace MWGui
         setCoord(10,10, width-10, height/2);
     }
 
+    void Console::updateSelectedObjectPtr(const MWWorld::Ptr& currentPtr, const MWWorld::Ptr& newPtr)
+    {
+        if (mPtr == currentPtr)
+            mPtr = newPtr;
+    }
+
     void Console::setSelectedObject(const MWWorld::Ptr& object)
     {
         if (!object.isEmpty())
@@ -527,7 +537,6 @@ namespace MWGui
             }
             else
             {
-                setTitle("#{sConsoleTitle} (" + object.getCellRef().getRefId() + ")");
                 /*
                     Start of tes3mp change (major)
 

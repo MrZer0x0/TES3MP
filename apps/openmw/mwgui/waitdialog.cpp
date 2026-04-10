@@ -34,8 +34,6 @@
 #include "../mwmechanics/npcstats.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
-#include "../mwstate/charactermanager.hpp"
-
 namespace MWGui
 {
 
@@ -180,11 +178,10 @@ namespace MWGui
         if (hour >= 13) hour -= 12;
         if (hour == 0) hour = 12;
 
-        std::string dateTimeText =
-                MyGUI::utility::toString(MWBase::Environment::get().getWorld ()->getDay ()) + " "
-                + month + " (#{sDay} " + MyGUI::utility::toString(MWBase::Environment::get().getWorld ()->getTimeStamp ().getDay())
-                + ") " + MyGUI::utility::toString(hour) + " " + (pm ? "#{sSaveMenuHelp05}" : "#{sSaveMenuHelp04}");
-
+        ESM::EpochTimeStamp currentDate = MWBase::Environment::get().getWorld()->getEpochTimeStamp();
+        int daysPassed = MWBase::Environment::get().getWorld()->getTimeStamp().getDay();
+        std::string formattedHour = pm ? "#{sSaveMenuHelp05}" : "#{sSaveMenuHelp04}";
+        std::string dateTimeText = Misc::StringUtils::format("%i %s (#{sDay} %i) %i %s", currentDate.mDay, month, daysPassed, hour, formattedHour);
         mDateTimeText->setCaptionWithReplacing (dateTimeText);
     }
 
@@ -202,8 +199,6 @@ namespace MWGui
 
     void WaitDialog::startWaiting(int hoursToWait)
     {
-        if(Settings::Manager::getBool("autosave","Saves")) //autosaves when enabled
-            MWBase::Environment::get().getStateManager()->quickSave("Autosave");
         /*
             Start of tes3mp change (major)
 
@@ -282,7 +277,6 @@ namespace MWGui
     {
         mProgressBar.setProgress(cur, total);
         MWBase::Environment::get().getMechanicsManager()->rest(1, mSleeping);
-        MWBase::Environment::get().getWorld()->advanceTime(1);
 
         /*
             Start of tes3mp change (major)

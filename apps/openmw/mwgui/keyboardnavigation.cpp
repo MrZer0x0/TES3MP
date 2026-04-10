@@ -7,7 +7,6 @@
 #include <MyGUI_Window.h>
 
 #include <components/debug/debuglog.hpp>
-#include <components/settings/settings.hpp>
 
 /*
     Start of tes3mp addition
@@ -79,7 +78,7 @@ void KeyboardNavigation::saveFocus(int mode)
     {
         mKeyFocus[mode] = focus;
     }
-    else
+    else if(shouldAcceptKeyFocus(mCurrentFocus))
     {
         mKeyFocus[mode] = mCurrentFocus;
     }
@@ -105,6 +104,7 @@ void KeyboardNavigation::_unlinkWidget(MyGUI::Widget *widget)
         mCurrentFocus = nullptr;
 }
 
+#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3,2,3)
 void styleFocusedButton(MyGUI::Widget* w)
 {
     if (w)
@@ -115,6 +115,7 @@ void styleFocusedButton(MyGUI::Widget* w)
         }
     }
 }
+#endif
 
 bool isRootParent(MyGUI::Widget* widget, MyGUI::Widget* root)
 {
@@ -129,7 +130,6 @@ void KeyboardNavigation::onFrame()
         return;
 
     /*
-    if (!MWBase::Environment::get().getWindowManager()->isGuiMode())
         Start of tes3mp change (major)
 
         Don't clear key focus widget when not in menus if the chat is currently focused
@@ -141,13 +141,15 @@ void KeyboardNavigation::onFrame()
     {
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
         return;
-    }*/
+    }
 
     MyGUI::Widget* focus = MyGUI::InputManager::getInstance().getKeyFocusWidget();
 
     if (focus == mCurrentFocus)
     {
+#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3,2,3)
         styleFocusedButton(mCurrentFocus);
+#endif
         return;
     }
 
@@ -158,19 +160,21 @@ void KeyboardNavigation::onFrame()
         focus = mCurrentFocus;
     }
 
-    // style highlighted button (won't be needed for MyGUI 3.2.3)
     if (focus != mCurrentFocus)
     {
+#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3,2,3)
         if (mCurrentFocus)
         {
             if (MyGUI::Button* b = mCurrentFocus->castType<MyGUI::Button>(false))
                 b->_setWidgetState("normal");
         }
-
+#endif
         mCurrentFocus = focus;
     }
 
+#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3,2,3)
     styleFocusedButton(mCurrentFocus);
+#endif
 }
 
 void KeyboardNavigation::setDefaultFocus(MyGUI::Widget *window, MyGUI::Widget *defaultFocus)
@@ -242,11 +246,8 @@ bool KeyboardNavigation::injectKeyPress(MyGUI::KeyCode key, unsigned int text, b
 
 bool KeyboardNavigation::switchFocus(int direction, bool wrap)
 {
-    bool disable = Settings::Manager::getBool ("disable tab focus", "MorroUI");
-    if (MWBase::Environment::get().getWindowManager()->getMode() == GM_Inventory && disable)
+    if (!MWBase::Environment::get().getWindowManager()->isGuiMode())
         return false;
-    //if (!MWBase::Environment::get().getWindowManager()->isGuiMode())
-    //    return false;
 
     MyGUI::Widget* focus = MyGUI::InputManager::getInstance().getKeyFocusWidget();
 

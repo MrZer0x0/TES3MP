@@ -27,11 +27,11 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/inventorystore.hpp"
 
+#include "../mwmechanics/aipackage.hpp"
 #include "../mwmechanics/creaturestats.hpp"
+#include "../mwmechanics/summoning.hpp"
 
 #include "../mwscript/interpretercontext.hpp"
-
-#include "../mwgui/inventorywindow.hpp"
 
 #include "countdialog.hpp"
 #include "inventorywindow.hpp"
@@ -66,16 +66,7 @@ namespace MWGui
         mCloseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onCloseButtonClicked);
         mTakeButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onTakeAllButtonClicked);
 
-        mItemView->getHeader()->eventItemClicked += MyGUI::newDelegate(this, &ContainerWindow::onHeaderClicked);
-
-
         setCoord(200,0,600,300);
-    }
-
-    void ContainerWindow::onHeaderClicked(int sort)
-    {
-        mSortModel->toggleSort(sort);
-        mItemView->update();
     }
 
     void ContainerWindow::onItemSelected(int index)
@@ -109,24 +100,10 @@ namespace MWGui
             std::string name = object.getClass().getName(object) + MWGui::ToolTips::getSoulString(object.getCellRef());
             dialog->openCountDialog(name, "#{sTake}", count);
             dialog->eventOkClicked.clear();
-            dialog->eventOkClicked += MyGUI::newDelegate(this, &ContainerWindow::onTransferItem);
+            dialog->eventOkClicked += MyGUI::newDelegate(this, &ContainerWindow::dragItem);
         }
         else
-            onTransferItem(nullptr,count);
-    }
-
-    void ContainerWindow::onTransferItem(MyGUI::Widget* sender, int count)
-    {
-        const ItemStack& item = mModel->getItem(mSelectedItem);
-
-        if (!onTakeItem(item,count))
-            return;
-
-        std::string sound = item.mBase.getClass().getUpSoundId(item.mBase);
-        MWBase::Environment::get().getWindowManager()->playSound(sound);
-        mModel->moveItem(item,count,MWBase::Environment::get().getWindowManager()->getInventoryWindow()->getModel());
-        MWBase::Environment::get().getWindowManager()->getInventoryWindow()->updateItemView();
-        mItemView->update();
+            dragItem (nullptr, count);
     }
 
     void ContainerWindow::dragItem(MyGUI::Widget* sender, int count)
@@ -180,8 +157,6 @@ namespace MWGui
 
         bool success = mModel->onDropItem(mDragAndDrop->mItem.mBase, mDragAndDrop->mDraggedCount);
 
-        if (success)
-            mDragAndDrop->drop(mModel, mItemView);
         /*
             Start of tes3mp addition
 
@@ -295,11 +270,16 @@ namespace MWGui
 
         WindowBase::onClose();
 
+        // Make sure the window was actually closed and not temporarily hidden.
+        if (MWBase::Environment::get().getWindowManager()->containsMode(GM_Container))
+            return;
+
         if (mModel)
             mModel->onClose();
 
         if (!mPtr.isEmpty())
             MWBase::Environment::get().getMechanicsManager()->onClose(mPtr);
+        resetReference();
     }
 
     void ContainerWindow::onCloseButtonClicked(MyGUI::Widget* _sender)
@@ -361,6 +341,7 @@ namespace MWGui
 
         // transfer everything into the player's inventory
         ItemModel* playerModel = MWBase::Environment::get().getWindowManager()->getInventoryWindow()->getModel();
+        assert(mModel);
         mModel->update();
 
         // unequip all items to avoid unequipping/reequipping
@@ -406,13 +387,14 @@ namespace MWGui
         {
             MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mCloseButton);
 
+            // Copy mPtr because onTakeAllButtonClicked closes the window which resets the reference
+            MWWorld::Ptr ptr = mPtr;
             onTakeAllButtonClicked(mTakeButton);
-
-            if (mPtr.getClass().isPersistent(mPtr))
+            
+            if (ptr.getClass().isPersistent(ptr))
                 MWBase::Environment::get().getWindowManager()->messageBox("#{sDisposeCorpseFail}");
             else
             {
-                MWMechanics::CreatureStats& creatureStats = mPtr.getClass().getCreatureStats(mPtr);
                 /*
                     Start of tes3mp change (major)
 
@@ -429,12 +411,6 @@ namespace MWGui
                 if (creatureStats.isDead() && !creatureStats.isDeathAnimationFinished())
                 {
                     creatureStats.setDeathAnimationFinished(true);
-                    MWBase::Environment::get().getMechanicsManager()->notifyDied(mPtr);
-
-                    const std::string script = mPtr.getClass().getScript(mPtr);
-                    if (!script.empty() && MWBase::Environment::get().getWorld()->getScriptsEnabled())
-                    {
-                        MWScript::InterpreterContext interpreterContext (&mPtr.getRefData().getLocals(), mPtr);
                     MWBase::Environment::get().getMechanicsManager()->notifyDied(ptr);
 
                     const std::string script = ptr.getClass().getScript(ptr);
@@ -445,13 +421,6 @@ namespace MWGui
                     }
 
                     // Clean up summoned creatures as well
-                    std::map<MWMechanics::CreatureStats::SummonKey, int>& creatureMap = creatureStats.getSummonedCreatureMap();
-                    for (const auto& creature : creatureMap)
-                        MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(mPtr, creature.second);
-                    creatureMap.clear();
-                }
-
-                MWBase::Environment::get().getWorld()->deleteObject(mPtr);
                     std::map<ESM::SummonKey, int>& creatureMap = creatureStats.getSummonedCreatureMap();
                     for (const auto& creature : creatureMap)
                         MWBase::Environment::get().getMechanicsManager()->cleanupSummonedCreature(ptr, creature.second);
@@ -487,8 +456,6 @@ namespace MWGui
                     End of tes3mp change (major)
                 */
             }
-
-            mPtr = MWWorld::Ptr();
         }
     }
 

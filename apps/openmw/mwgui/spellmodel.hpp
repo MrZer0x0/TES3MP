@@ -1,9 +1,8 @@
 #ifndef OPENMW_GUI_SPELLMODEL_H
 #define OPENMW_GUI_SPELLMODEL_H
 
-#include <memory>
-
 #include "../mwworld/ptr.hpp"
+#include <components/esm/effectlist.hpp>
 
 namespace MWGui
 {
@@ -49,55 +48,6 @@ namespace MWGui
         Spell getItem (ModelIndex index) const;
         ///< throws for invalid index
 
-        void setEffectFilter(const std::string filter);
-
-        void setNameFilter(const std::string& filter)
-        {
-            mFilter = filter;
-        }
-
-        void setCategory(int category)
-        {
-            mCategory = category;
-        }
-
-        int getCategory() const 
-        {
-            return mCategory; 
-        }
-
-        void setSort(int sort)
-        {
-            mSort = sort;
-        }
-
-        void toggleSort(int sort)
-        {
-            mIncreasing = !mIncreasing; 
-            mSort = sort; 
-        }
-
-        int getSort() const 
-        {
-            return mSort;
-        }
-
-        static const int Sort_Name = (1<<1);
-        static const int Sort_School = (1<<2);
-        static const int Sort_CostChance = (1<<3);
-        
-        // important, this matches the school IDs, do not change!
-        static const int Category_Alteration = 0;
-        static const int Category_Conjuration = 1;
-        static const int Category_Destruction = 2;
-        static const int Category_Illusion = 3;
-        static const int Category_Mysticism = 4;
-        static const int Category_Restoration = 5;
-        static const int Category_Items = 6;
-        static const int Category_Powers = 7;
-        static const int Category_All = 8;
-        static const int Category_Simple = 9;
-
         size_t getItemCount() const;
         ModelIndex getSelectedIndex() const;
         ///< returns -1 if nothing is selected
@@ -108,12 +58,10 @@ namespace MWGui
         std::vector<Spell> mSpells;
 
         std::string mFilter;
-        std::string mEffectFilter;
 
-        int mSort;
-        int mCategory;
-        bool mIncreasing;
+        bool matchingEffectExists(std::string filter, const ESM::EffectList &effects);
     };
+
 }
 
 #endif

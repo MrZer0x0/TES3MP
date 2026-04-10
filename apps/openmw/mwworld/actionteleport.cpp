@@ -40,7 +40,7 @@ namespace MWWorld
         {
             // Find any NPCs that are following the actor and teleport them with him
             std::set<MWWorld::Ptr> followers;
-            getFollowersToTeleport(actor, followers);
+            getFollowers(actor, followers, true);
 
             for (std::set<MWWorld::Ptr>::iterator it = followers.begin(); it != followers.end(); ++it)
                 teleport(*it);
@@ -63,7 +63,6 @@ namespace MWWorld
         }
         else
         {
-            if (mCellName.empty())
             /*
                 Start of tes3mp addition
 
@@ -99,11 +98,6 @@ namespace MWWorld
                     mPosition.pos[0],mPosition.pos[1],mPosition.pos[2]);
             }
             else
-                world->moveObject(actor,world->getInterior(mCellName),mPosition.pos[0],mPosition.pos[1],mPosition.pos[2]);
-        }
-    }
-
-    void ActionTeleport::getFollowersToTeleport(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out) {
             {
                 newCellStore = world->getInterior(mCellName);
                 if (cellController->isDedicatedActor(actor))
@@ -167,11 +161,6 @@ namespace MWWorld
             MWWorld::Ptr follower = *it;
 
             std::string script = follower.getClass().getScript(follower);
-            if (!script.empty() && follower.getRefData().getLocals().getIntVar(script, "stayoutside") == 1)
-                continue;
-
-            if ((follower.getRefData().getPosition().asVec3() - actor.getRefData().getPosition().asVec3()).length2() <= 800*800)
-                out.insert(follower);
 
             if (!includeHostiles && follower.getClass().getCreatureStats(follower).getAiSequence().isInCombat(actor))
                 continue;

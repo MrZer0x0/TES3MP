@@ -30,14 +30,6 @@ namespace MWMechanics
     {
     }
 
-    AiActivate *MWMechanics::AiActivate::clone() const
-    {
-        return new AiActivate(*this);
-    }
-
-    bool AiActivate::execute(const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration)
-    {
-        const MWWorld::Ptr target = MWBase::Environment::get().getWorld()->searchPtr(mObjectId, false); //The target to follow
     /*
         Start of tes3mp addition
 
@@ -80,8 +72,6 @@ namespace MWMechanics
 
         if (MWBase::Environment::get().getWorld()->getMaxActivationDistance() >= targetDir.length())
         {
-            // Note: we intentionally do not cancel package after activation here for backward compatibility with original engine.
-            MWBase::Environment::get().getWorld()->activate(target, actor);
             /*
                 Start of tes3mp addition
 
@@ -112,11 +102,6 @@ namespace MWMechanics
             */
         }
         return false;
-    }
-
-    int AiActivate::getTypeId() const
-    {
-        return TypeIdActivate;
     }
 
     void AiActivate::writeState(ESM::AiSequence::AiSequence &sequence) const

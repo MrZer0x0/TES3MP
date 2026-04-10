@@ -75,7 +75,6 @@ namespace MWDialogue
         mTopics.clear();
     }
 
-    void Journal::addEntry (const std::string& id, int index, const MWWorld::Ptr& actor)
     /*
         Start of tes3mp addition
 

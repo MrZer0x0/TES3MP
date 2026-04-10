@@ -31,12 +31,6 @@ namespace MWGui
         std::string icon;
         int imageSize;
 
-        // weight, -1 if NA 
-        std::string weight;
-
-        // value, -1 if NA
-        std::string value;
-
         // enchantment (for cloth, armor, weapons)
         std::string enchant;
         int remainingEnchantCharge;

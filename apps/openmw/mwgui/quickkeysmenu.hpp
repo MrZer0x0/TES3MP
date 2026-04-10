@@ -1,8 +1,6 @@
 #ifndef MWGUI_QUICKKEYS_H
 #define MWGUI_QUICKKEYS_H
 
-#include "../mwworld/ptr.hpp"
-
 #include "windowbase.hpp"
 
 #include "spellmodel.hpp"
@@ -22,7 +20,7 @@ namespace MWGui
         QuickKeysMenu();
         ~QuickKeysMenu();
 
-        void onResChange(int, int) { center(); }
+        void onResChange(int, int) override { center(); }
 
         void onItemButtonClicked(MyGUI::Widget* sender);
         void onMagicButtonClicked(MyGUI::Widget* sender);
@@ -34,12 +32,11 @@ namespace MWGui
         void onAssignMagicItem (MWWorld::Ptr item);
         void onAssignMagic (const std::string& spellId);
         void onAssignMagicCancel ();
-        void onOpen();
+        void onOpen() override;
 
         void activateQuickKey(int index);
         void updateActivatedQuickKey();
 
-        bool isAssigned(const MWWorld::Ptr &item) const;
         /*
             Start of tes3mp addition
 
@@ -62,7 +59,6 @@ namespace MWGui
 
         void write (ESM::ESMWriter& writer);
         void readRecord (ESM::ESMReader& reader, uint32_t type);
-        void clear();
         void clear() override;
 
         /*
@@ -124,8 +120,8 @@ namespace MWGui
     public:
         MagicSelectionDialog(QuickKeysMenu* parent);
 
-        virtual void onOpen();
-        virtual bool exit();
+        void onOpen() override;
+        bool exit() override;
 
     private:
         MyGUI::Button* mCancelButton;

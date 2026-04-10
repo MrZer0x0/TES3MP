@@ -246,9 +246,13 @@ run_cmd() {
 		eval $CMD $@ > output.log 2>&1 || RET=$?
 
 		if [ $RET -ne 0 ]; then
-			echo
-			echo "Command $CMD failed (output follows):"
-			cat output.log
+			if [ -z $APPVEYOR ]; then
+				echo "Command $CMD failed, output can be found in $(real_pwd)/output.log"
+			else
+				echo
+				echo "Command $CMD failed;"
+				cat output.log
+			fi
 		else
 			rm output.log
 		fi

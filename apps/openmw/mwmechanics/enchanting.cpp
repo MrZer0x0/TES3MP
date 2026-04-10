@@ -110,14 +110,7 @@ namespace MWMechanics
             enchantmentPtr = MWBase::Environment::get().getWorld()->createRecord (enchantment);
 
         // Apply the enchantment
-        std::string newItemId = mOldItemPtr.getClass().applyEnchantment(mOldItemPtr, enchantmentPtr->mId, getGemCharge(), mNewItemName);
 
-        // Add the new item to player inventory and remove the old one
-        store.remove(mOldItemPtr, count, player);
-        store.add(newItemId, count, player);
-
-        if(!mSelfEnchanting)
-            payForEnchantment();
         /*
             Start of tes3mp change (major)
 
@@ -323,7 +316,7 @@ namespace MWMechanics
         float priceMultipler = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find ("fEnchantmentValueMult")->mValue.getFloat();
         int price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mEnchanter, static_cast<int>(getEnchantPoints() * priceMultipler), true);
         price *= getEnchantItemsCount() * getTypeMultiplier();
-        return price;
+        return std::max(1, price);
     }
 
     int Enchanting::getGemCharge() const

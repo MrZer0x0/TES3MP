@@ -31,7 +31,6 @@ namespace MWGui
         void drop (ItemModel* targetModel, ItemView* targetView);
         void onFrame();
 
-        void finish();
         /*
             Start of tes3mp change (minor)
 

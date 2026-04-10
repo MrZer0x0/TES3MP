@@ -7,6 +7,8 @@
 #include <list>
 #include <map>
 
+#include "../mwmechanics/actorutil.hpp"
+
 namespace ESM
 {
     class ESMReader;
@@ -61,6 +63,8 @@ namespace MWMechanics
 
             void purgeSpellEffects (int casterActorId);
 
+            void predictAndAvoidCollisions(float duration);
+
         public:
 
             Actors();
@@ -70,6 +74,7 @@ namespace MWMechanics
 
             PtrActorMap::const_iterator begin() { return mActors.begin(); }
             PtrActorMap::const_iterator end() { return mActors.end(); }
+            std::size_t size() const { return mActors.size(); }
 
             void notifyDied(const MWWorld::Ptr &actor);
 
@@ -122,11 +127,12 @@ namespace MWMechanics
 
             void playIdleDialogue(const MWWorld::Ptr& actor);
             void updateMovementSpeed(const MWWorld::Ptr& actor);
-            void updateGreetingState(const MWWorld::Ptr& actor, bool turnOnly);
-            void turnActorToFacePlayer(const MWWorld::Ptr& actor, const osg::Vec3f& dir);
+            void updateGreetingState(const MWWorld::Ptr& actor, Actor& actorState, bool turnOnly);
+            void turnActorToFacePlayer(const MWWorld::Ptr& actor, Actor& actorState, const osg::Vec3f& dir);
 
             void updateHeadTracking(const MWWorld::Ptr& actor, const MWWorld::Ptr& targetActor,
-                                            MWWorld::Ptr& headTrackTarget, float& sqrHeadTrackDistance);
+                                          MWWorld::Ptr& headTrackTarget, float& sqrHeadTrackDistance,
+                                          bool inCombatOrPursue);
 
             void rest(double hours, bool sleep);
             ///< Update actors while the player is waiting or sleeping.
@@ -186,6 +192,7 @@ namespace MWMechanics
 
             /// Get the list of AiFollow::mFollowIndex for all actors following this target
             std::list<int> getActorsFollowingIndices(const MWWorld::Ptr& actor);
+            std::map<int, MWWorld::Ptr> getActorsFollowingByIndex(const MWWorld::Ptr& actor);
 
             ///Returns the list of actors which are fighting the given actor
             /**ie AiCombat is active and the target is the actor **/
@@ -221,11 +228,13 @@ namespace MWMechanics
 
     private:
         void updateVisibility (const MWWorld::Ptr& ptr, CharacterController* ctrl);
+        void applyCureEffects (const MWWorld::Ptr& actor);
 
         PtrActorMap mActors;
         float mTimerDisposeSummonsCorpses;
         float mActorsProcessingRange;
 
+        bool mSmoothMovement;
     };
 }
 

@@ -6,11 +6,6 @@
 
 #include "itemmodel.hpp"
 
-namespace MWWorld
-{
-    class Environment;
-}
-
 namespace MyGUI
 {
     class Gui;
@@ -19,7 +14,6 @@ namespace MyGUI
 
 namespace MWGui
 {
-    class WindowManager;
     class ContainerWindow;
     class ItemView;
     class SortFilterItemModel;
@@ -30,16 +24,17 @@ namespace MWGui
 {
     class ContainerWindow : public WindowBase, public ReferenceInterface
     {
-    public:        
+    public:
         ContainerWindow(DragAndDrop* dragAndDrop);
 
-        void setPtr(const MWWorld::Ptr& container);
-        virtual void onClose();
-        void clear() { resetReference(); }
+        void setPtr(const MWWorld::Ptr& container) override;
+        void onClose() override;
+        void clear() override { resetReference(); }
 
-        void onFrame(float dt) { checkReferenceAvailable(); }
+        void onFrame(float dt) override { checkReferenceAvailable(); }
 
-        virtual void resetReference();
+        void resetReference() override;
+
         /*
             Start of tes3mp addition
 
@@ -75,8 +70,6 @@ namespace MWGui
         MyGUI::Button* mTakeButton;
         MyGUI::Button* mCloseButton;
 
-        void onTransferItem(MyGUI::Widget* sender, int count);
-        void onHeaderClicked(int sort);
         void onItemSelected(int index);
         void onBackgroundSelected();
         void dragItem(MyGUI::Widget* sender, int count);
@@ -88,7 +81,7 @@ namespace MWGui
         /// @return is taking the item allowed?
         bool onTakeItem(const ItemStack& item, int count);
 
-        virtual void onReferenceUnavailable();
+        void onReferenceUnavailable() override;
     };
 }
 #endif // CONTAINER_H

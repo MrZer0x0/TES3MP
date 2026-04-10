@@ -267,10 +267,9 @@ namespace MWClass
                 + MWGui::ToolTips::toString(ref->mBase->mData.mHealth);
 
         if (typeText != "")
-            text += "\n" + typeText;
+            text += "\n#{sWeight}: " + MWGui::ToolTips::toString(ref->mBase->mData.mWeight) + " (" + typeText + ")";
 
-        info.weight = MWGui::ToolTips::getValueString(ref->mBase->mData.mWeight, "#{sWeight}");
-        info.value = MWGui::ToolTips::getValueString(ref->mBase->mData.mValue, "#{sValue}");
+        text += MWGui::ToolTips::getValueString(ref->mBase->mData.mValue, "#{sValue}");
 
         if (MWBase::Environment::get().getWindowManager()->getFullHelp()) {
             text += MWGui::ToolTips::getCellRefString(ptr.getCellRef());
@@ -323,7 +322,7 @@ namespace MWClass
         const MWWorld::LiveCellRef<ESM::Armor> *ref = ptr.get<ESM::Armor>();
 
         int armorSkillType = getEquipmentSkill(ptr);
-        int armorSkill = actor.getClass().getSkill(actor, armorSkillType);
+        float armorSkill = actor.getClass().getSkill(actor, armorSkillType);
 
         const MWBase::World *world = MWBase::Environment::get().getWorld();
         int iBaseArmorSkill = world->getStore().get<ESM::GameSetting>().find("iBaseArmorSkill")->mValue.getInteger();

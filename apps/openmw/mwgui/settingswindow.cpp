@@ -10,13 +10,17 @@
 #include <SDL_video.h>
 
 #include <iomanip>
+#include <numeric>
+#include <array>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/stringops.hpp>
-#include <components/misc/gcd.hpp>
 #include <components/misc/constants.hpp>
 #include <components/widgets/sharedstatebutton.hpp>
 #include <components/settings/settings.hpp>
+#include <components/resource/resourcesystem.hpp>
+#include <components/resource/scenemanager.hpp>
+#include <components/sceneutil/lightmanager.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -60,7 +64,10 @@ namespace
 
     std::string getAspect (int x, int y)
     {
-        int gcd = Misc::gcd (x, y);
+        int gcd = std::gcd (x, y);
+        if (gcd == 0)
+            return std::string();
+
         int xaspect = x / gcd;
         int yaspect = y / gcd;
         // special case: 8 : 5 is usually referred to as 16:10
@@ -103,11 +110,24 @@ namespace
         if (!widget->getUserString(settingMax).empty())
             max = MyGUI::utility::parseFloat(widget->getUserString(settingMax));
     }
+
+    void updateMaxLightsComboBox(MyGUI::ComboBox* box)
+    {
+        constexpr int min = 8;
+        constexpr int max = 32;
+        constexpr int increment = 8;
+        int maxLights = Settings::Manager::getInt("max lights", "Shaders");
+        // show increments of 8 in dropdown
+        if (maxLights >= min && maxLights <= max && !(maxLights % increment))
+            box->setIndexSelected((maxLights / increment)-1);
+        else
+            box->setIndexSelected(MyGUI::ITEM_NONE);
+    }
 }
 
 namespace MWGui
 {
-    void SettingsWindow::configureWidgets(MyGUI::Widget* widget)
+    void SettingsWindow::configureWidgets(MyGUI::Widget* widget, bool init)
     {
         MyGUI::EnumeratorWidgetPtr widgets = widget->getEnumerator();
         while (widgets.next())
@@ -121,7 +141,8 @@ namespace MWGui
                                                                       getSettingCategory(current))
                         ? "#{sOn}" : "#{sOff}";
                 current->castType<MyGUI::Button>()->setCaptionWithReplacing(initialValue);
-                current->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onButtonToggled);
+                if (init)
+                    current->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onButtonToggled);
             }
             if (type == sliderType)
             {
@@ -156,6 +177,12 @@ namespace MWGui
                         ss << std::fixed << std::setprecision(2) << value/Constants::CellSizeInUnits;
                         valueStr = ss.str();
                     }
+                    else if (valueType == "Float")
+                    {
+                        std::stringstream ss;
+                        ss << std::fixed << std::setprecision(2) << value;
+                        valueStr = ss.str();
+                    }
                     else
                         valueStr = MyGUI::utility::toString(int(value));
 
@@ -170,12 +197,13 @@ namespace MWGui
                     valueStr = MyGUI::utility::toString(value);
                     scroll->setScrollPosition(value);
                 }
-                scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
+                if (init)
+                    scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
                 if (scroll->getVisible())
                     updateSliderLabel(scroll, valueStr);
             }
 
-            configureWidgets(current);
+            configureWidgets(current, init);
         }
     }
 
@@ -202,7 +230,7 @@ namespace MWGui
         getWidget(unusedSlider, widgetName);
         unusedSlider->setVisible(false);
 
-        configureWidgets(mMainWidget);
+        configureWidgets(mMainWidget, true);
 
         setTitle("#{sOptions}");
 
@@ -219,8 +247,9 @@ namespace MWGui
         getWidget(mControllerSwitch, "ControllerButton");
         getWidget(mWaterTextureSize, "WaterTextureSize");
         getWidget(mWaterReflectionDetail, "WaterReflectionDetail");
-
-        getWidget(mMUIControls, "MUIControls");
+        getWidget(mLightingMethodButton, "LightingMethodButton");
+        getWidget(mLightsResetButton, "LightsResetButton");
+        getWidget(mMaxLights, "MaxLights");
 
 #ifndef WIN32
         // hide gamma controls since it currently does not work under Linux
@@ -246,6 +275,10 @@ namespace MWGui
         mWaterTextureSize->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWaterTextureSizeChanged);
         mWaterReflectionDetail->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWaterReflectionDetailChanged);
 
+        mLightingMethodButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onLightingMethodButtonChanged);
+        mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
+        mMaxLights->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMaxLightsChanged);
+
         mKeyboardSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onKeyboardSwitchClicked);
         mControllerSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onControllerSwitchClicked);
 
@@ -261,13 +294,15 @@ namespace MWGui
         {
             SDL_DisplayMode mode;
             SDL_GetDisplayMode(screen, i, &mode);
-            resolutions.push_back(std::make_pair(mode.w, mode.h));
+            resolutions.emplace_back(mode.w, mode.h);
         }
         std::sort(resolutions.begin(), resolutions.end(), sortResolutions);
         for (std::pair<int, int>& resolution : resolutions)
         {
-            std::string str = MyGUI::utility::toString(resolution.first) + " x " + MyGUI::utility::toString(resolution.second)
-                    + " (" + getAspect(resolution.first, resolution.second) + ")";
+            std::string str = MyGUI::utility::toString(resolution.first) + " x " + MyGUI::utility::toString(resolution.second);
+            std::string aspect = getAspect(resolution.first, resolution.second);
+            if (!aspect.empty())
+                 str = str + " (" + aspect + ")";
 
             if (mResolutionList->findItemIndexWith(str) == MyGUI::ITEM_NONE)
                 mResolutionList->addItem(str);
@@ -278,16 +313,20 @@ namespace MWGui
         mTextureFilteringButton->setCaption(textureMipmappingToStr(tmip));
 
         int waterTextureSize = Settings::Manager::getInt("rtt size", "Water");
-        if (waterTextureSize >= 512)
-            mWaterTextureSize->setIndexSelected(0);
-        if (waterTextureSize >= 1024)
-            mWaterTextureSize->setIndexSelected(1);
         if (waterTextureSize >= 2048)
+            mWaterTextureSize->setIndexSelected(3);
+        else if (waterTextureSize >= 1024)
             mWaterTextureSize->setIndexSelected(2);
+        else if (waterTextureSize >= 512)
+            mWaterTextureSize->setIndexSelected(1);
+        else
+            mWaterTextureSize->setIndexSelected(0);
 
         int waterReflectionDetail = Settings::Manager::getInt("reflection detail", "Water");
-        waterReflectionDetail = std::min(4, std::max(0, waterReflectionDetail));
+        waterReflectionDetail = std::min(5, std::max(0, waterReflectionDetail));
         mWaterReflectionDetail->setIndexSelected(waterReflectionDetail);
+
+        updateMaxLightsComboBox(mMaxLights);
 
         mWindowBorderButton->setEnabled(!Settings::Manager::getBool("fullscreen", "Video"));
 
@@ -357,12 +396,14 @@ namespace MWGui
 
     void SettingsWindow::onWaterTextureSizeChanged(MyGUI::ComboBox* _sender, size_t pos)
     {
-        int size = 0;
+        int size = 256;
         if (pos == 0)
-            size = 512;
+            size = 256;
         else if (pos == 1)
-            size = 1024;
+            size = 512;
         else if (pos == 2)
+            size = 1024;
+        else if (pos == 3)
             size = 2048;
         Settings::Manager::setInt("rtt size", "Water", size);
         apply();
@@ -370,9 +411,57 @@ namespace MWGui
 
     void SettingsWindow::onWaterReflectionDetailChanged(MyGUI::ComboBox* _sender, size_t pos)
     {
-        unsigned int level = std::min((unsigned int)4, (unsigned int)pos);
+        unsigned int level = std::min((unsigned int)5, (unsigned int)pos);
         Settings::Manager::setInt("reflection detail", "Water", level);
         apply();
+    }
+
+    void SettingsWindow::onLightingMethodButtonChanged(MyGUI::ComboBox* _sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+
+        std::string message = "This change requires a restart to take effect.";
+        MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, {"#{sOK}"}, true);
+
+        Settings::Manager::setString("lighting method", "Shaders", _sender->getItemNameAt(pos));
+        apply();
+    }
+
+    void SettingsWindow::onMaxLightsChanged(MyGUI::ComboBox* _sender, size_t pos)
+    {
+        int count = 8 * (pos + 1);
+
+        Settings::Manager::setInt("max lights", "Shaders", count);
+        apply();
+        configureWidgets(mMainWidget, false);
+    }
+
+    void SettingsWindow::onLightsResetButtonClicked(MyGUI::Widget* _sender)
+    {
+        std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
+        std::string message = "Resets to default values, would you like to continue? Changes to lighting method will require a restart.";
+        MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons, true);
+        int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
+        if (selectedButton == 1 || selectedButton == -1)
+            return;
+
+        constexpr std::array<const char*, 6> settings = {
+            "light bounds multiplier",
+            "maximum light distance",
+            "light fade start",
+            "minimum interior brightness",
+            "max lights",
+            "lighting method",
+        };
+        for (const auto& setting : settings)
+            Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);
+
+        mLightingMethodButton->setIndexSelected(mLightingMethodButton->findItemIndexWith(Settings::Manager::mDefaultSettings[{"Shaders", "lighting method"}]));
+        updateMaxLightsComboBox(mMaxLights);
+
+        apply();
+        configureWidgets(mMainWidget, false);
     }
 
     void SettingsWindow::onButtonToggled(MyGUI::Widget* _sender)
@@ -477,6 +566,12 @@ namespace MWGui
                     ss << std::fixed << std::setprecision(2) << value/Constants::CellSizeInUnits;
                     valueStr = ss.str();
                 }
+                else if (valueType == "Float")
+                {
+                    std::stringstream ss;
+                    ss << std::fixed << std::setprecision(2) << value;
+                    valueStr = ss.str();
+                }
                 else
                     valueStr = MyGUI::utility::toString(int(value));
             }
@@ -529,9 +624,6 @@ namespace MWGui
         while (mControlsBox->getChildCount())
             MyGUI::Gui::getInstance().destroyWidget(mControlsBox->getChildAt(0));
 
-        while (mMUIControls->getChildCount())
-            MyGUI::Gui::getInstance().destroyWidget(mMUIControls->getChildAt(0));
-
         MWBase::Environment::get().getWindowManager()->removeStaticMessageBox();
         std::vector<int> actions;
         if(mKeyboardMode)
@@ -557,7 +649,7 @@ namespace MWGui
             Gui::SharedStateButton* rightText = mControlsBox->createWidget<Gui::SharedStateButton>("SandTextButton", MyGUI::IntCoord(), MyGUI::Align::Default);
             rightText->setCaptionWithReplacing(binding);
             rightText->setTextAlign (MyGUI::Align::Right);
-            rightText->setUserData(std::tuple<int,bool,std::string>(action,false,"")); // save the action id for callbacks
+            rightText->setUserData(action); // save the action id for callbacks
             rightText->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onRebindAction);
             rightText->eventMouseWheel += MyGUI::newDelegate(this, &SettingsWindow::onInputTabMouseWheel);
 
@@ -567,67 +659,63 @@ namespace MWGui
             Gui::SharedStateButton::createButtonGroup(group);
         }
 
-        static const std::vector<std::string> keys {"key quickloot take", "key quickloot takeall"};
-        static const std::vector<std::string> descriptions = {"Take", "Take All"};
-        size_t i = 0;
-        for (const auto& key : keys)
-        {
-            std::string desc = descriptions[i];
-            std::string binding = Settings::Manager::getString(key,"MorroUI");
-
-            Gui::SharedStateButton* leftText = mMUIControls->createWidget<Gui::SharedStateButton>("SandTextButton", MyGUI::IntCoord(), MyGUI::Align::Default);
-            leftText->setCaptionWithReplacing(desc);
-
-            Gui::SharedStateButton* rightText = mMUIControls->createWidget<Gui::SharedStateButton>("SandTextButton", MyGUI::IntCoord(), MyGUI::Align::Default);
-            rightText->setCaptionWithReplacing(binding);
-            rightText->setTextAlign (MyGUI::Align::Right);
-            rightText->setUserData(std::tuple<int,bool,std::string>(0,true,key));
-            rightText->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onRebindAction);
-            rightText->eventMouseWheel += MyGUI::newDelegate(this, &SettingsWindow::onInputTabMouseWheel);
-
-            Gui::ButtonGroup group;
-            group.push_back(leftText);
-            group.push_back(rightText);
-            Gui::SharedStateButton::createButtonGroup(group);
-            i++;
-        }
-
-        layoutControlsBox(mControlsBox);
-        layoutControlsBox(mMUIControls);
+        layoutControlsBox();
     }
 
-    void SettingsWindow::layoutControlsBox(MyGUI::ScrollView* target)
+    void SettingsWindow::updateLightSettings()
     {
+        auto lightingMethod = MWBase::Environment::get().getResourceSystem()->getSceneManager()->getLightingMethod();
+        std::string lightingMethodStr = SceneUtil::LightManager::getLightingMethodString(lightingMethod);
 
-        const int h = 18;
-        int height = target->getChildCount() * h;
-        bool scrollVisible = height > target->getHeight();
-        int rightMargin = (scrollVisible) ? 28 : 0;
-        const int w = target->getWidth() - rightMargin;
-        const int noWidgetsInRow = 2;
-        const int totalH = target->getChildCount() / noWidgetsInRow * h;
+        mLightingMethodButton->removeAllItems();
 
-        for (size_t i = 0; i < target->getChildCount(); i++)
+        std::array<SceneUtil::LightingMethod, 3> methods = {
+            SceneUtil::LightingMethod::FFP,
+            SceneUtil::LightingMethod::PerObjectUniform,
+            SceneUtil::LightingMethod::SingleUBO,
+        };
+
+        for (const auto& method : methods)
         {
-            MyGUI::Widget * widget = target->getChildAt(i);
+            if (!MWBase::Environment::get().getResourceSystem()->getSceneManager()->isSupportedLightingMethod(method))
+                continue;
+
+            mLightingMethodButton->addItem(SceneUtil::LightManager::getLightingMethodString(method));
+        }
+
+        mLightingMethodButton->setIndexSelected(mLightingMethodButton->findItemIndexWith(lightingMethodStr));
+    }
+
+    void SettingsWindow::layoutControlsBox()
+    {
+        const int h = 18;
+        const int w = mControlsBox->getWidth() - 28;
+        const int noWidgetsInRow = 2;
+        const int totalH = mControlsBox->getChildCount() / noWidgetsInRow * h;
+
+        for (size_t i = 0; i < mControlsBox->getChildCount(); i++)
+        {
+            MyGUI::Widget * widget = mControlsBox->getChildAt(i);
             widget->setCoord(0, i / noWidgetsInRow * h, w, h);
         }
 
         // Canvas size must be expressed with VScroll disabled, otherwise MyGUI would expand the scroll area when the scrollbar is hidden
-        target->setVisibleVScroll(false);
-        target->setCanvasSize (target->getWidth(), std::max(totalH, target->getHeight()));
-        target->setVisibleVScroll(true);
+        mControlsBox->setVisibleVScroll(false);
+        mControlsBox->setCanvasSize (mControlsBox->getWidth(), std::max(totalH, mControlsBox->getHeight()));
+        mControlsBox->setVisibleVScroll(true);
     }
 
     void SettingsWindow::onRebindAction(MyGUI::Widget* _sender)
     {
-        auto action = *_sender->getUserData<std::tuple<int,bool,std::string>>();
+        int actionId = *_sender->getUserData<int>();
 
         _sender->castType<MyGUI::Button>()->setCaptionWithReplacing("#{sNone}");
 
         MWBase::Environment::get().getWindowManager ()->staticMessageBox ("#{sControlsMenu3}");
         MWBase::Environment::get().getWindowManager ()->disallowMouse();
-        MWBase::Environment::get().getInputManager ()->enableDetectingBindingMode (std::get<0>(action), mKeyboardMode, std::get<1>(action), std::get<2>(action));
+
+        MWBase::Environment::get().getInputManager ()->enableDetectingBindingMode (actionId, mKeyboardMode);
+
     }
 
     void SettingsWindow::onInputTabMouseWheel(MyGUI::Widget* _sender, int _rel)
@@ -660,14 +748,14 @@ namespace MWGui
     {
         highlightCurrentResolution();
         updateControlsBox();
+        updateLightSettings();
         resetScrollbars();
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mOkButton);
     }
 
     void SettingsWindow::onWindowResize(MyGUI::Window *_sender)
     {
-        layoutControlsBox(mControlsBox);
-        layoutControlsBox(mMUIControls);
+        layoutControlsBox();
     }
 
     void SettingsWindow::resetScrollbars()

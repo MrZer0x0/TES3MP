@@ -129,7 +129,6 @@ namespace MWGui
                     tooltipSize = getToolTipViaPtr(mFocusObject.getRefData().getCount(), true);
 
                 MyGUI::IntPoint tooltipPosition = MyGUI::InputManager::getInstance().getMousePosition();
-
                 position(tooltipPosition, tooltipSize, viewSize);
 
                 setCoord(tooltipPosition.left, tooltipPosition.top, tooltipSize.width, tooltipSize.height);
@@ -154,12 +153,7 @@ namespace MWGui
                     return;
 
                 MyGUI::Widget* focus = MyGUI::InputManager::getInstance().getMouseFocusWidget();
-
-                // show tooltips with keyboard navigation
-                if (MWBase::Environment::get().getWindowManager()->isKeyTooltip())
-                    focus = MyGUI::InputManager::getInstance().getKeyFocusWidget();
-                
-                if (focus == 0)
+                if (focus == nullptr)
                     return;
 
                 MyGUI::IntSize tooltipSize;
@@ -272,14 +266,14 @@ namespace MWGui
                     std::map<std::string, std::string> userStrings = focus->getUserStrings();
                     for (auto& userStringPair : userStrings)
                     {
-                        size_t underscorePos = userStringPair.first.find("_");
+                        size_t underscorePos = userStringPair.first.find('_');
                         if (underscorePos == std::string::npos)
                             continue;
                         std::string key = userStringPair.first.substr(0, underscorePos);
                         std::string widgetName = userStringPair.first.substr(underscorePos+1, userStringPair.first.size()-(underscorePos+1));
 
                         type = "Property";
-                        size_t caretPos = key.find("^");
+                        size_t caretPos = key.find('^');
                         if (caretPos != std::string::npos)
                         {
                             type = key.substr(0, caretPos);
@@ -416,7 +410,7 @@ namespace MWGui
         if (text.size() > 0 && text[0] == '\n')
             text.erase(0, 1);
 
-        const ESM::Enchantment* enchant = 0;
+        const ESM::Enchantment* enchant = nullptr;
         const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
         if (info.enchant != "")
         {
@@ -530,9 +524,16 @@ namespace MWGui
 
                 const int chargeWidth = 204;
 
-                const int chargeAndTextWidth = chargeWidth;
+                MyGUI::TextBox* chargeText = enchantArea->createWidget<MyGUI::TextBox>("SandText", MyGUI::IntCoord(0, 0, 10, 18), MyGUI::Align::Default, "ToolTipEnchantChargeText");
+                chargeText->setCaptionWithReplacing("#{sCharges}");
+
+                const int chargeTextWidth = chargeText->getTextSize().width + 5;
+
+                const int chargeAndTextWidth = chargeWidth + chargeTextWidth;
 
                 totalSize.width = std::max(totalSize.width, chargeAndTextWidth);
+
+                chargeText->setCoord((totalSize.width - chargeAndTextWidth)/2, coord.top+6, chargeTextWidth, 18);
 
                 MyGUI::IntCoord chargeCoord;
                 if (totalSize.width < chargeWidth)
@@ -542,52 +543,13 @@ namespace MWGui
                 }
                 else
                 {
-                    chargeCoord = MyGUI::IntCoord((totalSize.width - chargeAndTextWidth)/2, coord.top+6, chargeWidth, 18);
+                    chargeCoord = MyGUI::IntCoord((totalSize.width - chargeAndTextWidth)/2 + chargeTextWidth, coord.top+6, chargeWidth, 18);
                 }
                 Widgets::MWDynamicStatPtr chargeWidget = enchantArea->createWidget<Widgets::MWDynamicStat>
                     ("MW_ChargeBar", chargeCoord, MyGUI::Align::Default);
                 chargeWidget->setValue(charge, maxCharge);
                 totalSize.height += 24;
             }
-        }
-
-        if (!info.weight.empty() || !info.value.empty())
-        {
-            auto line = mDynamicToolTipBox->createWidget<MyGUI::ImageBox>("MW_HLine",
-                MyGUI::IntCoord(padding.left*2, totalSize.height+padding.top,totalSize.width,24),MyGUI::Align::Default);
-            line->setAlpha(0.2);
-            totalSize.height += 24;
-
-            int tmpWidth = 0;
-
-            if (!info.weight.empty())
-            {
-                MyGUI::ImageBox* weighti = mDynamicToolTipBox->createWidget<MyGUI::ImageBox>("ImageBox",
-                       MyGUI::IntCoord(6, totalSize.height+padding.top, 16, 16), MyGUI::Align::Top | MyGUI::Align::Left);
-                weighti->setImageTexture("icons\\weight.dds");
-                tmpWidth += weighti->getWidth()+12;
-                auto weightt = mDynamicToolTipBox->createWidget<Gui::AutoSizedTextBox>("NormalText",
-                    MyGUI::IntCoord(tmpWidth,totalSize.height+padding.top,20,20), MyGUI::Align::Default);
-                weightt->setColour(MyGUI::Colour("#d5d5d5"));
-                weightt->setCaption(info.weight);
-                tmpWidth += weightt->getTextSize().width+6; 
-            }
-            if (!info.value.empty())
-            {
-                MyGUI::ImageBox* vali = mDynamicToolTipBox->createWidget<MyGUI::ImageBox>("ImageBox",
-                       MyGUI::IntCoord(tmpWidth+6, totalSize.height+padding.top, 16, 16), MyGUI::Align::Top | MyGUI::Align::Left);
-                vali->setImageTexture("icons\\tx_goldicon.dds");
-                tmpWidth += vali->getWidth()+12;
-                auto valt = mDynamicToolTipBox->createWidget<Gui::AutoSizedTextBox>("NormalText",
-                    MyGUI::IntCoord(tmpWidth,totalSize.height+padding.top,20,20), MyGUI::Align::Default);
-                valt->setColour(MyGUI::Colour("#d5d5d5"));
-                valt->setCaption(info.value);
-                tmpWidth += valt->getTextSize().width; 
-            }
-
-            totalSize.height += 20;
-            totalSize.width = std::max(totalSize.width, tmpWidth);
-            line->setSize(MyGUI::IntSize(totalSize.width - padding.left*2,line->getHeight()));
         }
 
         captionWidget->setCoord( (totalSize.width - captionSize.width)/2 + imageSize,
@@ -647,13 +609,10 @@ namespace MWGui
 
     std::string ToolTips::getWeightString(const float weight, const std::string& prefix)
     {
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(2) << weight;
-        
         if (weight == 0)
             return "";
         else
-            return ss.str();
+            return "\n" + prefix + ": " + toString(weight);
     }
 
     std::string ToolTips::getPercentString(const float value, const std::string& prefix)
@@ -669,7 +628,7 @@ namespace MWGui
         if (value == 0)
             return "";
         else
-            return toString(value);
+            return "\n" + prefix + ": " + toString(value);
     }
 
     std::string ToolTips::getMiscString(const std::string& text, const std::string& prefix)

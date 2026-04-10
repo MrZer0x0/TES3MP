@@ -85,12 +85,12 @@ namespace
         MyGUI::Colour mNormalColour;
         MyGUI::Colour mHoverColour;
 
-        void onMouseLostFocus(MyGUI::Widget* _new) final
+        void onMouseLostFocus(MyGUI::Widget* _new) override
         {
             setColour(mNormalColour);
         }
 
-        void onMouseSetFocus(MyGUI::Widget* _old) final
+        void onMouseSetFocus(MyGUI::Widget* _old) override
         {
             setColour(mHoverColour);
         }
@@ -214,13 +214,13 @@ namespace MWGui
         */
     }
 
-    void LocalMapBase::init(MyGUI::ScrollView* widget, MyGUI::ImageBox* compass, int mapWidgetSize, int cellDistance)
+    void LocalMapBase::init(MyGUI::ScrollView* widget, MyGUI::ImageBox* compass)
     {
         mLocalMap = widget;
         mCompass = compass;
-        mMapWidgetSize = mapWidgetSize;
-        mCellDistance = cellDistance;
-        mNumCells = cellDistance * 2 + 1;
+        mMapWidgetSize = std::max(1, Settings::Manager::getInt("local map widget size", "Map"));
+        mCellDistance = Constants::CellGridRadius;
+        mNumCells = mCellDistance * 2 + 1;
 
         mLocalMap->setCanvasSize(mMapWidgetSize*mNumCells, mMapWidgetSize*mNumCells);
 
@@ -240,6 +240,7 @@ namespace MWGui
                     MyGUI::IntCoord(mx*mMapWidgetSize, my*mMapWidgetSize, mMapWidgetSize, mMapWidgetSize),
                     MyGUI::Align::Top | MyGUI::Align::Left);
                 fog->setDepth(Local_FogLayer);
+                fog->setColour(MyGUI::Colour(0, 0, 0));
 
                 map->setNeedMouseFocus(false);
                 fog->setNeedMouseFocus(false);
@@ -702,7 +703,7 @@ namespace MWGui
         : WindowPinnableBase("openmw_map_window.layout")
         , LocalMapBase(customMarkers, localMapRender)
         , NoDrop(drag, mMainWidget)
-        , mGlobalMap(0)
+        , mGlobalMap(nullptr)
         , mGlobalMapImage(nullptr)
         , mGlobalMapOverlay(nullptr)
         , mGlobal(Settings::Manager::getBool("global", "Map"))
@@ -755,9 +756,7 @@ namespace MWGui
         mEventBoxLocal->eventMouseButtonPressed += MyGUI::newDelegate(this, &MapWindow::onDragStart);
         mEventBoxLocal->eventMouseButtonDoubleClick += MyGUI::newDelegate(this, &MapWindow::onMapDoubleClicked);
 
-        int mapSize = std::max(1, Settings::Manager::getInt("local map widget size", "Map"));
-        int cellDistance = std::max(1, Settings::Manager::getInt("local map cell distance", "Map"));
-        LocalMapBase::init(mLocalMap, mPlayerArrowLocal, mapSize, cellDistance);
+        LocalMapBase::init(mLocalMap, mPlayerArrowLocal);
 
         mGlobalMap->setVisible(mGlobal);
         mLocalMap->setVisible(!mGlobal);

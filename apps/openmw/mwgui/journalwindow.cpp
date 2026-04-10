@@ -97,9 +97,7 @@ namespace
 
         MWGui::BookPage* getPage (char const * name)
         {
-            auto page = getWidget <MWGui::BookPage> (name);
-            page->mFontHeight = Settings::Manager::getInt("book font size", "MorroUI");
-            return page;
+            return getWidget <MWGui::BookPage> (name);
         }
 
         JournalWindowImpl (MWGui::JournalViewModel::Ptr Model, bool questList, ToUTF8::FromType encoding)
@@ -228,7 +226,7 @@ namespace
             mTopicsMode = false;
         }
 
-        void onOpen()
+        void onOpen() override
         {
             if (!MWBase::Environment::get().getWindowManager ()->getJournalAllowed ())
             {
@@ -259,7 +257,7 @@ namespace
             MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(getWidget<MyGUI::Widget>(CloseBTN));
         }
 
-        void onClose()
+        void onClose() override
         {
             mModel->unload ();
 
@@ -272,7 +270,7 @@ namespace
             mTopicIndexBook.reset ();
         }
 
-        void setVisible (bool newValue)
+        void setVisible (bool newValue) override
         {
             WindowBase::setVisible (newValue);
         }
@@ -563,7 +561,7 @@ namespace
             if (mAllQuests)
             {
                 SetNamesInactive setInactive(list);
-                mModel->visitQuestNames(!mAllQuests, setInactive);
+                mModel->visitQuestNames(false, setInactive);
             }
 
             MWBase::Environment::get().getWindowManager()->playSound("book page");

@@ -46,17 +46,18 @@ add_component_dir (vfs
     )
 
 add_component_dir (resource
-    scenemanager keyframemanager imagemanager bulletshapemanager bulletshape niffilemanager objectcache multiobjectcache resourcesystem resourcemanager stats
+    scenemanager keyframemanager imagemanager bulletshapemanager bulletshape niffilemanager objectcache multiobjectcache resourcesystem
+    resourcemanager stats animation
     )
 
 add_component_dir (shader
-    shadermanager shadervisitor
+    shadermanager shadervisitor removedalphafunc
     )
 
 add_component_dir (sceneutil
     clone attach visitor util statesetupdater controller skeleton riggeometry morphgeometry lightcontroller
     lightmanager lightutil positionattitudetransform workqueue unrefqueue pathgridutil waterutil writescene serialize optimizer
-    actorutil detourdebugdraw navmesh agentpath shadow mwshadowtechnique recastmesh
+    actorutil detourdebugdraw navmesh agentpath shadow mwshadowtechnique recastmesh shadowsbin osgacontroller occlusionculling
     )
 
 add_component_dir (nif
@@ -64,7 +65,7 @@ add_component_dir (nif
     )
 
 add_component_dir (nifosg
-    nifloader controller particle userdata
+    nifloader controller particle matrixtransform
     )
 
 add_component_dir (nifbullet
@@ -106,17 +107,18 @@ ENDIF (BUILD_OPENMW OR BUILD_OPENCS)
 # End of tes3mp change
 
 add_component_dir (misc
-    gcd constants utf8stream stringops resourcehelpers rng messageformatparser weakcache
+    constants utf8stream stringops resourcehelpers rng messageformatparser weakcache thread
     )
 
 add_component_dir (debug
-    debugging debuglog
+    debugging debuglog gldebug
     )
 
 IF(NOT WIN32 AND NOT APPLE)
     add_definitions(-DGLOBAL_DATA_PATH="${GLOBAL_DATA_PATH}")
     add_definitions(-DGLOBAL_CONFIG_PATH="${GLOBAL_CONFIG_PATH}")
 ENDIF()
+
 add_component_dir (files
     linuxpath androidpath windowspath macospath fixedpath multidircollection collections configurationmanager escape
     lowlevelfile constrainedfilestream memorystream
@@ -131,7 +133,7 @@ add_component_dir (compiler
 
 add_component_dir (interpreter
     context controlopcodes genericopcodes installopcodes interpreter localopcodes mathopcodes
-    miscopcodes opcodes runtime scriptopcodes spatialopcodes types defines
+    miscopcodes opcodes runtime types defines
     )
 
 add_component_dir (translation
@@ -144,7 +146,7 @@ add_component_dir (translation
 IF (BUILD_OPENMW OR BUILD_OPENCS)
 # End of tes3mp change
 add_component_dir (terrain
-    storage world buffercache defs terraingrid material terraindrawable texturemanager chunkmanager compositemaprenderer quadtreeworld quadtreenode viewdata cellborder
+    storage terrainoccluder world buffercache defs terraingrid material terraindrawable texturemanager chunkmanager compositemaprenderer quadtreeworld quadtreenode viewdata cellborder
     )
 
 add_component_dir (loadinglistener
@@ -156,7 +158,7 @@ add_component_dir (myguiplatform
     )
 
 add_component_dir (widgets
-    box fontwrapper imagebutton imagepushbutton tags list numericeditbox sharedstatebutton windowcaption widgets
+    box fontwrapper imagebutton tags list numericeditbox sharedstatebutton windowcaption widgets
     )
 
 add_component_dir (fontloader
@@ -164,7 +166,7 @@ add_component_dir (fontloader
     )
 
 add_component_dir (sdlutil
-    sdlgraphicswindow imagetosurface sdlinputwrapper sdlvideowrapper OISCompat events sdlcursormanager
+    gl4es_init sdlgraphicswindow imagetosurface sdlinputwrapper sdlvideowrapper events sdlcursormanager
     )
 # Start of tes3mp change
 #
@@ -176,35 +178,79 @@ add_component_dir (version
     version
     )
 
+add_component_dir (openmw-mp
+        TimedLog Utils ErrorMessages NetworkMessages Version
+        )
+
+add_component_dir (openmw-mp/Base
+        BaseActor BaseObject BasePacketProcessor BasePlayer BaseStructs BaseSystem BaseWorldstate
+        )
+
+add_component_dir (openmw-mp/Controllers
+        SystemPacketController PlayerPacketController ActorPacketController ObjectPacketController WorldstatePacketController
+        )
+
+add_component_dir(openmw-mp/Master
+        MasterData PacketMasterQuery PacketMasterUpdate PacketMasterAnnounce BaseMasterPacket ProxyMasterPacket
+        )
+
+add_component_dir (openmw-mp/Packets
+        BasePacket PacketPreInit
+        )
+
+add_component_dir (openmw-mp/Packets/Actor
+        ActorPacket
+
+        PacketActorList PacketActorAuthority PacketActorTest PacketActorAI PacketActorAnimFlags PacketActorAnimPlay
+        PacketActorAttack PacketActorCast PacketActorCellChange PacketActorDeath PacketActorEquipment PacketActorPosition
+        PacketActorSpeech PacketActorSpellsActive PacketActorStatsDynamic
+        )
+
+add_component_dir (openmw-mp/Packets/System
+        SystemPacket
+
+        PacketSystemHandshake
+        )
+
+add_component_dir (openmw-mp/Packets/Player
+        PlayerPacket
+
+        PacketChatMessage PacketGUIBoxes PacketGameSettings
+
+        PacketPlayerBaseInfo PacketPlayerCharGen PacketPlayerAlly PacketPlayerAnimFlags PacketPlayerAnimPlay
+        PacketPlayerAttack PacketPlayerAttribute PacketPlayerBehavior PacketPlayerBook PacketPlayerBounty
+        PacketPlayerCast PacketPlayerCellChange PacketPlayerCellState PacketPlayerClass PacketPlayerCooldowns
+        PacketPlayerDeath PacketPlayerEquipment PacketPlayerFaction PacketPlayerInput PacketPlayerInventory
+        PacketPlayerItemUse PacketPlayerJail PacketPlayerJournal PacketPlayerLevel PacketPlayerMiscellaneous
+        PacketPlayerMomentum PacketPlayerPosition PacketPlayerQuickKeys PacketPlayerReputation PacketPlayerRest
+        PacketPlayerResurrect PacketPlayerShapeshift PacketPlayerSkill PacketPlayerSpeech PacketPlayerSpellbook
+        PacketPlayerSpellsActive PacketPlayerStatsDynamic PacketPlayerTopic
+        )
+
+add_component_dir (openmw-mp/Packets/Object
+        ObjectPacket
+
+        PacketDoorDestination PacketDoorState
+
+        PacketConsoleCommand PacketContainer PacketObjectActivate PacketObjectAnimPlay PacketObjectAttach
+        PacketObjectDelete PacketObjectDialogueChoice PacketObjectHit PacketObjectLock PacketObjectMove PacketObjectPlace
+        PacketObjectRestock PacketObjectRotate PacketObjectScale PacketObjectSound PacketObjectSpawn PacketObjectState
+        PacketObjectTrap PacketMusicPlay PacketVideoPlay PacketClientScriptLocal PacketScriptMemberShort
+        PacketObjectMiscellaneous
+        )
+
+add_component_dir (openmw-mp/Packets/Worldstate
+        WorldstatePacket
+
+        PacketCellCreate PacketCellReset PacketClientScriptGlobal PacketClientScriptSettings PacketRecordDynamic
+        PacketWorldCollisionOverride PacketWorldDestinationOverride PacketWorldKillCount PacketWorldMap
+        PacketWorldRegionAuthority PacketWorldTime PacketWorldWeather
+        )
+
 add_component_dir (fallback
     fallback validate
     )
 
-if(NOT WIN32 AND NOT ANDROID)
-    add_component_dir (crashcatcher
-        crashcatcher
-    )
-endif()
-
-add_component_dir(detournavigator
-    debug
-    makenavmesh
-    findsmoothpath
-    recastmeshbuilder
-    recastmeshmanager
-    cachedrecastmeshmanager
-    navmeshmanager
-    navigatorimpl
-    asyncnavmeshupdater
-    chunkytrimesh
-    recastmesh
-    tilecachedrecastmeshmanager
-    recastmeshobject
-    navmeshtilescache
-    settings
-    navigator
-    findrandompointaroundcircle
-    )
 # Start of tes3mp change (major)
 #
 # Don't require the crashcatcher when building on platforms other than Windows or when building only the server,
@@ -278,14 +324,8 @@ if (USE_QT)
         helpviewer
         )
 
-    if (DESIRED_QT_VERSION MATCHES 4)
-        include(${QT_USE_FILE})
-        QT4_WRAP_UI(ESM_UI_HDR ${ESM_UI})
-        QT4_WRAP_CPP(MOC_SRCS ${COMPONENT_MOC_FILES})
-    else()
-        QT5_WRAP_UI(ESM_UI_HDR ${ESM_UI})
-        QT5_WRAP_CPP(MOC_SRCS ${COMPONENT_MOC_FILES})
-    endif()
+    QT5_WRAP_UI(ESM_UI_HDR ${ESM_UI})
+    QT5_WRAP_CPP(MOC_SRCS ${COMPONENT_MOC_FILES})
 endif()
 # Start of tes3mp change (major)
 #
@@ -299,34 +339,10 @@ if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     endif()
 endif ()
 
-include_directories(${Bullet_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${BULLET_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(components STATIC ${COMPONENT_FILES} ${MOC_SRCS} ${ESM_UI_HDR})
 
-target_link_libraries(components
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${Boost_IOSTREAMS_LIBRARY}
-    ${OSG_LIBRARIES}
-    ${OPENTHREADS_LIBRARIES}
-    ${OSGPARTICLE_LIBRARIES}
-    ${OSGUTIL_LIBRARIES}
-    ${OSGDB_LIBRARIES}
-    ${OSGVIEWER_LIBRARIES}
-    ${OSGTEXT_LIBRARIES}
-    ${OSGGA_LIBRARIES}
-    ${OSGSHADOW_LIBRARIES}
-    ${OSGANIMATION_LIBRARIES}
-    ${Bullet_LIBRARIES}
-    ${SDL2_LIBRARIES}
-    ${OPENGL_gl_LIBRARY}
-    ${MyGUI_LIBRARIES}
-    ${BSAOPTHASH_LIBRARIES}
-    RecastNavigation::DebugUtils
-    RecastNavigation::Detour
-    RecastNavigation::Recast
-    )
 # Start of tes3mp change (major)
 #
 # Don't require graphics related libs when building the server
@@ -391,13 +407,7 @@ endif()
 IF (BUILD_OPENMW OR BUILD_OPENCS)
 # End of tes3mp change
 if (USE_QT)
-    if (DESIRED_QT_VERSION MATCHES 4)
-        target_link_libraries(components
-        ${QT_QTCORE_LIBRARY}
-        ${QT_QTGUI_LIBRARY})
-    else()
-        target_link_libraries(components Qt5::Widgets Qt5::Core)
-    endif()
+    target_link_libraries(components Qt5::Widgets Qt5::Core)
 endif()
 # Start of tes3mp change (major)
 #
@@ -411,9 +421,6 @@ endif (GIT_CHECKOUT)
 
 if (WIN32)
     target_link_libraries(components shlwapi)
-    if(MINGW)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOGDI")
-    endif(MINGW)
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
@@ -429,3 +436,5 @@ endif()
 
 # Make the variable accessible for other subdirectories
 set(COMPONENT_FILES ${COMPONENT_FILES} PARENT_SCOPE)
+
+target_compile_definitions(components PUBLIC BT_USE_DOUBLE_PRECISION)

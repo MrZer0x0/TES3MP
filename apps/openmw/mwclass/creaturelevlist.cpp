@@ -10,29 +10,22 @@
 
 namespace MWClass
 {
-    class CreatureLevListCustomData : public MWWorld::CustomData
+    class CreatureLevListCustomData : public MWWorld::TypedCustomData<CreatureLevListCustomData>
     {
     public:
         // actorId of the creature we spawned
         int mSpawnActorId;
         bool mSpawn; // Should a new creature be spawned?
 
-        virtual MWWorld::CustomData *clone() const;
-
-        virtual CreatureLevListCustomData& asCreatureLevListCustomData()
+        CreatureLevListCustomData& asCreatureLevListCustomData() override
         {
             return *this;
         }
-        virtual const CreatureLevListCustomData& asCreatureLevListCustomData() const
+        const CreatureLevListCustomData& asCreatureLevListCustomData() const override
         {
             return *this;
         }
     };
-
-    MWWorld::CustomData *CreatureLevListCustomData::clone() const
-    {
-        return new CreatureLevListCustomData (*this);
-    }
 
     std::string CreatureLevList::getName (const MWWorld::ConstPtr& ptr) const
     {
@@ -125,9 +118,6 @@ namespace MWClass
             const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
             MWWorld::ManualRef manualRef(store, id);
             manualRef.getPtr().getCellRef().setPosition(ptr.getCellRef().getPosition());
-            manualRef.getPtr().getCellRef().setScale(ptr.getCellRef().getScale());
-            MWWorld::Ptr placed = MWBase::Environment::get().getWorld()->placeObject(manualRef.getPtr(), ptr.getCell() , ptr.getCellRef().getPosition());
-            customData.mSpawnActorId = placed.getClass().getCreatureStats(placed).getActorId();
 
             /*
                 Start of tes3mp change (major)
@@ -152,11 +142,11 @@ namespace MWClass
     {
         if (!ptr.getRefData().getCustomData())
         {
-            std::unique_ptr<CreatureLevListCustomData> data (new CreatureLevListCustomData);
+            std::unique_ptr<CreatureLevListCustomData> data = std::make_unique<CreatureLevListCustomData>();
             data->mSpawnActorId = -1;
             data->mSpawn = true;
 
-            ptr.getRefData().setCustomData(data.release());
+            ptr.getRefData().setCustomData(std::move(data));
         }
     }
 
