@@ -4,6 +4,8 @@
 
 #include <components/debug/debuglog.hpp>
 
+#include <algorithm>
+
 namespace VFS
 {
 
@@ -51,6 +53,16 @@ namespace VFS
         {
             out[it->first] = &it->second;
         }
+    }
+
+    bool FileSystemArchive::contains(const std::string& file, char (*normalize_function)(char)) const
+    {
+        return mIndex.find(file) != mIndex.end();
+    }
+
+    std::string FileSystemArchive::getDescription() const
+    {
+        return std::string{"DIR: "} + mPath;
     }
 
     // ----------------------------------------------------------------------------------

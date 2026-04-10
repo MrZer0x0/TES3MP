@@ -5,13 +5,12 @@
 #include <osg/Version>
 #include <osg/MatrixTransform>
 #include <osg/Geometry>
+#include <osg/ValueObject>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/rng.hpp>
 #include <components/nif/controlled.hpp>
 #include <components/nif/data.hpp>
-
-#include "userdata.hpp"
 
 namespace NifOsg
 {
@@ -125,7 +124,7 @@ void ParticleShooter::shoot(osgParticle::Particle *particle) const
     particle->setVelocity(dir * vel);
 
     // Not supposed to set this here, but there doesn't seem to be a better way of doing it
-    particle->setLifeTime(mLifetime + mLifetimeRandom * Misc::Rng::rollClosedProbability());
+    particle->setLifeTime(std::max(std::numeric_limits<float>::epsilon(), mLifetime + mLifetimeRandom * Misc::Rng::rollClosedProbability()));
 }
 
 GrowFadeAffector::GrowFadeAffector(float growTime, float fadeTime)
@@ -184,6 +183,7 @@ ParticleColorAffector::ParticleColorAffector(const ParticleColorAffector &copy, 
 
 void ParticleColorAffector::operate(osgParticle::Particle* particle, double /* dt */)
 {
+    assert(particle->getLifeTime() > 0);
     float time = static_cast<float>(particle->getAge()/particle->getLifeTime());
     osg::Vec4f color = mData.interpKey(time);
     float alpha = color.a();
@@ -277,7 +277,7 @@ Emitter::Emitter(const Emitter &copy, const osg::CopyOp &copyop)
     , mPlacer(copy.mPlacer)
     , mShooter(copy.mShooter)
     // need a deep copy because the remainder is stored in the object
-    , mCounter(osg::clone(copy.mCounter.get(), osg::CopyOp::DEEP_COPY_ALL))
+    , mCounter(static_cast<osgParticle::Counter*>(copy.mCounter->clone(osg::CopyOp::DEEP_COPY_ALL)))
 {
 }
 
@@ -344,7 +344,7 @@ void Emitter::emitParticles(double dt)
 
     for (int i=0; i<n; ++i)
     {
-        osgParticle::Particle* P = getParticleSystem()->createParticle(0);
+        osgParticle::Particle* P = getParticleSystem()->createParticle(nullptr);
         if (P)
         {
             mPlacer->place(P);
@@ -356,7 +356,7 @@ void Emitter::emitParticles(double dt)
     }
 }
 
-FindGroupByRecIndex::FindGroupByRecIndex(int recIndex)
+FindGroupByRecIndex::FindGroupByRecIndex(unsigned int recIndex)
     : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
     , mFound(nullptr)
     , mRecIndex(recIndex)
@@ -380,19 +380,16 @@ void FindGroupByRecIndex::apply(osg::Geometry &node)
 
 void FindGroupByRecIndex::applyNode(osg::Node &searchNode)
 {
-    if (searchNode.getUserDataContainer() && searchNode.getUserDataContainer()->getNumUserObjects())
+    unsigned int recIndex;
+    if (searchNode.getUserValue("recIndex", recIndex) && mRecIndex == recIndex)
     {
-        NodeUserData* holder = dynamic_cast<NodeUserData*>(searchNode.getUserDataContainer()->getUserObject(0));
-        if (holder && holder->mIndex == mRecIndex)
-        {
-            osg::Group* group = searchNode.asGroup();
-            if (!group)
-                group = searchNode.getParent(0);
+        osg::Group* group = searchNode.asGroup();
+        if (!group)
+            group = searchNode.getParent(0);
 
-            mFound = group;
-            mFoundPath = getNodePath();
-            return;
-        }
+        mFound = group;
+        mFoundPath = getNodePath();
+        return;
     }
     traverse(searchNode);
 }

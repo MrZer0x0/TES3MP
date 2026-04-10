@@ -20,8 +20,7 @@
 #include <components/misc/constants.hpp>
 #include <components/misc/resourcehelpers.hpp>
 
-#include <components/nifosg/nifloader.hpp> // KeyframeHolder
-#include <components/nifosg/controller.hpp>
+#include <components/sceneutil/keyframe.hpp>
 
 #include <components/vfs/manager.hpp>
 
@@ -59,18 +58,18 @@ namespace
             : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
         { }
 
-        virtual void apply(osg::Node &node)
+        void apply(osg::Node &node) override
         {
             if (dynamic_cast<osgParticle::ParticleProcessor*>(&node))
-                mToRemove.push_back(&node);
+                mToRemove.emplace_back(&node);
 
             traverse(node);
         }
 
-        virtual void apply(osg::Drawable& drw)
+        void apply(osg::Drawable& drw) override
         {
             if (osgParticle::ParticleSystem* partsys = dynamic_cast<osgParticle::ParticleSystem*>(&drw))
-                mToRemove.push_back(partsys);
+                mToRemove.emplace_back(partsys);
         }
 
         void remove()
@@ -95,7 +94,7 @@ namespace
         {
         }
 
-        virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
+        void operator()(osg::Node* node, osg::NodeVisitor* nv) override
         {
             unsigned int state = MWBase::Environment::get().getWorld()->getNightDayMode();
             const unsigned int newState = node->asGroup()->getNumChildren() > state ? state : 0;
@@ -120,7 +119,7 @@ namespace
             : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
         { }
 
-        virtual void apply(osg::Switch &switchNode)
+        void apply(osg::Switch &switchNode) override
         {
             if (switchNode.getName() == Constants::NightDayLabel)
                 switchNode.addUpdateCallback(new DayNightCallback());
@@ -137,7 +136,7 @@ namespace
         {
         }
 
-        virtual void apply(osg::Switch& node)
+        void apply(osg::Switch& node) override
         {
             if (node.getName() == Constants::HerbalismLabel)
             {
@@ -148,20 +147,8 @@ namespace
         }
     };
 
-    NifOsg::TextKeyMap::const_iterator findGroupStart(const NifOsg::TextKeyMap &keys, const std::string &groupname)
-    {
-        NifOsg::TextKeyMap::const_iterator iter(keys.begin());
-        for(;iter != keys.end();++iter)
-        {
-            if(iter->second.compare(0, groupname.size(), groupname) == 0 &&
-               iter->second.compare(groupname.size(), 2, ": ") == 0)
-                break;
-        }
-        return iter;
-    }
-
-    float calcAnimVelocity(const std::multimap<float, std::string>& keys,
-                                      NifOsg::KeyframeController *nonaccumctrl, const osg::Vec3f& accum, const std::string &groupname)
+    float calcAnimVelocity(const SceneUtil::TextKeyMap& keys, SceneUtil::KeyframeController *nonaccumctrl,
+                           const osg::Vec3f& accum, const std::string &groupname)
     {
         const std::string start = groupname+": start";
         const std::string loopstart = groupname+": loop start";
@@ -176,7 +163,7 @@ namespace
         // but the animation velocity calculation uses the second one.
         // As result the animation velocity calculation is not correct, and this incorrect velocity must be replicated,
         // because otherwise the Creature's Speed (dagoth uthol) would not be sufficient to move fast enough.
-        NifOsg::TextKeyMap::const_reverse_iterator keyiter(keys.rbegin());
+        auto keyiter = keys.rbegin();
         while(keyiter != keys.rend())
         {
             if(keyiter->second == start || keyiter->second == loopstart)
@@ -244,7 +231,7 @@ namespace
         {
         }
 
-        void apply(osg::Node& node)
+        void apply(osg::Node& node) override
         {
             if (SceneUtil::hasUserDescription(&node, "CustomBone"))
             {
@@ -269,12 +256,12 @@ namespace
         {
         }
 
-        virtual void apply(osg::Node &node)
+        void apply(osg::Node &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Group &group)
+        void apply(osg::Group &group) override
         {
             traverse(group);
 
@@ -286,19 +273,19 @@ namespace
                 if (vfxCallback)
                 {
                     if (vfxCallback->mFinished)
-                        mToRemove.push_back(std::make_pair(group.asNode(), group.getParent(0)));
+                        mToRemove.emplace_back(group.asNode(), group.getParent(0));
                     else
                         mHasMagicEffects = true;
                 }
             }
         }
 
-        virtual void apply(osg::MatrixTransform &node)
+        void apply(osg::MatrixTransform &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Geometry&)
+        void apply(osg::Geometry&) override
         {
         }
     };
@@ -322,12 +309,12 @@ namespace
         {
         }
 
-        virtual void apply(osg::Node &node)
+        void apply(osg::Node &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Group &group)
+        void apply(osg::Group &group) override
         {
             traverse(group);
 
@@ -339,19 +326,19 @@ namespace
                 {
                     bool toRemove = mEffectId < 0 || vfxCallback->mParams.mEffectId == mEffectId;
                     if (toRemove)
-                        mToRemove.push_back(std::make_pair(group.asNode(), group.getParent(0)));
+                        mToRemove.emplace_back(group.asNode(), group.getParent(0));
                     else
                         mHasMagicEffects = true;
                 }
             }
         }
 
-        virtual void apply(osg::MatrixTransform &node)
+        void apply(osg::MatrixTransform &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Geometry&)
+        void apply(osg::Geometry&) override
         {
         }
 
@@ -377,12 +364,12 @@ namespace
         {
         }
 
-        virtual void apply(osg::Node &node)
+        void apply(osg::Node &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Group &group)
+        void apply(osg::Group &group) override
         {
             osg::Callback* callback = group.getUpdateCallback();
             if (callback)
@@ -399,12 +386,12 @@ namespace
             traverse(group);
         }
 
-        virtual void apply(osg::MatrixTransform &node)
+        void apply(osg::MatrixTransform &node) override
         {
             traverse(node);
         }
 
-        virtual void apply(osg::Geometry&)
+        void apply(osg::Geometry&) override
         {
         }
 
@@ -416,20 +403,20 @@ namespace
     class CleanObjectRootVisitor : public RemoveVisitor
     {
     public:
-        virtual void apply(osg::Drawable& drw)
+        void apply(osg::Drawable& drw) override
         {
             applyDrawable(drw);
         }
 
-        virtual void apply(osg::Group& node)
+        void apply(osg::Group& node) override
         {
             applyNode(node);
         }
-        virtual void apply(osg::MatrixTransform& node)
+        void apply(osg::MatrixTransform& node) override
         {
             applyNode(node);
         }
-        virtual void apply(osg::Node& node)
+        void apply(osg::Node& node) override
         {
             applyNode(node);
         }
@@ -440,7 +427,7 @@ namespace
                 node.setStateSet(nullptr);
 
             if (node.getNodeMask() == 0x1 && node.getNumParents() == 1)
-                mToRemove.push_back(std::make_pair(&node, node.getParent(0)));
+                mToRemove.emplace_back(&node, node.getParent(0));
             else
                 traverse(node);
         }
@@ -458,28 +445,28 @@ namespace
                 osg::Group* parentParent = static_cast<osg::Group*>(*(parent - 1));
                 if (parentGroup->getNumChildren() == 1 && parentGroup->getDataVariance() == osg::Object::STATIC)
                 {
-                    mToRemove.push_back(std::make_pair(parentGroup, parentParent));
+                    mToRemove.emplace_back(parentGroup, parentParent);
                     return;
                 }
             }
 
-            mToRemove.push_back(std::make_pair(&node, parentGroup));
+            mToRemove.emplace_back(&node, parentGroup);
         }
     };
 
     class RemoveTriBipVisitor : public RemoveVisitor
     {
     public:
-        virtual void apply(osg::Drawable& drw)
+        void apply(osg::Drawable& drw) override
         {
             applyImpl(drw);
         }
 
-        virtual void apply(osg::Group& node)
+        void apply(osg::Group& node) override
         {
             traverse(node);
         }
-        virtual void apply(osg::MatrixTransform& node)
+        void apply(osg::MatrixTransform& node) override
         {
             traverse(node);
         }
@@ -491,7 +478,7 @@ namespace
             {
                 osg::Group* parent = static_cast<osg::Group*>(*(getNodePath().end()-2));
                 // Not safe to remove in apply(), since the visitor is still iterating the child list
-                mToRemove.push_back(std::make_pair(&node, parent));
+                mToRemove.emplace_back(&node, parent);
             }
         }
     };
@@ -512,11 +499,19 @@ namespace MWRender
             mAlpha = alpha;
         }
 
+        void setLightSource(const osg::ref_ptr<SceneUtil::LightSource>& lightSource)
+        {
+            mLightSource = lightSource;
+        }
+
     protected:
-        virtual void setDefaults(osg::StateSet* stateset)
+        void setDefaults(osg::StateSet* stateset) override
         {
             osg::BlendFunc* blendfunc (new osg::BlendFunc);
             stateset->setAttributeAndModes(blendfunc, osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE);
+
+            stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+            stateset->setRenderBinMode(osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
 
             // FIXME: overriding diffuse/ambient/emissive colors
             osg::Material* material = new osg::Material;
@@ -527,25 +522,28 @@ namespace MWRender
             stateset->addUniform(new osg::Uniform("colorMode", 0), osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE);
         }
 
-        virtual void apply(osg::StateSet* stateset, osg::NodeVisitor* /*nv*/)
+        void apply(osg::StateSet* stateset, osg::NodeVisitor* /*nv*/) override
         {
             osg::Material* material = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
             material->setAlpha(osg::Material::FRONT_AND_BACK, mAlpha);
+            if (mLightSource)
+                mLightSource->setActorFade(mAlpha);
         }
 
     private:
         float mAlpha;
+        osg::ref_ptr<SceneUtil::LightSource> mLightSource;
     };
 
     struct Animation::AnimSource
     {
-        osg::ref_ptr<const NifOsg::KeyframeHolder> mKeyframes;
+        osg::ref_ptr<const SceneUtil::KeyframeHolder> mKeyframes;
 
-        typedef std::map<std::string, osg::ref_ptr<NifOsg::KeyframeController> > ControllerMap;
+        typedef std::map<std::string, osg::ref_ptr<SceneUtil::KeyframeController> > ControllerMap;
 
         ControllerMap mControllerMap[Animation::sNumBlendMasks];
 
-        const std::multimap<float, std::string>& getTextKeys() const;
+        const SceneUtil::TextKeyMap& getTextKeys() const;
     };
 
     void UpdateVfxCallback::operator()(osg::Node* node, osg::NodeVisitor* nv)
@@ -587,7 +585,7 @@ namespace MWRender
     class ResetAccumRootCallback : public osg::NodeCallback
     {
     public:
-        virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
+        void operator()(osg::Node* node, osg::NodeVisitor* nv) override
         {
             osg::MatrixTransform* transform = static_cast<osg::MatrixTransform*>(node);
 
@@ -622,6 +620,9 @@ namespace MWRender
         , mTextKeyListener(nullptr)
         , mHeadYawRadians(0.f)
         , mHeadPitchRadians(0.f)
+        , mUpperBodyYawRadians(0.f)
+        , mLegsYawRadians(0.f)
+        , mBodyPitchRadians(0.f)
         , mHasMagicEffects(false)
         , mAlpha(1.f)
     {
@@ -694,7 +695,7 @@ namespace MWRender
         return 0;
     }
 
-    const std::multimap<float, std::string> &Animation::AnimSource::getTextKeys() const
+    const SceneUtil::TextKeyMap &Animation::AnimSource::getTextKeys() const
     {
         return mKeyframes->mTextKeys;
     }
@@ -735,8 +736,6 @@ namespace MWRender
 
         if(kfname.size() > 4 && kfname.compare(kfname.size()-4, 4, ".nif") == 0)
             kfname.replace(kfname.size()-4, 4, ".kf");
-        else
-            return;
 
         addSingleAnimSource(kfname, baseModel);
 
@@ -759,7 +758,7 @@ namespace MWRender
 
         const NodeMap& nodeMap = getNodeMap();
 
-        for (NifOsg::KeyframeHolder::KeyframeControllerMap::const_iterator it = animsrc->mKeyframes->mKeyframeControllers.begin();
+        for (SceneUtil::KeyframeHolder::KeyframeControllerMap::const_iterator it = animsrc->mKeyframes->mKeyframeControllers.begin();
              it != animsrc->mKeyframes->mKeyframeControllers.end(); ++it)
         {
             std::string bonename = Misc::StringUtils::lowerCase(it->first);
@@ -775,7 +774,7 @@ namespace MWRender
             size_t blendMask = detectBlendMask(node);
 
             // clone the controller, because each Animation needs its own ControllerSource
-            osg::ref_ptr<NifOsg::KeyframeController> cloned = new NifOsg::KeyframeController(*it->second, osg::CopyOp::SHALLOW_COPY);
+            osg::ref_ptr<SceneUtil::KeyframeController> cloned = osg::clone(it->second.get(), osg::CopyOp::SHALLOW_COPY);
             cloned->setSource(mAnimationTimePtr[blendMask]);
 
             animsrc->mControllerMap[blendMask].insert(std::make_pair(bonename, cloned));
@@ -816,8 +815,8 @@ namespace MWRender
         AnimSourceList::const_iterator iter(mAnimSources.begin());
         for(;iter != mAnimSources.end();++iter)
         {
-            const NifOsg::TextKeyMap &keys = (*iter)->getTextKeys();
-            if(findGroupStart(keys, anim) != keys.end())
+            const SceneUtil::TextKeyMap &keys = (*iter)->getTextKeys();
+            if (keys.hasGroupStart(anim))
                 return true;
         }
 
@@ -828,9 +827,9 @@ namespace MWRender
     {
         for(AnimSourceList::const_reverse_iterator iter(mAnimSources.rbegin()); iter != mAnimSources.rend(); ++iter)
         {
-            const NifOsg::TextKeyMap &keys = (*iter)->getTextKeys();
+            const SceneUtil::TextKeyMap &keys = (*iter)->getTextKeys();
 
-            NifOsg::TextKeyMap::const_iterator found = findGroupStart(keys, groupname);
+            const auto found = keys.findGroupStart(groupname);
             if(found != keys.end())
                 return found->first;
         }
@@ -841,9 +840,9 @@ namespace MWRender
     {
         for(AnimSourceList::const_reverse_iterator iter(mAnimSources.rbegin()); iter != mAnimSources.rend(); ++iter)
         {
-            const NifOsg::TextKeyMap &keys = (*iter)->getTextKeys();
+            const SceneUtil::TextKeyMap &keys = (*iter)->getTextKeys();
 
-            for(NifOsg::TextKeyMap::const_iterator iterKey(keys.begin()); iterKey != keys.end(); ++iterKey)
+            for(auto iterKey = keys.begin(); iterKey != keys.end(); ++iterKey)
             {
                 if(iterKey->second.compare(0, textKey.size(), textKey) == 0)
                     return iterKey->first;
@@ -853,8 +852,8 @@ namespace MWRender
         return -1.f;
     }
 
-    void Animation::handleTextKey(AnimState &state, const std::string &groupname, const std::multimap<float, std::string>::const_iterator &key,
-                       const std::multimap<float, std::string>& map)
+    void Animation::handleTextKey(AnimState &state, const std::string &groupname, SceneUtil::TextKeyMap::ConstIterator key,
+                       const SceneUtil::TextKeyMap& map)
     {
         const std::string &evt = key->second;
 
@@ -917,7 +916,7 @@ namespace MWRender
         AnimSourceList::reverse_iterator iter(mAnimSources.rbegin());
         for(;iter != mAnimSources.rend();++iter)
         {
-            const NifOsg::TextKeyMap &textkeys = (*iter)->getTextKeys();
+            const SceneUtil::TextKeyMap &textkeys = (*iter)->getTextKeys();
             if(reset(state, textkeys, groupname, start, stop, startpoint, loopfallback))
             {
                 state.mSource = *iter;
@@ -931,7 +930,7 @@ namespace MWRender
 
                 if (state.mPlaying)
                 {
-                    NifOsg::TextKeyMap::const_iterator textkey(textkeys.lower_bound(state.getTime()));
+                    auto textkey = textkeys.lowerBound(state.getTime());
                     while(textkey != textkeys.end() && textkey->first <= state.getTime())
                     {
                         handleTextKey(state, groupname, textkey, textkeys);
@@ -947,7 +946,7 @@ namespace MWRender
                     if(state.getTime() >= state.mLoopStopTime)
                         break;
 
-                    NifOsg::TextKeyMap::const_iterator textkey(textkeys.lower_bound(state.getTime()));
+                    auto textkey = textkeys.lowerBound(state.getTime());
                     while(textkey != textkeys.end() && textkey->first <= state.getTime())
                     {
                         handleTextKey(state, groupname, textkey, textkeys);
@@ -962,11 +961,11 @@ namespace MWRender
         resetActiveGroups();
     }
 
-    bool Animation::reset(AnimState &state, const NifOsg::TextKeyMap &keys, const std::string &groupname, const std::string &start, const std::string &stop, float startpoint, bool loopfallback)
+    bool Animation::reset(AnimState &state, const SceneUtil::TextKeyMap &keys, const std::string &groupname, const std::string &start, const std::string &stop, float startpoint, bool loopfallback)
     {
         // Look for text keys in reverse. This normally wouldn't matter, but for some reason undeadwolf_2.nif has two
         // separate walkforward keys, and the last one is supposed to be used.
-        NifOsg::TextKeyMap::const_reverse_iterator groupend(keys.rbegin());
+        auto groupend = keys.rbegin();
         for(;groupend != keys.rend();++groupend)
         {
             if(groupend->second.compare(0, groupname.size(), groupname) == 0 &&
@@ -975,7 +974,7 @@ namespace MWRender
         }
 
         std::string starttag = groupname+": "+start;
-        NifOsg::TextKeyMap::const_reverse_iterator startkey(groupend);
+        auto startkey = groupend;
         while(startkey != keys.rend() && startkey->second != starttag)
             ++startkey;
         if(startkey == keys.rend() && start == "loop start")
@@ -989,7 +988,7 @@ namespace MWRender
             return false;
 
         const std::string stoptag = groupname+": "+stop;
-        NifOsg::TextKeyMap::const_reverse_iterator stopkey(groupend);
+        auto stopkey = groupend;
         while(stopkey != keys.rend()
               // We have to ignore extra garbage at the end.
               // The Scrib's idle3 animation has "Idle3: Stop." instead of "Idle3: Stop".
@@ -1022,7 +1021,7 @@ namespace MWRender
         const std::string loopstarttag = groupname+": loop start";
         const std::string loopstoptag = groupname+": loop stop";
 
-        NifOsg::TextKeyMap::const_reverse_iterator key(groupend);
+        auto key = groupend;
         for (; key != startkey && key != keys.rend(); ++key)
         {
             if (key->first > state.getTime())
@@ -1056,7 +1055,7 @@ namespace MWRender
     void Animation::resetActiveGroups()
     {
         // remove all previous external controllers from the scene graph
-        for (ControllerMap::iterator it = mActiveControllers.begin(); it != mActiveControllers.end(); ++it)
+        for (auto it = mActiveControllers.begin(); it != mActiveControllers.end(); ++it)
         {
             osg::Node* node = it->first;
             node->removeUpdateCallback(it->second);
@@ -1095,7 +1094,7 @@ namespace MWRender
                     osg::ref_ptr<osg::Node> node = getNodeMap().at(it->first); // this should not throw, we already checked for the node existing in addAnimSource
 
                     node->addUpdateCallback(it->second);
-                    mActiveControllers.insert(std::make_pair(node, it->second));
+                    mActiveControllers.emplace_back(node, it->second);
 
                     if (blendMask == 0 && node == mAccumRoot)
                     {
@@ -1108,7 +1107,7 @@ namespace MWRender
                             mResetAccumRootCallback->setAccumulate(mAccumulate);
                         }
                         mAccumRoot->addUpdateCallback(mResetAccumRootCallback);
-                        mActiveControllers.insert(std::make_pair(mAccumRoot, mResetAccumRootCallback));
+                        mActiveControllers.emplace_back(mAccumRoot, mResetAccumRootCallback);
                     }
                 }
             }
@@ -1192,15 +1191,15 @@ namespace MWRender
         AnimSourceList::const_reverse_iterator animsrc(mAnimSources.rbegin());
         for(;animsrc != mAnimSources.rend();++animsrc)
         {
-            const NifOsg::TextKeyMap &keys = (*animsrc)->getTextKeys();
-            if(findGroupStart(keys, groupname) != keys.end())
+            const SceneUtil::TextKeyMap &keys = (*animsrc)->getTextKeys();
+            if (keys.hasGroupStart(groupname))
                 break;
         }
         if(animsrc == mAnimSources.rend())
             return 0.0f;
 
         float velocity = 0.0f;
-        const NifOsg::TextKeyMap &keys = (*animsrc)->getTextKeys();
+        const SceneUtil::TextKeyMap &keys = (*animsrc)->getTextKeys();
 
         const AnimSource::ControllerMap& ctrls = (*animsrc)->mControllerMap[0];
         for (AnimSource::ControllerMap::const_iterator it = ctrls.begin(); it != ctrls.end(); ++it)
@@ -1221,7 +1220,7 @@ namespace MWRender
 
             while(!(velocity > 1.0f) && ++animiter != mAnimSources.rend())
             {
-                const NifOsg::TextKeyMap &keys2 = (*animiter)->getTextKeys();
+                const SceneUtil::TextKeyMap &keys2 = (*animiter)->getTextKeys();
 
                 const AnimSource::ControllerMap& ctrls2 = (*animiter)->mControllerMap[0];
                 for (AnimSource::ControllerMap::const_iterator it = ctrls2.begin(); it != ctrls2.end(); ++it)
@@ -1271,8 +1270,8 @@ namespace MWRender
                 continue;
             }
 
-            const NifOsg::TextKeyMap &textkeys = state.mSource->getTextKeys();
-            NifOsg::TextKeyMap::const_iterator textkey(textkeys.upper_bound(state.getTime()));
+            const SceneUtil::TextKeyMap &textkeys = state.mSource->getTextKeys();
+            auto textkey = textkeys.upperBound(state.getTime());
 
             float timepassed = duration * state.mSpeedMult;
             while(state.mPlaying)
@@ -1308,7 +1307,7 @@ namespace MWRender
                     state.setTime(state.mLoopStartTime);
                     state.mPlaying = true;
 
-                    textkey = textkeys.lower_bound(state.getTime());
+                    textkey = textkeys.lowerBound(state.getTime());
                     while(textkey != textkeys.end() && textkey->first <= state.getTime())
                     {
                         handleTextKey(state, stateiter->first, textkey, textkeys);
@@ -1335,13 +1334,36 @@ namespace MWRender
 
         updateEffects();
 
+        const float epsilon = 0.001f;
+        float yawOffset = 0;
+        if (mRootController)
+        {
+            bool enable = std::abs(mLegsYawRadians) > epsilon || std::abs(mBodyPitchRadians) > epsilon;
+            mRootController->setEnabled(enable);
+            if (enable)
+            {
+                mRootController->setRotate(osg::Quat(mLegsYawRadians, osg::Vec3f(0,0,1)) * osg::Quat(mBodyPitchRadians, osg::Vec3f(1,0,0)));
+                yawOffset = mLegsYawRadians;
+            }
+        }
+        if (mSpineController)
+        {
+            float yaw = mUpperBodyYawRadians - yawOffset;
+            bool enable = std::abs(yaw) > epsilon;
+            mSpineController->setEnabled(enable);
+            if (enable)
+            {
+                mSpineController->setRotate(osg::Quat(yaw, osg::Vec3f(0,0,1)));
+                yawOffset = mUpperBodyYawRadians;
+            }
+        }
         if (mHeadController)
         {
-            const float epsilon = 0.001f;
-            bool enable = (std::abs(mHeadPitchRadians) > epsilon || std::abs(mHeadYawRadians) > epsilon);
+            float yaw = mHeadYawRadians - yawOffset;
+            bool enable = (std::abs(mHeadPitchRadians) > epsilon || std::abs(yaw) > epsilon);
             mHeadController->setEnabled(enable);
             if (enable)
-                mHeadController->setRotate(osg::Quat(mHeadPitchRadians, osg::Vec3f(1,0,0)) * osg::Quat(mHeadYawRadians, osg::Vec3f(0,0,1)));
+                mHeadController->setRotate(osg::Quat(mHeadPitchRadians, osg::Vec3f(1,0,0)) * osg::Quat(yaw, osg::Vec3f(0,0,1)));
         }
 
         // Scripted animations should not cause movement
@@ -1373,7 +1395,7 @@ namespace MWRender
             osg::Group* sheathParent = findVisitor.mFoundNode;
             if (sheathParent)
             {
-                osg::Node* copy = osg::clone(nodePair.first, osg::CopyOp::DEEP_COPY_NODES);
+                osg::Node* copy = static_cast<osg::Node*>(nodePair.first->clone(osg::CopyOp::DEEP_COPY_NODES));
                 sheathParent->addChild(copy);
             }
         }
@@ -1461,6 +1483,8 @@ namespace MWRender
         {
             if (mLightListCallback)
                 mObjectRoot->removeCullCallback(mLightListCallback);
+            if (mTransparencyUpdater)
+                mObjectRoot->removeCullCallback(mTransparencyUpdater);
             previousStateset = mObjectRoot->getStateSet();
             mObjectRoot->getParent(0)->removeChild(mObjectRoot);
         }
@@ -1484,7 +1508,7 @@ namespace MWRender
                 MWWorld::LiveCellRef<ESM::Creature> *ref = mPtr.get<ESM::Creature>();
                 if(ref->mBase->mFlags & ESM::Creature::Bipedal)
                 {
-                    defaultSkeleton = "meshes\\xbase_anim.nif";
+                    defaultSkeleton = Settings::Manager::getString("xbaseanim", "Models");
                     inject = true;
                 }
             }
@@ -1552,6 +1576,8 @@ namespace MWRender
         if (!mLightListCallback)
             mLightListCallback = new SceneUtil::LightListCallback;
         mObjectRoot->addCullCallback(mLightListCallback);
+        if (mTransparencyUpdater)
+            mObjectRoot->addCullCallback(mTransparencyUpdater);
     }
 
     osg::Group* Animation::getObjectRoot()
@@ -1595,7 +1621,7 @@ namespace MWRender
     {
         bool exterior = mPtr.isInCell() && mPtr.getCell()->getCell()->isExterior();
 
-        SceneUtil::addLight(parent, esmLight, Mask_ParticleSystem, Mask_Lighting, exterior);
+        mExtraLightSource = SceneUtil::addLight(parent, esmLight, Mask_ParticleSystem, Mask_Lighting, exterior);
     }
 
     void Animation::addEffect (const std::string& model, int effectId, bool loop, const std::string& bonename, const std::string& texture)
@@ -1745,31 +1771,17 @@ namespace MWRender
             if (mTransparencyUpdater == nullptr)
             {
                 mTransparencyUpdater = new TransparencyUpdater(alpha);
-                mObjectRoot->addUpdateCallback(mTransparencyUpdater);
+                mTransparencyUpdater->setLightSource(mExtraLightSource);
+                mObjectRoot->addCullCallback(mTransparencyUpdater);
             }
             else
                 mTransparencyUpdater->setAlpha(alpha);
         }
         else
         {
-            mObjectRoot->removeUpdateCallback(mTransparencyUpdater);
+            mObjectRoot->removeCullCallback(mTransparencyUpdater);
             mTransparencyUpdater = nullptr;
-            mObjectRoot->setStateSet(nullptr);
         }
-
-        setRenderBin();
-    }
-
-    void Animation::setRenderBin()
-    {
-        if (mAlpha != 1.f)
-        {
-            osg::StateSet* stateset = mObjectRoot->getOrCreateStateSet();
-            stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
-            stateset->setRenderBinMode(osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
-        }
-        else if (osg::StateSet* stateset = mObjectRoot->getStateSet())
-            stateset->setRenderBinToInherit();
     }
 
     void Animation::setLightEffect(float effect)
@@ -1817,35 +1829,38 @@ namespace MWRender
 
     void Animation::addControllers()
     {
-        mHeadController = nullptr;
+        mHeadController = addRotateController("bip01 head");
+        mSpineController = addRotateController("bip01 spine1");
+        mRootController = addRotateController("bip01");
+    }
 
-        if (mPtr.getClass().isBipedal(mPtr))
+    RotateController* Animation::addRotateController(std::string bone)
+    {
+        auto iter = getNodeMap().find(bone);
+        if (iter == getNodeMap().end())
+            return nullptr;
+        osg::MatrixTransform* node = iter->second;
+
+        bool foundKeyframeCtrl = false;
+        osg::Callback* cb = node->getUpdateCallback();
+        while (cb)
         {
-            NodeMap::const_iterator found = getNodeMap().find("bip01 head");
-            if (found != getNodeMap().end())
+            if (dynamic_cast<SceneUtil::KeyframeController*>(cb))
             {
-                osg::MatrixTransform* node = found->second;
-
-                bool foundKeyframeCtrl = false;
-                osg::Callback* cb = node->getUpdateCallback();
-                while (cb)
-                {
-                    if (dynamic_cast<NifOsg::KeyframeController*>(cb))
-                    {
-                        foundKeyframeCtrl = true;
-                        break;
-                    }
-                    cb = cb->getNestedCallback();
-                }
-
-                if (foundKeyframeCtrl)
-                {
-                    mHeadController = new RotateController(mObjectRoot.get());
-                    node->addUpdateCallback(mHeadController);
-                    mActiveControllers.insert(std::make_pair(node, mHeadController));
-                }
+                foundKeyframeCtrl = true;
+                break;
             }
+            cb = cb->getNestedCallback();
         }
+        // Without KeyframeController the orientation will not be reseted each frame, so
+        // RotateController shouldn't be used for such nodes.
+        if (!foundKeyframeCtrl)
+            return nullptr;
+
+        RotateController* controller = new RotateController(mObjectRoot.get());
+        node->addUpdateCallback(controller);
+        mActiveControllers.emplace_back(node, controller);
+        return controller;
     }
 
     void Animation::setHeadPitch(float pitchRadians)

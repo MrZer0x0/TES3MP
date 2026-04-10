@@ -24,11 +24,17 @@ const float GravityConst = 8.96f;
 // Size of one exterior cell in game units
 const int CellSizeInUnits = 8192;
 
+// Size of active cell grid in cells (it is a square with the (2 * CellGridRadius + 1) cells side)
+const int CellGridRadius = 1;
+
 // A label to mark night/day visual switches
 const std::string NightDayLabel = "NightDaySwitch";
 
 // A label to mark visual switches for herbalism feature
 const std::string HerbalismLabel = "HerbalismSwitch";
+
+// Percentage height at which projectiles are spawned from an actor
+const float TorsoHeight = 0.75f;
 
 }
 

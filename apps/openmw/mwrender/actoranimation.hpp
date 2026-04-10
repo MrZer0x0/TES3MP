@@ -6,7 +6,6 @@
 #include <osg/ref_ptr>
 
 #include "../mwworld/containerstore.hpp"
-#include "../mwworld/inventorystore.hpp"
 
 #include "animation.hpp"
 
@@ -35,11 +34,11 @@ class ActorAnimation : public Animation, public MWWorld::ContainerStoreListener
         ActorAnimation(const MWWorld::Ptr &ptr, osg::ref_ptr<osg::Group> parentNode, Resource::ResourceSystem* resourceSystem);
         virtual ~ActorAnimation();
 
-        virtual void itemAdded(const MWWorld::ConstPtr& item, int count);
-        virtual void itemRemoved(const MWWorld::ConstPtr& item, int count);
+        void itemAdded(const MWWorld::ConstPtr& item, int count) override;
+        void itemRemoved(const MWWorld::ConstPtr& item, int count) override;
         virtual bool isArrowAttached() const { return false; }
-        virtual bool useShieldAnimations() const;
-        bool updateCarriedLeftVisible(const int weaptype) const;
+        bool useShieldAnimations() const override;
+        bool updateCarriedLeftVisible(const int weaptype) const override;
 
     protected:
         osg::Group* getBoneByName(const std::string& boneName);

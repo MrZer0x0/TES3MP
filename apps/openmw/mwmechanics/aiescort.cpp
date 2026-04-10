@@ -26,7 +26,6 @@ namespace MWMechanics
     , mCellY(std::numeric_limits<int>::max())
     {
         mTargetActorRefId = actorId;
-        mMaxDist = 450;
     }
 
     AiEscort::AiEscort(const std::string &actorId, const std::string &cellId, int duration, float x, float y, float z)
@@ -35,30 +34,20 @@ namespace MWMechanics
     , mCellY(std::numeric_limits<int>::max())
     {
         mTargetActorRefId = actorId;
-        mMaxDist = 450;
     }
 
     AiEscort::AiEscort(const ESM::AiSequence::AiEscort *escort)
         : mCellId(escort->mCellId), mX(escort->mData.mX), mY(escort->mData.mY), mZ(escort->mData.mZ)
-        , mMaxDist(450)
+        // mDuration isn't saved in the save file, so just giving it "1" for now if the package has a duration.
+        // The exact value of mDuration only matters for repeating packages.
+        // Previously mRemainingDuration could be negative even when mDuration was 0. Checking for > 0 should fix old saves.
+        , mDuration(escort->mRemainingDuration > 0)
         , mRemainingDuration(escort->mRemainingDuration)
         , mCellX(std::numeric_limits<int>::max())
         , mCellY(std::numeric_limits<int>::max())
     {
         mTargetActorRefId = escort->mTargetId;
         mTargetActorId = escort->mTargetActorId;
-        // mDuration isn't saved in the save file, so just giving it "1" for now if the package has a duration.
-        // The exact value of mDuration only matters for repeating packages.
-        if (mRemainingDuration > 0) // Previously mRemainingDuration could be negative even when mDuration was 0. Checking for > 0 should fix old saves.
-            mDuration = 1;
-        else
-            mDuration = 0;
-    }
-
-
-    AiEscort *MWMechanics::AiEscort::clone() const
-    {
-        return new AiEscort(*this);
     }
 
     bool AiEscort::execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration)
@@ -84,31 +73,28 @@ namespace MWMechanics
         const MWWorld::Ptr follower = MWBase::Environment::get().getWorld()->getPtr(mTargetActorRefId, false);
         const osg::Vec3f leaderPos = actor.getRefData().getPosition().asVec3();
         const osg::Vec3f followerPos = follower.getRefData().getPosition().asVec3();
+        const osg::Vec3f halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
+        const float maxHalfExtent = std::max(halfExtents.x(), std::max(halfExtents.y(), halfExtents.z()));
 
         if ((leaderPos - followerPos).length2() <= mMaxDist * mMaxDist)
         {
             const osg::Vec3f dest(mX, mY, mZ);
-            if (pathTo(actor, dest, duration)) //Returns true on path complete
+            if (pathTo(actor, dest, duration, maxHalfExtent)) //Returns true on path complete
             {
                 mRemainingDuration = mDuration;
                 return true;
             }
-            mMaxDist = 450;
+            mMaxDist = maxHalfExtent + 450.0f;
         }
         else
         {
             // Stop moving if the player is too far away
             MWBase::Environment::get().getMechanicsManager()->playAnimationGroup(actor, "idle3", 0, 1);
             actor.getClass().getMovementSettings(actor).mPosition[1] = 0;
-            mMaxDist = 250;
+            mMaxDist = maxHalfExtent + 250.0f;
         }
 
         return false;
-    }
-
-    int AiEscort::getTypeId() const
-    {
-        return TypeIdEscort;
     }
 
     void AiEscort::writeState(ESM::AiSequence::AiSequence &sequence) const

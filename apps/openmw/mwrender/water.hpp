@@ -6,7 +6,6 @@
 
 #include <osg/ref_ptr>
 #include <osg/Vec3f>
-#include <osg/Uniform>
 #include <osg/Camera>
 
 #include <components/settings/settings.hpp>
@@ -46,11 +45,13 @@ namespace MWRender
     class Refraction;
     class Reflection;
     class RippleSimulation;
+    class WaterStateUpdater;
+    class Ripples;
 
     /// Water rendering
     class Water
     {
-        osg::ref_ptr<osg::Uniform> mRainIntensityUniform;
+        osg::ref_ptr<WaterStateUpdater> mWaterStateUpdater;
 
         osg::ref_ptr<osg::Group> mParent;
         osg::ref_ptr<osg::Group> mSceneRoot;
@@ -63,6 +64,7 @@ namespace MWRender
 
         osg::ref_ptr<Refraction> mRefraction;
         osg::ref_ptr<Reflection> mReflection;
+        osg::ref_ptr<Ripples> mRipples;
 
         const std::string mResourcePath;
 
@@ -79,7 +81,7 @@ namespace MWRender
         void createSimpleWaterStateSet(osg::Node* node, float alpha);
 
         /// @param reflection the reflection camera (required)
-        /// @param refraction the refraction camera (optional)
+        /// @param refraction the refraction camera (kept alive in shader-water mode for runtime toggling)
         void createShaderWaterStateSet(osg::Node* node, Reflection* reflection, Refraction* refraction);
 
         void updateWaterMaterial();
@@ -112,6 +114,7 @@ namespace MWRender
 
         void changeCell(const MWWorld::CellStore* store);
         void setHeight(const float height);
+        void setRainIntensity(const float rainIntensity);
 
         void update(float dt);
 
@@ -119,8 +122,6 @@ namespace MWRender
         osg::Camera *getRefractionCamera();
 
         void processChangedSettings(const Settings::CategorySettingVector& settings);
-
-        osg::Uniform *getRainIntensityUniform();
     };
 
 }

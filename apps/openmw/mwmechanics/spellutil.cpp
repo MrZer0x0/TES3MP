@@ -31,9 +31,12 @@ namespace MWMechanics
             magicEffect = store.get<ESM::MagicEffect>().find(effect.mEffectID);
         bool hasMagnitude = !(magicEffect->mData.mFlags & ESM::MagicEffect::NoMagnitude);
         bool hasDuration = !(magicEffect->mData.mFlags & ESM::MagicEffect::NoDuration);
+        bool appliedOnce = magicEffect->mData.mFlags & ESM::MagicEffect::AppliedOnce;
         int minMagn = hasMagnitude ? effect.mMagnMin : 1;
         int maxMagn = hasMagnitude ? effect.mMagnMax : 1;
         int duration = hasDuration ? effect.mDuration : 1;
+        if (!appliedOnce)
+            duration = std::max(1, duration);
         static const float fEffectCostMult = store.get<ESM::GameSetting>().find("fEffectCostMult")->mValue.getFloat();
 
         float x = 0.5 * (std::max(1, minMagn) + std::max(1, maxMagn));
@@ -91,8 +94,8 @@ namespace MWMechanics
 
         CreatureStats& stats = actor.getClass().getCreatureStats(actor);
 
-        int actorWillpower = stats.getAttribute(ESM::Attribute::Willpower).getModified();
-        int actorLuck = stats.getAttribute(ESM::Attribute::Luck).getModified();
+        float actorWillpower = stats.getAttribute(ESM::Attribute::Willpower).getModified();
+        float actorLuck = stats.getAttribute(ESM::Attribute::Luck).getModified();
 
         float castChance = (lowestSkill - spell->mData.mCost + 0.2f * actorWillpower + 0.1f * actorLuck);
 
@@ -101,6 +104,9 @@ namespace MWMechanics
 
     float getSpellSuccessChance (const ESM::Spell* spell, const MWWorld::Ptr& actor, int* effectiveSchool, bool cap, bool checkMagicka)
     {
+        // NB: Base chance is calculated here because the effective school pointer must be filled
+        float baseChance = calcSpellBaseSuccessChance(spell, actor, effectiveSchool);
+
         bool godmode = actor == getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState();
 
         CreatureStats& stats = actor.getClass().getCreatureStats(actor);
@@ -117,14 +123,14 @@ namespace MWMechanics
         if (spell->mData.mType != ESM::Spell::ST_Spell)
             return 100;
 
-        if (checkMagicka && stats.getMagicka().getCurrent() < spell->mData.mCost)
+        if (checkMagicka && spell->mData.mCost > 0 && stats.getMagicka().getCurrent() < spell->mData.mCost)
             return 0;
 
         if (spell->mData.mFlags & ESM::Spell::F_Always)
             return 100;
 
         float castBonus = -stats.getMagicEffects().get(ESM::MagicEffect::Sound).getMagnitude();
-        float castChance = calcSpellBaseSuccessChance(spell, actor, effectiveSchool) + castBonus;
+        float castChance = baseChance + castBonus;
         castChance *= stats.getFatigueTerm();
 
         return std::max(0.f, cap ? std::min(100.f, castChance) : castChance);

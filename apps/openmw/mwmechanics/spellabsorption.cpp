@@ -12,6 +12,7 @@
 #include "../mwworld/inventorystore.hpp"
 
 #include "creaturestats.hpp"
+#include "spellutil.hpp"
 
 namespace MWMechanics
 {
@@ -23,9 +24,9 @@ namespace MWMechanics
 
         GetAbsorptionProbability() = default;
 
-        virtual void visit (MWMechanics::EffectKey key,
-                                const std::string& /*sourceName*/, const std::string& /*sourceId*/, int /*casterActorId*/,
-                            float magnitude, float /*remainingTime*/, float /*totalTime*/)
+        void visit (MWMechanics::EffectKey key, int /*effectIndex*/,
+                            const std::string& /*sourceName*/, const std::string& /*sourceId*/, int /*casterActorId*/,
+                            float magnitude, float /*remainingTime*/, float /*totalTime*/) override
         {
             if (key.mId == ESM::MagicEffect::SpellAbsorption)
             {
@@ -43,14 +44,14 @@ namespace MWMechanics
         }
     };
 
-    bool absorbSpell (const ESM::Spell* spell, const MWWorld::Ptr& caster, const MWWorld::Ptr& target)
+    int getAbsorbChance(const MWWorld::Ptr& caster, const MWWorld::Ptr& target)
     {
-        if (!spell || caster == target || !target.getClass().isActor())
-            return false;
+        if(target.isEmpty() || caster == target || !target.getClass().isActor())
+            return 0;
 
         CreatureStats& stats = target.getClass().getCreatureStats(target);
         if (stats.getMagicEffects().get(ESM::MagicEffect::SpellAbsorption).getMagnitude() <= 0.f)
-            return false;
+            return 0;
 
         GetAbsorptionProbability check;
         stats.getActiveSpells().visitEffectSources(check);
@@ -58,19 +59,35 @@ namespace MWMechanics
         if (target.getClass().hasInventoryStore(target))
             target.getClass().getInventoryStore(target).visitEffectSources(check);
 
-        int chance = check.mProbability * 100;
-        if (Misc::Rng::roll0to99() >= chance)
-            return false;
+        return check.mProbability * 100;
+    }
 
-        const ESM::Static* absorbStatic = MWBase::Environment::get().getWorld()->getStore().get<ESM::Static>().find("VFX_Absorb");
+    void absorbSpell (const std::string& spellId, const MWWorld::Ptr& caster, const MWWorld::Ptr& target)
+    {
+        CreatureStats& stats = target.getClass().getCreatureStats(target);
+
+        const auto& esmStore = MWBase::Environment::get().getWorld()->getStore();
+        const ESM::Static* absorbStatic = esmStore.get<ESM::Static>().find("VFX_Absorb");
         MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(target);
         if (animation && !absorbStatic->mModel.empty())
             animation->addEffect( "meshes\\" + absorbStatic->mModel, ESM::MagicEffect::SpellAbsorption, false, std::string());
+        const ESM::Spell* spell = esmStore.get<ESM::Spell>().search(spellId);
+        int spellCost = 0;
+        if (spell)
+        {
+            spellCost = spell->mData.mCost;
+        }
+        else
+        {
+            const ESM::Enchantment* enchantment = esmStore.get<ESM::Enchantment>().search(spellId);
+            if (enchantment)
+                spellCost = getEffectiveEnchantmentCastCost(static_cast<float>(enchantment->mData.mCost), caster);
+        }
+
         // Magicka is increased by the cost of the spell
         DynamicStat<float> magicka = stats.getMagicka();
-        magicka.setCurrent(magicka.getCurrent() + spell->mData.mCost);
+        magicka.setCurrent(magicka.getCurrent() + spellCost);
         stats.setMagicka(magicka);
-        return true;
     }
 
 }

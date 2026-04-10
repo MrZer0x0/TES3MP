@@ -9,22 +9,22 @@ namespace ESM
 {
     // format 0, saved games only
 
-    struct CreatureState : public ObjectState
+    struct CreatureState final : public ObjectState
     {
         InventoryState mInventory;
         CreatureStats mCreatureStats;
 
         /// Initialize to default state
-        void blank();
+        void blank() override;
 
-        virtual void load (ESMReader &esm);
-        virtual void save (ESMWriter &esm, bool inInventory = false) const;
+        void load (ESMReader &esm) override;
+        void save (ESMWriter &esm, bool inInventory = false) const override;
 
-        virtual CreatureState& asCreatureState()
+        CreatureState& asCreatureState() override
         {
             return *this;
         }
-        virtual const CreatureState& asCreatureState() const
+        const CreatureState& asCreatureState() const override
         {
             return *this;
         }

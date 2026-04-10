@@ -1,7 +1,6 @@
 #include "scanner.hpp"
 
 #include <cassert>
-#include <iterator>
 
 #include "exception.hpp"
 #include "errorhandler.hpp"
@@ -266,13 +265,7 @@ namespace Compiler
         "messagebox",
         "set", "to",
         "getsquareroot",
-        "menumode",
-        "random",
-        "startscript", "stopscript", "scriptrunning",
-        "getdistance",
-        "getsecondspassed",
-        "enable", "disable", "getdisabled",
-        0
+        nullptr
     };
 
     bool Scanner::scanName (MultiChar& c, Parser& parser, bool& cont)
@@ -644,7 +637,7 @@ namespace Compiler
     void Scanner::listKeywords (std::vector<std::string>& keywords)
     {
         for (int i=0; Compiler::sKeywords[i]; ++i)
-            keywords.push_back (Compiler::sKeywords[i]);
+            keywords.emplace_back(Compiler::sKeywords[i]);
 
         if (mExtensions)
             mExtensions->listKeywords (keywords);

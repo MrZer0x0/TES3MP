@@ -53,7 +53,7 @@ const ContentSelectorModel::EsmFile *ContentSelectorModel::ContentModel::item(in
     if (row >= 0 && row < mFiles.size())
         return mFiles.at(row);
 
-    return 0;
+    return nullptr;
 }
 
 ContentSelectorModel::EsmFile *ContentSelectorModel::ContentModel::item(int row)
@@ -61,7 +61,7 @@ ContentSelectorModel::EsmFile *ContentSelectorModel::ContentModel::item(int row)
     if (row >= 0 && row < mFiles.count())
         return mFiles.at(row);
 
-    return 0;
+    return nullptr;
 }
 const ContentSelectorModel::EsmFile *ContentSelectorModel::ContentModel::item(const QString &name) const
 {
@@ -75,7 +75,7 @@ const ContentSelectorModel::EsmFile *ContentSelectorModel::ContentModel::item(co
         if (name.compare(file->fileProperty (fp).toString(), Qt::CaseInsensitive) == 0)
             return file;
     }
-    return 0;
+    return nullptr;
 }
 
 QModelIndex ContentSelectorModel::ContentModel::indexFromItem(const EsmFile *item) const
@@ -168,7 +168,14 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex &index, int 
     case Qt::DisplayRole:
     {
         if (column >=0 && column <=EsmFile::FileProperty_GameFile)
-            return file->fileProperty(static_cast<EsmFile::FileProperty>(column));
+        {
+            QVariant value = file->fileProperty(static_cast<EsmFile::FileProperty>(column));
+
+            if (role == Qt::DisplayRole && column == 0 && file->isGroundcoverCandidate())
+                return value.toString() + QLatin1String(" [Groundcover]");
+
+            return value;
+        }
 
         return QVariant();
     }
@@ -193,7 +200,11 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex &index, int 
         if (column != 0)
             return QVariant();
 
-        return toolTip(file);
+        QString value = toolTip(file);
+        if (file->isGroundcoverCandidate())
+            value += QLatin1String("<br/><br/><b>Groundcover candidate:</b> filename contains 'grass' or 'groundcover'.");
+
+        return value;
     }
 
     case Qt::CheckStateRole:

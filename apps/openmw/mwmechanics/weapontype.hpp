@@ -3,8 +3,6 @@
 
 #include "../mwworld/inventorystore.hpp"
 
-#include "creaturestats.hpp"
-
 namespace MWMechanics
 {
     static std::map<int, ESM::WeaponType> sWeaponTypeList =
@@ -239,7 +237,7 @@ namespace MWMechanics
                 /* short group */ "",
                 /* long group  */ "",
                 /*  sound ID   */ "Item Ammo",
-                /* attach bone */ "ArrowBone",
+                /* attach bone */ "Bip01 Arrow",
                 /* sheath bone */ "",
                 /* usage skill */ ESM::Skill::Marksman,
                 /* weapon class*/ ESM::WeaponType::Ammo,

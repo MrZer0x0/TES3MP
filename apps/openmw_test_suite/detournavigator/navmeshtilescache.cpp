@@ -31,9 +31,7 @@ namespace
         const std::vector<float> mVertices {{0, 0, 0, 1, 0, 0, 1, 1, 0}};
         const std::vector<AreaType> mAreaTypes {1, AreaType_ground};
         const std::vector<RecastMesh::Water> mWater {};
-        const std::size_t mTrianglesPerChunk {1};
-        const RecastMesh mRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-                                      mAreaTypes, mWater, mTrianglesPerChunk};
+        const RecastMesh mRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, mWater};
         const std::vector<OffMeshConnection> mOffMeshConnections {};
         unsigned char* const mData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData mNavMeshData {mData, 1};
@@ -62,13 +60,14 @@ namespace
 
         EXPECT_FALSE(cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections,
                                std::move(mNavMeshData)));
+        EXPECT_NE(mNavMeshData.mValue, nullptr);
     }
 
     TEST_F(DetourNavigatorNavMeshTilesCacheTest, set_should_return_cached_value)
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         const auto result = cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections,
@@ -77,27 +76,27 @@ namespace
         EXPECT_EQ(result.get(), (NavMeshDataRef {mData, 1}));
     }
 
-    TEST_F(DetourNavigatorNavMeshTilesCacheTest, set_existing_element_should_throw_exception)
+    TEST_F(DetourNavigatorNavMeshTilesCacheTest, set_existing_element_should_return_cached_element)
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = 2 * (navMeshDataSize + 2 * navMeshKeySize);
+        const std::size_t maxSize = 2 * (navMeshDataSize + navMeshKeySize);
         NavMeshTilesCache cache(maxSize);
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 
         cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections, std::move(mNavMeshData));
-        EXPECT_THROW(
-            cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections, std::move(anotherNavMeshData)),
-            InvalidArgument
-        );
+        EXPECT_EQ(mNavMeshData.mValue, nullptr);
+        const auto result = cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections, std::move(anotherNavMeshData));
+        ASSERT_TRUE(result);
+        EXPECT_EQ(result.get(), (NavMeshDataRef {mData, 1}));
     }
 
     TEST_F(DetourNavigatorNavMeshTilesCacheTest, get_should_return_cached_value)
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections, std::move(mNavMeshData));
@@ -131,8 +130,7 @@ namespace
         const std::size_t maxSize = 1;
         NavMeshTilesCache cache(maxSize);
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh unexistentRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, water, mTrianglesPerChunk};
+        const RecastMesh unexistentRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water};
 
         cache.set(mAgentHalfExtents, mTilePosition, mRecastMesh, mOffMeshConnections, std::move(mNavMeshData));
         EXPECT_FALSE(cache.get(mAgentHalfExtents, mTilePosition, unexistentRecastMesh, mOffMeshConnections));
@@ -142,12 +140,11 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshWithWaterKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, water, mTrianglesPerChunk};
+        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water};
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 
@@ -163,12 +160,11 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, water, mTrianglesPerChunk};
+        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water};
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 
@@ -182,18 +178,18 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshWithWaterKeySize;
-        const std::size_t maxSize = 2 * (navMeshDataSize + 2 * navMeshKeySize);
+        const std::size_t maxSize = 2 * (navMeshDataSize + navMeshKeySize);
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> leastRecentlySetWater {1, RecastMesh::Water {1, btTransform::getIdentity()}};
         const RecastMesh leastRecentlySetRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, leastRecentlySetWater, mTrianglesPerChunk};
+            mAreaTypes, leastRecentlySetWater};
         const auto leastRecentlySetData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData leastRecentlySetNavMeshData {leastRecentlySetData, 1};
 
         const std::vector<RecastMesh::Water> mostRecentlySetWater {1, RecastMesh::Water {2, btTransform::getIdentity()}};
         const RecastMesh mostRecentlySetRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, mostRecentlySetWater, mTrianglesPerChunk};
+            mAreaTypes, mostRecentlySetWater};
         const auto mostRecentlySetData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData mostRecentlySetNavMeshData {mostRecentlySetData, 1};
 
@@ -214,18 +210,18 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshWithWaterKeySize;
-        const std::size_t maxSize = 2 * (navMeshDataSize + 2 * navMeshKeySize);
+        const std::size_t maxSize = 2 * (navMeshDataSize + navMeshKeySize);
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> leastRecentlyUsedWater {1, RecastMesh::Water {1, btTransform::getIdentity()}};
         const RecastMesh leastRecentlyUsedRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, leastRecentlyUsedWater, mTrianglesPerChunk};
+            mAreaTypes, leastRecentlyUsedWater};
         const auto leastRecentlyUsedData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData leastRecentlyUsedNavMeshData {leastRecentlyUsedData, 1};
 
         const std::vector<RecastMesh::Water> mostRecentlyUsedWater {1, RecastMesh::Water {2, btTransform::getIdentity()}};
         const RecastMesh mostRecentlyUsedRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, mostRecentlyUsedWater, mTrianglesPerChunk};
+            mAreaTypes, mostRecentlyUsedWater};
         const auto mostRecentlyUsedData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData mostRecentlyUsedNavMeshData {mostRecentlyUsedData, 1};
 
@@ -258,11 +254,11 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = 2 * (navMeshDataSize + 2 * navMeshKeySize);
+        const std::size_t maxSize = 2 * (navMeshDataSize + navMeshKeySize);
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh tooLargeRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water, mTrianglesPerChunk};
+        const RecastMesh tooLargeRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water};
         const auto tooLargeData = reinterpret_cast<unsigned char*>(dtAlloc(2, DT_ALLOC_PERM));
         NavMeshData tooLargeNavMeshData {tooLargeData, 2};
 
@@ -277,17 +273,17 @@ namespace
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize1 = cRecastMeshKeySize;
         const std::size_t navMeshKeySize2 = cRecastMeshWithWaterKeySize;
-        const std::size_t maxSize = 2 * navMeshDataSize + 2 * navMeshKeySize1 + 2 * navMeshKeySize2;
+        const std::size_t maxSize = 2 * navMeshDataSize + navMeshKeySize1 + navMeshKeySize2;
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> anotherWater {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, anotherWater, mTrianglesPerChunk};
+        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, anotherWater};
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 
         const std::vector<RecastMesh::Water> tooLargeWater {1, RecastMesh::Water {2, btTransform::getIdentity()}};
         const RecastMesh tooLargeRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, tooLargeWater, mTrianglesPerChunk};
+            mAreaTypes, tooLargeWater};
         const auto tooLargeData = reinterpret_cast<unsigned char*>(dtAlloc(2, DT_ALLOC_PERM));
         NavMeshData tooLargeNavMeshData {tooLargeData, 2};
 
@@ -306,12 +302,12 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
         const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices,
-            mAreaTypes, water, mTrianglesPerChunk};
+            mAreaTypes, water};
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 
@@ -330,11 +326,11 @@ namespace
     {
         const std::size_t navMeshDataSize = 1;
         const std::size_t navMeshKeySize = cRecastMeshKeySize;
-        const std::size_t maxSize = navMeshDataSize + 2 * navMeshKeySize;
+        const std::size_t maxSize = navMeshDataSize + navMeshKeySize;
         NavMeshTilesCache cache(maxSize);
 
         const std::vector<RecastMesh::Water> water {1, RecastMesh::Water {1, btTransform::getIdentity()}};
-        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water, mTrianglesPerChunk};
+        const RecastMesh anotherRecastMesh {mGeneration, mRevision, mIndices, mVertices, mAreaTypes, water};
         const auto anotherData = reinterpret_cast<unsigned char*>(dtAlloc(1, DT_ALLOC_PERM));
         NavMeshData anotherNavMeshData {anotherData, 1};
 

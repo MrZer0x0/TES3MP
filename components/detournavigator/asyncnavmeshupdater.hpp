@@ -6,21 +6,26 @@
 #include "tilecachedrecastmeshmanager.hpp"
 #include "tileposition.hpp"
 #include "navmeshtilescache.hpp"
+#include "waitconditiontype.hpp"
 
 #include <osg/Vec3f>
-
-#include <boost/optional.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <queue>
+#include <deque>
 #include <set>
 #include <thread>
+#include <tuple>
 
 class dtNavMesh;
+
+namespace Loading
+{
+    class Listener;
+}
 
 namespace DetourNavigator
 {
@@ -57,7 +62,7 @@ namespace DetourNavigator
         void post(const osg::Vec3f& agentHalfExtents, const SharedNavMeshCacheItem& mNavMeshCacheItem,
             const TilePosition& playerTile, const std::map<TilePosition, ChangeType>& changedTiles);
 
-        void wait();
+        void wait(Loading::Listener& listener, WaitConditionType waitConditionType);
 
         void reportStats(unsigned int frameNumber, osg::Stats& stats) const;
 
@@ -80,11 +85,11 @@ namespace DetourNavigator
 
             friend inline bool operator <(const Job& lhs, const Job& rhs)
             {
-                return lhs.getPriority() > rhs.getPriority();
+                return lhs.getPriority() < rhs.getPriority();
             }
         };
 
-        using Jobs = std::priority_queue<Job, std::deque<Job>>;
+        using Jobs = std::deque<Job>;
         using Pushed = std::map<osg::Vec3f, std::set<TilePosition>>;
 
         struct Queue
@@ -106,20 +111,21 @@ namespace DetourNavigator
         Jobs mJobs;
         std::map<osg::Vec3f, std::set<TilePosition>> mPushed;
         Misc::ScopeGuarded<TilePosition> mPlayerTile;
-        Misc::ScopeGuarded<boost::optional<std::chrono::steady_clock::time_point>> mFirstStart;
+        Misc::ScopeGuarded<std::optional<std::chrono::steady_clock::time_point>> mFirstStart;
         NavMeshTilesCache mNavMeshTilesCache;
         Misc::ScopeGuarded<std::map<osg::Vec3f, std::map<TilePosition, std::thread::id>>> mProcessingTiles;
         std::map<osg::Vec3f, std::map<TilePosition, std::chrono::steady_clock::time_point>> mLastUpdates;
+        std::set<std::tuple<osg::Vec3f, TilePosition>> mPresentTiles;
         std::map<std::thread::id, Queue> mThreadsQueues;
         std::vector<std::thread> mThreads;
 
-        void process() throw();
+        void process() noexcept;
 
         bool processJob(const Job& job);
 
-        boost::optional<Job> getNextJob();
+        std::optional<Job> getNextJob();
 
-        boost::optional<Job> getJob(Jobs& jobs, Pushed& pushed, bool changeLastUpdate);
+        std::optional<Job> getJob(Jobs& jobs, Pushed& pushed, bool changeLastUpdate);
 
         void postThreadJob(Job&& job, Queue& queue);
 
@@ -133,9 +139,15 @@ namespace DetourNavigator
 
         void unlockTile(const osg::Vec3f& agentHalfExtents, const TilePosition& changedTile);
 
+        inline std::size_t getTotalJobs() const;
+
         inline std::size_t getTotalThreadJobsUnsafe() const;
 
         void cleanupLastUpdates();
+
+        int waitUntilJobsDoneForNotPresentTiles(const std::size_t initialJobsLeft, std::size_t& maxJobsLeft, Loading::Listener& listener);
+
+        void waitUntilAllJobsDone();
     };
 }
 

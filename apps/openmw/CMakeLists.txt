@@ -2,9 +2,10 @@
 set(GAME
     main.cpp
     engine.cpp
+    gpupreference.cpp
 
-    ${CMAKE_SOURCE_DIR}/files/windows/openmw.rc
-    ${CMAKE_SOURCE_DIR}/files/windows/openmw.exe.manifest
+    ${CMAKE_SOURCE_DIR}/files/tes3mp/tes3mp.rc
+    ${CMAKE_SOURCE_DIR}/files/tes3mp/tes3mp.exe.manifest
 )
 
 if (ANDROID)
@@ -19,13 +20,14 @@ source_group(game FILES ${GAME} ${GAME_HEADER})
 
 add_openmw_dir (mwrender
     actors objects renderingmanager animation rotatecontroller sky npcanimation vismask
-    creatureanimation effectmanager util renderinginterface pathgrid rendermode weaponanimation
-    bulletdebugdraw globalmap characterpreview camera localmap water terrainstorage ripplesimulation
-    renderbin actoranimation landmanager navmesh actorspaths recastmesh
+    creatureanimation effectmanager util renderinginterface pathgrid rendermode weaponanimation screenshotmanager
+    bulletdebugdraw globalmap characterpreview camera viewovershoulder localmap water terrainstorage ripplesimulation ripples
+    renderbin actoranimation landmanager navmesh actorspaths recastmesh fogmanager objectpaging groundcover occlusionculling
     )
 
 add_openmw_dir (mwinput
-    inputmanagerimp
+    actions actionmanager bindingsmanager controllermanager controlswitch
+    inputmanagerimp mousemanager keyboardmanager sdlmappings sensormanager
     )
 
 add_openmw_dir (mwgui
@@ -38,10 +40,10 @@ add_openmw_dir (mwgui
     enchantingdialog trainingwindow travelwindow exposedwindow cursor spellicons
     merchantrepair repair soulgemdialog companionwindow bookpage journalviewmodel journalbooks
     itemmodel containeritemmodel inventoryitemmodel sortfilteritemmodel itemview
-    itemlistwidget itemlistwidgetheader spelllistwidget 
+    itemlistwidget itemlistwidgetheader spelllistwidget
     tradeitemmodel companionitemmodel pickpocketitemmodel controllers savegamedialog
     recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview
-    draganddrop timeadvancer jailscreen itemchargeview keyboardnavigation
+    draganddrop timeadvancer jailscreen itemchargeview keyboardnavigation textcolours statswatcher
     )
 
 add_openmw_dir (mwdialogue
@@ -57,7 +59,7 @@ add_openmw_dir (mwscript
 
 add_openmw_dir (mwsound
     soundmanagerimp openal_output ffmpeg_decoder sound sound_buffer sound_decoder sound_output
-    loudness movieaudiofactory alext efx efx-presets
+    loudness movieaudiofactory alext efx efx-presets regionsoundselector watersoundupdater volumesettings
     )
 
 add_openmw_dir (mwworld
@@ -66,14 +68,14 @@ add_openmw_dir (mwworld
     cells localscripts customdata inventorystore ptr actionopen actionread actionharvest
     actionequip timestamp actionalchemy cellstore actionapply actioneat
     store esmstore recordcmp fallback actionrepair actionsoulgem livecellref actiondoor
-    contentloader esmloader actiontrap cellreflist cellref physicssystem weather projectilemanager
-    cellpreloader
+    contentloader esmloader actiontrap cellreflist cellref weather projectilemanager
+    cellpreloader datetimemanager
     )
 
 add_openmw_dir (mwphysics
     physicssystem trace collisiontype actor convert object heightfield closestnotmerayresultcallback
-    contacttestresultcallback deepestnotmecontacttestresultcallback stepper movementsolver
-    closestnotmeconvexresultcallback
+    contacttestresultcallback deepestnotmecontacttestresultcallback stepper movementsolver projectile
+    actorconvexcallback raycasting mtphysics contacttestwrapper projectileconvexcallback
     )
 
 add_openmw_dir (mwclass
@@ -82,11 +84,11 @@ add_openmw_dir (mwclass
     )
 
 add_openmw_dir (mwmechanics
-    mechanicsmanagerimp stat creaturestats magiceffects movement actorutil
+    mechanicsmanagerimp stat creaturestats magiceffects movement actorutil spelllist
     drawstate spells activespells npcstats aipackage aisequence aipursue alchemy aiwander aitravel aifollow aiavoiddoor aibreathe
     aicast aiescort aiface aiactivate aicombat recharge repair enchanting pathfinding pathgrid security spellcasting spellresistance
     disease pickpocket levelledlist combat steering obstacle autocalcspell difficultyscaling aicombataction actor summoning
-    character actors objects aistate coordinateconverter trading weaponpriority spellpriority weapontype spellutil tickableeffects
+    character actors objects aistate trading weaponpriority spellpriority weapontype spellutil tickableeffects
     spellabsorption linkedeffects
     )
 
@@ -99,21 +101,70 @@ add_openmw_dir (mwbase
     inputmanager windowmanager statemanager
     )
 
-# Main executable
+add_openmw_dir (mwmp Main Networking LocalSystem LocalPlayer DedicatedPlayer PlayerList LocalActor DedicatedActor ActorList
+    ObjectList Worldstate Cell CellController GUIController MechanicsHelper RecordHelper ScriptController
+    )
 
+add_openmw_dir (mwmp/GUI GUIChat GUILogin PlayerMarkerCollection GUIDialogList TextInputDialog
+    )
+
+add_openmw_dir(mwmp/processors BaseClientPacketProcessor SystemProcessor PlayerProcessor ObjectProcessor ActorProcessor
+    WorldstateProcessor ProcessorInitializer
+    )
+
+add_openmw_dir (mwmp/processors/system ProcessorSystemHandshake
+    )
+
+add_openmw_dir (mwmp/processors/actor ProcessorActorAI ProcessorActorAnimFlags ProcessorActorAnimPlay ProcessorActorAttack
+    ProcessorActorAuthority ProcessorActorCast ProcessorActorCellChange ProcessorActorDeath ProcessorActorEquipment
+    ProcessorActorList ProcessorActorPosition ProcessorActorSpeech ProcessorActorSpellsActive ProcessorActorStatsDynamic
+    ProcessorActorTest
+    )
+
+add_openmw_dir (mwmp/processors/player ProcessorChatMessage ProcessorGUIMessageBox ProcessorUserDisconnected
+    ProcessorUserMyID ProcessorGameSettings ProcessorPlayerAlly ProcessorPlayerAnimFlags ProcessorPlayerAnimPlay
+    ProcessorPlayerAttack ProcessorPlayerAttribute ProcessorPlayerBaseInfo ProcessorPlayerBehavior ProcessorPlayerBook
+    ProcessorPlayerBounty ProcessorPlayerCast ProcessorPlayerCellChange ProcessorPlayerCellState ProcessorPlayerCharClass
+    ProcessorPlayerCharGen ProcessorPlayerCooldowns ProcessorPlayerDeath ProcessorPlayerDisposition ProcessorPlayerEquipment
+    ProcessorPlayerFaction ProcessorPlayerInput ProcessorPlayerInventory ProcessorPlayerItemUse ProcessorPlayerJail
+    ProcessorPlayerJournal ProcessorPlayerLevel ProcessorPlayerMiscellaneous ProcessorPlayerMomentum ProcessorPlayerPosition 
+    ProcessorPlayerQuickKeys ProcessorPlayerReputation ProcessorPlayerResurrect ProcessorPlayerShapeshift
+    ProcessorPlayerSkill ProcessorPlayerSpeech ProcessorPlayerSpellbook ProcessorPlayerSpellsActive
+    ProcessorPlayerStatsDynamic ProcessorPlayerTopic
+    )
+
+add_openmw_dir (mwmp/processors/object BaseObjectProcessor
+
+    ProcessorConsoleCommand ProcessorContainer ProcessorDoorDestination ProcessorDoorState ProcessorMusicPlay
+    ProcessorVideoPlay
+
+    ProcessorObjectActivate ProcessorObjectAnimPlay ProcessorObjectAttach ProcessorObjectDelete
+    ProcessorObjectDialogueChoice ProcessorObjectHit ProcessorObjectLock ProcessorObjectMove ProcessorObjectPlace
+    ProcessorObjectRestock ProcessorObjectRotate ProcessorObjectScale ProcessorObjectSound ProcessorObjectSpawn
+    ProcessorObjectState ProcessorObjectTrap ProcessorClientScriptLocal ProcessorScriptMemberShort
+    ProcessorObjectMiscellaneous
+    )
+
+add_openmw_dir (mwmp/processors/worldstate ProcessorCellReset ProcessorClientScriptGlobal ProcessorClientScriptSettings
+    ProcessorRecordDynamic ProcessorWorldCollisionOverride ProcessorWorldDestinationOverride ProcessorWorldKillCount
+    ProcessorWorldMap ProcessorWorldRegionAuthority ProcessorWorldTime ProcessorWorldWeather
+    )
+
+# Main executable
 if (NOT ANDROID)
-    openmw_add_executable(openmw
+    openmw_add_executable(tes3mp
         ${OPENMW_FILES}
         ${GAME} ${GAME_HEADER}
         ${APPLE_BUNDLE_RESOURCES}
     )
 else ()
-    add_library(openmw
+    add_library(tes3mp
         SHARED
         ${OPENMW_FILES}
         ${GAME} ${GAME_HEADER}
     )
 endif ()
+
 
 # Sound stuff - here so CMake doesn't stupidly recompile EVERYTHING
 # when we change the backend.
@@ -121,15 +172,19 @@ include_directories(
     ${FFmpeg_INCLUDE_DIRS}
 )
 
-target_link_libraries(openmw
-    ${OSG_LIBRARIES}
-    ${OPENTHREADS_LIBRARIES}
+target_link_libraries(tes3mp
+    # CMake's built-in OSG finder does not use pkgconfig, so we have to
+    # manually ensure the order is correct for inter-library dependencies.
+    # This only makes a difference with `-DOPENMW_USE_SYSTEM_OSG=ON -DOSG_STATIC=ON`.
+    # https://gitlab.kitware.com/cmake/cmake/-/issues/21701
     ${OSGPARTICLE_LIBRARIES}
-    ${OSGUTIL_LIBRARIES}
-    ${OSGDB_LIBRARIES}
     ${OSGVIEWER_LIBRARIES}
     ${OSGGA_LIBRARIES}
     ${OSGSHADOW_LIBRARIES}
+    ${OSGDB_LIBRARIES}
+    ${OSGUTIL_LIBRARIES}
+    ${OSG_LIBRARIES}
+
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
@@ -142,44 +197,49 @@ target_link_libraries(openmw
     "osg-ffmpeg-videoplayer"
     "oics"
     components
+    ${RakNet_LIBRARY}
 )
 
-if (ANDROID)
-    set (OSG_PLUGINS
-        -Wl,--whole-archive
-    )
-    foreach(PLUGIN_NAME ${USED_OSG_PLUGINS})
-        set(OSG_PLUGINS ${OSG_PLUGINS} ${OSG_PLUGINS_DIR}/lib${PLUGIN_NAME}.a)
+if(OSG_STATIC)
+    unset(_osg_plugins_static_files)
+    add_library(openmw_osg_plugins INTERFACE)
+    foreach(_plugin ${USED_OSG_PLUGINS})
+        string(TOUPPER ${_plugin} _plugin_uc)
+        if(OPENMW_USE_SYSTEM_OSG)
+            list(APPEND _osg_plugins_static_files ${${_plugin_uc}_LIBRARY})
+        else()
+            list(APPEND _osg_plugins_static_files $<TARGET_FILE:${${_plugin_uc}_LIBRARY}>)
+            target_link_libraries(openmw_osg_plugins INTERFACE $<TARGET_PROPERTY:${${_plugin_uc}_LIBRARY},LINK_LIBRARIES>)
+            add_dependencies(openmw_osg_plugins ${${_plugin_uc}_LIBRARY})
+        endif()
     endforeach()
+    # We use --whole-archive because OSG plugins use registration.
+    get_whole_archive_options(_opts ${_osg_plugins_static_files})
+    target_link_options(openmw_osg_plugins INTERFACE ${_opts})
+    target_link_libraries(tes3mp openmw_osg_plugins)
 
-    set (OSG_PLUGINS
-        ${OSG_PLUGINS} -Wl,--no-whole-archive
-    )
+    if(OPENMW_USE_SYSTEM_OSG)
+        # OSG plugin pkgconfig files are missing these dependencies.
+        # https://github.com/openscenegraph/OpenSceneGraph/issues/1052
+        target_link_libraries(tes3mp freetype jpeg png)
+    endif()
+endif(OSG_STATIC)
 
-    target_link_libraries(openmw
-        EGL
-        android
-        log
-        dl
-        z
-        ${OPENSCENEGRAPH_LIBRARIES}
-        freetype
-        jpeg
-    	png
-    )
+if (ANDROID)
+    target_link_libraries(tes3mp EGL android log z)
 endif (ANDROID)
 
 if (USE_SYSTEM_TINYXML)
-    target_link_libraries(openmw ${TinyXML_LIBRARIES})
+    target_link_libraries(tes3mp ${TinyXML_LIBRARIES})
 endif()
 
 if (NOT UNIX)
-target_link_libraries(openmw ${SDL2MAIN_LIBRARY})
+target_link_libraries(tes3mp ${SDL2MAIN_LIBRARY})
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
 if (UNIX AND NOT APPLE)
-target_link_libraries(openmw ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(tes3mp ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 if(APPLE)
@@ -190,28 +250,28 @@ if(APPLE)
 
     add_subdirectory(../../files/ ${CMAKE_CURRENT_BINARY_DIR}/files)
 
-    configure_file("${OpenMW_BINARY_DIR}/settings-default.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
+    configure_file("${OpenMW_BINARY_DIR}/defaults.bin" ${BUNDLE_RESOURCES_DIR} COPYONLY)
     configure_file("${OpenMW_BINARY_DIR}/openmw.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
     configure_file("${OpenMW_BINARY_DIR}/gamecontrollerdb.txt" ${BUNDLE_RESOURCES_DIR} COPYONLY)
 
-    add_custom_command(TARGET openmw
+    add_custom_command(TARGET tes3mp
         POST_BUILD
         COMMAND cp "${OpenMW_BINARY_DIR}/resources/version" "${BUNDLE_RESOURCES_DIR}/resources")
 
     find_library(COCOA_FRAMEWORK Cocoa)
     find_library(IOKIT_FRAMEWORK IOKit)
-    target_link_libraries(openmw ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK})
+    target_link_libraries(tes3mp ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK})
 
     if (FFmpeg_FOUND)
         find_library(COREVIDEO_FRAMEWORK CoreVideo)
         find_library(VDA_FRAMEWORK VideoDecodeAcceleration)
-        target_link_libraries(openmw z ${COREVIDEO_FRAMEWORK} ${VDA_FRAMEWORK})
+        target_link_libraries(tes3mp z ${COREVIDEO_FRAMEWORK} ${VDA_FRAMEWORK})
     endif()
 endif(APPLE)
 
 if (BUILD_WITH_CODE_COVERAGE)
   add_definitions (--coverage)
-  target_link_libraries(openmw gcov)
+  target_link_libraries(tes3mp gcov)
 endif()
 
 if (MSVC)
@@ -222,5 +282,5 @@ if (MSVC)
 endif (MSVC)
 
 if (WIN32)
-    INSTALL(TARGETS openmw RUNTIME DESTINATION ".")
+    INSTALL(TARGETS tes3mp RUNTIME DESTINATION ".")
 endif (WIN32)

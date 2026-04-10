@@ -1,12 +1,12 @@
 #ifndef OPENMW_ESM_COMMON_H
 #define OPENMW_ESM_COMMON_H
 
+#include <algorithm>
 #include <string>
 #include <cstring>
 #include <vector>
 
 #include <stdint.h>
-#include <string.h>
 
 namespace ESM
 {
@@ -57,11 +57,16 @@ public:
     }
     bool operator!=(const std::string& str) const { return !( (*this) == str ); }
 
-    size_t data_size() const { return size; }
+    static size_t data_size() { return size; }
     size_t length() const { return strnlen(self()->ro_data(), size); }
     std::string toString() const { return std::string(self()->ro_data(), this->length()); }
 
-    void assign(const std::string& value) { std::strncpy(self()->rw_data(), value.c_str(), size); }
+    void assign(const std::string& value)
+    {
+        std::strncpy(self()->rw_data(), value.c_str(), size-1);
+        self()->rw_data()[size-1] = '\0';
+    }
+
     void clear() { this->assign(""); }
 private:
     DERIVED<size> const* self() const
@@ -103,6 +108,12 @@ struct FIXED_STRING<4> : public FIXED_STRING_BASE<FIXED_STRING, 4>
     bool operator==(uint32_t v) const { return v == intval; }
     bool operator!=(uint32_t v) const { return v != intval; }
 
+    void assign(const std::string& value)
+    {
+        intval = 0;
+        std::memcpy(data, value.data(), std::min(value.size(), sizeof(data)));
+    }
+
     char const* ro_data() const { return data; }
     char*       rw_data() { return data; }
 };
@@ -110,7 +121,6 @@ struct FIXED_STRING<4> : public FIXED_STRING_BASE<FIXED_STRING, 4>
 typedef FIXED_STRING<4> NAME;
 typedef FIXED_STRING<32> NAME32;
 typedef FIXED_STRING<64> NAME64;
-typedef FIXED_STRING<256> NAME256;
 
 /* This struct defines a file 'context' which can be saved and later
    restored by an ESMReader instance. It will save the position within

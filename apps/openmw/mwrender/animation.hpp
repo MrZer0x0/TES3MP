@@ -4,7 +4,10 @@
 #include "../mwworld/ptr.hpp"
 
 #include <components/sceneutil/controller.hpp>
+#include <components/sceneutil/textkeymap.hpp>
 #include <components/sceneutil/util.hpp>
+
+#include <vector>
 
 namespace ESM
 {
@@ -17,14 +20,10 @@ namespace Resource
     class ResourceSystem;
 }
 
-namespace NifOsg
+namespace SceneUtil
 {
     class KeyframeHolder;
     class KeyframeController;
-}
-
-namespace SceneUtil
-{
     class LightSource;
     class LightListCallback;
     class Skeleton;
@@ -42,7 +41,7 @@ class EffectAnimationTime : public SceneUtil::ControllerSource
 private:
     float mTime;
 public:
-    virtual float getValue(osg::NodeVisitor* nv);
+    float getValue(osg::NodeVisitor* nv) override;
 
     void addTime(float duration);
     void resetTime(float time);
@@ -103,7 +102,7 @@ public:
         BlendMask_All = BlendMask_LowerBody | BlendMask_UpperBody
     };
     /* This is the number of *discrete* blend masks. */
-    static const size_t sNumBlendMasks = 4;
+    static constexpr size_t sNumBlendMasks = 4;
 
     /// Holds an animation priority value for each BoneGroup.
     struct AnimPriority
@@ -147,8 +146,8 @@ public:
     class TextKeyListener
     {
     public:
-        virtual void handleTextKey(const std::string &groupname, const std::multimap<float, std::string>::const_iterator &key,
-                           const std::multimap<float, std::string>& map) = 0;
+        virtual void handleTextKey(const std::string &groupname, SceneUtil::TextKeyMap::ConstIterator key,
+                                   const SceneUtil::TextKeyMap& map) = 0;
 
         virtual ~TextKeyListener() = default;
     };
@@ -170,13 +169,13 @@ protected:
         std::shared_ptr<float> getTimePtr() const
         { return mTimePtr; }
 
-        virtual float getValue(osg::NodeVisitor* nv);
+        float getValue(osg::NodeVisitor* nv) override;
     };
 
     class NullAnimationTime : public SceneUtil::ControllerSource
     {
     public:
-        virtual float getValue(osg::NodeVisitor *nv)
+        float getValue(osg::NodeVisitor *nv) override
         {
             return 0.f;
         }
@@ -239,15 +238,14 @@ protected:
     osg::ref_ptr<osg::Node> mAccumRoot;
 
     // The controller animating that node.
-    osg::ref_ptr<NifOsg::KeyframeController> mAccumCtrl;
+    osg::ref_ptr<SceneUtil::KeyframeController> mAccumCtrl;
 
     // Used to reset the position of the accumulation root every frame - the movement should be applied to the physics system
     osg::ref_ptr<ResetAccumRootCallback> mResetAccumRootCallback;
 
     // Keep track of controllers that we added to our scene graph.
     // We may need to rebuild these controllers when the active animation groups / sources change.
-    typedef std::multimap<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::NodeCallback> > ControllerMap;
-    ControllerMap mActiveControllers;
+    std::vector<std::pair<osg::ref_ptr<osg::Node>, osg::ref_ptr<osg::NodeCallback>>> mActiveControllers;
 
     std::shared_ptr<AnimationTime> mAnimationTimePtr[sNumBlendMasks];
 
@@ -265,13 +263,22 @@ protected:
     TextKeyListener* mTextKeyListener;
 
     osg::ref_ptr<RotateController> mHeadController;
+    osg::ref_ptr<RotateController> mSpineController;
+    osg::ref_ptr<RotateController> mRootController;
     float mHeadYawRadians;
     float mHeadPitchRadians;
+    float mUpperBodyYawRadians;
+    float mLegsYawRadians;
+    float mBodyPitchRadians;
+
+    RotateController* addRotateController(std::string bone);
+
     bool mHasMagicEffects;
 
     osg::ref_ptr<SceneUtil::LightSource> mGlowLight;
     osg::ref_ptr<SceneUtil::GlowUpdater> mGlowUpdater;
     osg::ref_ptr<TransparencyUpdater> mTransparencyUpdater;
+    osg::ref_ptr<SceneUtil::LightSource> mExtraLightSource;
 
     float mAlpha;
 
@@ -296,12 +303,12 @@ protected:
      * the marker is not found, or if the markers are the same, it returns
      * false.
      */
-    bool reset(AnimState &state, const std::multimap<float, std::string> &keys,
+    bool reset(AnimState &state, const SceneUtil::TextKeyMap &keys,
                const std::string &groupname, const std::string &start, const std::string &stop,
                float startpoint, bool loopfallback);
 
-    void handleTextKey(AnimState &state, const std::string &groupname, const std::multimap<float, std::string>::const_iterator &key,
-                       const std::multimap<float, std::string>& map);
+    void handleTextKey(AnimState &state, const std::string &groupname, SceneUtil::TextKeyMap::ConstIterator key,
+                       const SceneUtil::TextKeyMap& map);
 
     /** Sets the root model of the object.
      *
@@ -333,9 +340,6 @@ protected:
      * so they get cleaned up properly on the next controller rebuild. A controller rebuild may be necessary to ensure correct ordering.
      */
     virtual void addControllers();
-
-    /// Set the render bin for this animation's object root. May be customized by subclasses.
-    virtual void setRenderBin();
 
 public:
 
@@ -467,6 +471,7 @@ public:
     void setAlpha(float alpha);
     virtual void setPitchFactor(float factor) {}
     virtual void attachArrow() {}
+    virtual void detachArrow() {}
     virtual void releaseArrow(float attackStrength) {}
     virtual void enableHeadAnimation(bool enable) {}
     // TODO: move outside of this class
@@ -478,6 +483,14 @@ public:
     virtual void setHeadYaw(float yawRadians);
     virtual float getHeadPitch() const;
     virtual float getHeadYaw() const;
+
+    virtual void setUpperBodyYawRadians(float v) { mUpperBodyYawRadians = v; }
+    virtual void setLegsYawRadians(float v) { mLegsYawRadians = v; }
+    virtual float getUpperBodyYawRadians() const { return mUpperBodyYawRadians; }
+    virtual float getLegsYawRadians() const { return mLegsYawRadians; }
+    virtual void setBodyPitchRadians(float v) { mBodyPitchRadians = v; }
+    virtual float getBodyPitchRadians() const { return mBodyPitchRadians; }
+
     virtual void setAccurateAiming(bool enabled) {}
     virtual bool canBeHarvested() const { return false; }
 
@@ -490,7 +503,7 @@ class ObjectAnimation : public Animation {
 public:
     ObjectAnimation(const MWWorld::Ptr& ptr, const std::string &model, Resource::ResourceSystem* resourceSystem, bool animated, bool allowLight);
 
-    bool canBeHarvested() const;
+    bool canBeHarvested() const override;
 };
 
 class UpdateVfxCallback : public osg::NodeCallback
@@ -506,7 +519,7 @@ public:
     bool mFinished;
     EffectParams mParams;
 
-    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv);
+    void operator()(osg::Node* node, osg::NodeVisitor* nv) override;
 
 private:
     double mStartingTime;

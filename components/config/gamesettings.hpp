@@ -5,7 +5,7 @@
 #include <QStringList>
 #include <QString>
 #include <QFile>
-#include <QMap>
+#include <QMultiMap>
 
 #include <boost/filesystem/path.hpp>
 
@@ -21,7 +21,6 @@ namespace Config
     {
     public:
         GameSettings(Files::ConfigurationManager &cfg);
-        ~GameSettings();
 
         inline QString value(const QString &key, const QString &defaultValue = QString())
         {
@@ -31,7 +30,9 @@ namespace Config
 
         inline void setValue(const QString &key, const QString &value)
         {
+            mSettings.remove(key);
             mSettings.insert(key, value);
+            mUserSettings.remove(key);
             mUserSettings.insert(key, value);
         }
 
@@ -39,11 +40,11 @@ namespace Config
         {
             QStringList values = mSettings.values(key);
             if (!values.contains(value))
-                mSettings.insertMulti(key, value);
+                mSettings.insert(key, value);
 
             values = mUserSettings.values(key);
             if (!values.contains(value))
-                mUserSettings.insertMulti(key, value);
+                mUserSettings.insert(key, value);
         }
 
         inline void remove(const QString &key)
@@ -52,18 +53,18 @@ namespace Config
             mUserSettings.remove(key);
         }
 
-        inline QStringList getDataDirs() { return mDataDirs; }
+        inline QStringList getDataDirs() const { return mDataDirs; }
 
         inline void removeDataDir(const QString &dir) { if(!dir.isEmpty()) mDataDirs.removeAll(dir); }
         inline void addDataDir(const QString &dir) { if(!dir.isEmpty()) mDataDirs.append(dir); }
-        inline QString getDataLocal() {return mDataLocal; }
+        inline QString getDataLocal() const {return mDataLocal; }
 
         bool hasMaster();
 
         QStringList values(const QString &key, const QStringList &defaultValues = QStringList()) const;
 
         bool readFile(QTextStream &stream);
-        bool readFile(QTextStream &stream, QMap<QString, QString> &settings);
+        bool readFile(QTextStream &stream, QMultiMap<QString, QString> &settings);
         bool readUserFile(QTextStream &stream);
 
         bool writeFile(QTextStream &stream);
@@ -71,6 +72,8 @@ namespace Config
 
         void setContentList(const QStringList& fileNames);
         QStringList getContentList() const;
+        void setGroundcoverList(const QStringList& fileNames);
+        QStringList getGroundcoverList() const;
 
         void clear();
 
@@ -78,15 +81,16 @@ namespace Config
         Files::ConfigurationManager &mCfgMgr;
 
         void validatePaths();
-        QMap<QString, QString> mSettings;
-        QMap<QString, QString> mUserSettings;
+        QMultiMap<QString, QString> mSettings;
+        QMultiMap<QString, QString> mUserSettings;
 
         QStringList mDataDirs;
         QString mDataLocal;
 
         static const char sContentKey[];
+        static const char sGroundcoverKey[];
 
-        bool isOrderedLine(const QString& line) const;
+        static bool isOrderedLine(const QString& line) ;
     };
 }
 #endif // GAMESETTINGS_HPP

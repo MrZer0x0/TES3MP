@@ -316,7 +316,7 @@ int MWDialogue::Filter::getSelectStructInteger (const SelectWrapper& select) con
         case SelectWrapper::Function_AiSetting:
 
             return mActor.getClass().getCreatureStats (mActor).getAiSetting (
-                        (MWMechanics::CreatureStats::AiSetting)select.getArgument()).getModified();
+                        (MWMechanics::CreatureStats::AiSetting)select.getArgument()).getModified(false);
 
         case SelectWrapper::Function_PcAttribute:
 
@@ -680,16 +680,4 @@ std::vector<const ESM::DialInfo *> MWDialogue::Filter::list (const ESM::Dialogue
     }
 
     return infos;
-}
-
-bool MWDialogue::Filter::responseAvailable (const ESM::Dialogue& dialogue) const
-{
-    for (ESM::Dialogue::InfoContainer::const_iterator iter = dialogue.mInfo.begin();
-        iter!=dialogue.mInfo.end(); ++iter)
-    {
-        if (testActor (*iter) && testPlayer (*iter) && testSelectStructs (*iter))
-            return true;
-    }
-
-    return false;
 }

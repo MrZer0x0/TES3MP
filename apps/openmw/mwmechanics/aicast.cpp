@@ -1,5 +1,7 @@
 #include "aicast.hpp"
 
+#include <components/misc/constants.hpp>
+
 #include "../mwbase/environment.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/world.hpp"
@@ -10,17 +12,22 @@
 #include "creaturestats.hpp"
 #include "steering.hpp"
 
-MWMechanics::AiCast::AiCast(const std::string& targetId, const std::string& spellId, bool manualSpell)
-    : mTargetId(targetId), mSpellId(spellId), mCasting(false), mManual(manualSpell), mDistance(0)
+namespace MWMechanics
 {
-    ActionSpell action = ActionSpell(spellId);
-    bool isRanged;
-    mDistance = action.getCombatRange(isRanged);
+    namespace
+    {
+        float getInitialDistance(const std::string& spellId)
+        {
+            ActionSpell action = ActionSpell(spellId);
+            bool isRanged;
+            return action.getCombatRange(isRanged);
+        }
+    }
 }
 
-MWMechanics::AiPackage *MWMechanics::AiCast::clone() const
+MWMechanics::AiCast::AiCast(const std::string& targetId, const std::string& spellId, bool manualSpell)
+    : mTargetId(targetId), mSpellId(spellId), mCasting(false), mManual(manualSpell), mDistance(getInitialDistance(spellId))
 {
-    return new AiCast(*this);
 }
 
 bool MWMechanics::AiCast::execute(const MWWorld::Ptr& actor, MWMechanics::CharacterController& characterController, MWMechanics::AiState& state, float duration)
@@ -41,26 +48,28 @@ bool MWMechanics::AiCast::execute(const MWWorld::Ptr& actor, MWMechanics::Charac
         {
             return false;
         }
-
-        osg::Vec3f targetPos = target.getRefData().getPosition().asVec3();
-        if (target.getClass().isActor())
-        {
-            osg::Vec3f halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(target);
-            targetPos.z() += halfExtents.z() * 2 * 0.75f;
-        }
-
-        osg::Vec3f actorPos = actor.getRefData().getPosition().asVec3();
-        osg::Vec3f halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
-        actorPos.z() += halfExtents.z() * 2 * 0.75f;
-
-        osg::Vec3f dir = targetPos - actorPos;
-
-        bool turned = smoothTurn(actor, getZAngleToDir(dir), 2, osg::DegreesToRadians(3.f));
-        turned &= smoothTurn(actor, getXAngleToDir(dir), 0, osg::DegreesToRadians(3.f));
-
-        if (!turned)
-            return false;
     }
+
+    osg::Vec3f targetPos = target.getRefData().getPosition().asVec3();
+    // If the target of an on-target spell is an actor that is not the caster
+    // the target position must be adjusted so that it's not casted at the actor's feet.
+    if (target != actor && target.getClass().isActor())
+    {
+        osg::Vec3f halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(target);
+        targetPos.z() += halfExtents.z() * 2 * Constants::TorsoHeight;
+    }
+
+    osg::Vec3f actorPos = actor.getRefData().getPosition().asVec3();
+    osg::Vec3f halfExtents = MWBase::Environment::get().getWorld()->getHalfExtents(actor);
+    actorPos.z() += halfExtents.z() * 2 * Constants::TorsoHeight;
+
+    osg::Vec3f dir = targetPos - actorPos;
+
+    bool turned = smoothTurn(actor, getZAngleToDir(dir), 2, osg::DegreesToRadians(3.f));
+    turned &= smoothTurn(actor, getXAngleToDir(dir), 0, osg::DegreesToRadians(3.f));
+
+    if (!turned)
+        return false;
 
     // Check if the actor is already casting another spell
     bool isCasting = MWBase::Environment::get().getMechanicsManager()->isCastingSpell(actor);
@@ -83,14 +92,4 @@ MWWorld::Ptr MWMechanics::AiCast::getTarget() const
     MWWorld::Ptr target = MWBase::Environment::get().getWorld()->searchPtr(mTargetId, false);
 
     return target;
-}
-
-int MWMechanics::AiCast::getTypeId() const
-{
-    return AiPackage::TypeIdCast;
-}
-
-unsigned int MWMechanics::AiCast::getPriority() const
-{
-    return 3;
 }

@@ -18,9 +18,13 @@
 #include <components/settings/settings.hpp>
 #include <components/sceneutil/visitor.hpp>
 #include <components/sceneutil/shadow.hpp>
+#include <components/sceneutil/util.hpp>
+#include <components/sceneutil/lightmanager.hpp>
 #include <components/files/memorystream.hpp>
+#include <components/resource/scenemanager.hpp>
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
 #include "../mwworld/cellstore.hpp"
@@ -39,7 +43,7 @@ namespace
         {
         }
 
-        virtual void operator()(osg::Node* node, osg::NodeVisitor*)
+        void operator()(osg::Node* node, osg::NodeVisitor*) override
         {
             if (mRendered)
                 node->setNodeMask(0);
@@ -65,6 +69,15 @@ namespace
         return val*val;
     }
 
+    std::pair<int, int> divideIntoSegments(const osg::BoundingBox& bounds, float mapSize)
+    {
+        osg::Vec2f min(bounds.xMin(), bounds.yMin());
+        osg::Vec2f max(bounds.xMax(), bounds.yMax());
+        osg::Vec2f length = max - min;
+        const int segsX = static_cast<int>(std::ceil(length.x() / mapSize));
+        const int segsY = static_cast<int>(std::ceil(length.y() / mapSize));
+        return {segsX, segsY};
+    }
 }
 
 namespace MWRender
@@ -74,14 +87,13 @@ LocalMap::LocalMap(osg::Group* root)
     : mRoot(root)
     , mMapResolution(Settings::Manager::getInt("local map resolution", "Map"))
     , mMapWorldSize(Constants::CellSizeInUnits)
-    , mCellDistance(Settings::Manager::getInt("local map cell distance", "Map"))
+    , mCellDistance(Constants::CellGridRadius)
     , mAngle(0.f)
     , mInterior(false)
 {
     // Increase map resolution, if use UI scaling
-    float uiScale = Settings::Manager::getFloat("scaling factor", "GUI");
-    if (uiScale > 1.0)
-        mMapResolution *= uiScale;
+    float uiScale = MWBase::Environment::get().getWindowManager()->getScalingFactor();
+    mMapResolution *= uiScale;
 
     SceneUtil::FindByNameVisitor find("Scene Root");
     mRoot->accept(find);
@@ -118,7 +130,7 @@ void LocalMap::saveFogOfWar(MWWorld::CellStore* cell)
         if (segment.mFogOfWarImage && segment.mHasFogState)
         {
             std::unique_ptr<ESM::FogState> fog (new ESM::FogState());
-            fog->mFogTextures.push_back(ESM::FogTexture());
+            fog->mFogTextures.emplace_back();
 
             segment.saveFogOfWar(fog->mFogTextures.back());
 
@@ -127,12 +139,7 @@ void LocalMap::saveFogOfWar(MWWorld::CellStore* cell)
     }
     else
     {
-        // FIXME: segmenting code duplicated from requestMap
-        osg::Vec2f min(mBounds.xMin(), mBounds.yMin());
-        osg::Vec2f max(mBounds.xMax(), mBounds.yMax());
-        osg::Vec2f length = max-min;
-        const int segsX = static_cast<int>(std::ceil(length.x() / mMapWorldSize));
-        const int segsY = static_cast<int>(std::ceil(length.y() / mMapWorldSize));
+        auto segments = divideIntoSegments(mBounds, mMapWorldSize);
 
         std::unique_ptr<ESM::FogState> fog (new ESM::FogState());
 
@@ -142,15 +149,15 @@ void LocalMap::saveFogOfWar(MWWorld::CellStore* cell)
         fog->mBounds.mMaxY = mBounds.yMax();
         fog->mNorthMarkerAngle = mAngle;
 
-        fog->mFogTextures.reserve(segsX*segsY);
+        fog->mFogTextures.reserve(segments.first * segments.second);
 
-        for (int x=0; x<segsX; ++x)
+        for (int x = 0; x < segments.first; ++x)
         {
-            for (int y=0; y<segsY; ++y)
+            for (int y = 0; y < segments.second; ++y)
             {
                 const MapSegment& segment = mSegments[std::make_pair(x,y)];
 
-                fog->mFogTextures.push_back(ESM::FogTexture());
+                fog->mFogTextures.emplace_back();
 
                 // saving even if !segment.mHasFogState so we don't mess up the segmenting
                 // plus, older openmw versions can't deal with empty images
@@ -168,11 +175,10 @@ void LocalMap::saveFogOfWar(MWWorld::CellStore* cell)
 osg::ref_ptr<osg::Camera> LocalMap::createOrthographicCamera(float x, float y, float width, float height, const osg::Vec3d& upVector, float zmin, float zmax)
 {
     osg::ref_ptr<osg::Camera> camera (new osg::Camera);
-
     camera->setProjectionMatrixAsOrtho(-width/2, width/2, -height/2, height/2, 5, (zmax-zmin) + 10);
     camera->setComputeNearFarMode(osg::Camera::DO_NOT_COMPUTE_NEAR_FAR);
     camera->setViewMatrixAsLookAt(osg::Vec3d(x, y, zmax + 5), osg::Vec3d(x, y, zmin), upVector);
-    camera->setReferenceFrame(osg::Camera::ABSOLUTE_RF);
+    camera->setReferenceFrame(osg::Camera::ABSOLUTE_RF_INHERIT_VIEWPOINT);
     camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT, osg::Camera::PIXEL_BUFFER_RTT);
     camera->setClearColor(osg::Vec4(0.f, 0.f, 0.f, 1.f));
     camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -180,6 +186,10 @@ osg::ref_ptr<osg::Camera> LocalMap::createOrthographicCamera(float x, float y, f
 
     camera->setCullMask(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Object | Mask_Static);
     camera->setNodeMask(Mask_RenderToTexture);
+
+    // Disable small feature culling, it's not going to be reliable for this camera
+    osg::Camera::CullingMode cullingMode = (osg::Camera::DEFAULT_CULLING|osg::Camera::FAR_PLANE_CULLING) & ~(osg::CullStack::SMALL_FEATURE_CULLING);
+    camera->setCullingMode(cullingMode);
 
     osg::ref_ptr<osg::StateSet> stateset = new osg::StateSet;
     stateset->setAttribute(new osg::PolygonMode(osg::PolygonMode::FRONT_AND_BACK, osg::PolygonMode::FILL), osg::StateAttribute::OVERRIDE);
@@ -212,6 +222,9 @@ osg::ref_ptr<osg::Camera> LocalMap::createOrthographicCamera(float x, float y, f
 
     SceneUtil::ShadowManager::disableShadowsForStateSet(stateset);
 
+    // override sun for local map 
+    SceneUtil::configureStateSetSunOverride(static_cast<SceneUtil::LightManager*>(mSceneRoot.get()), light, stateset);
+
     camera->addChild(lightSource);
     camera->setStateSet(stateset);
     camera->setViewport(0, 0, mMapResolution, mMapResolution);
@@ -230,7 +243,7 @@ void LocalMap::setupRenderToTexture(osg::ref_ptr<osg::Camera> camera, int x, int
     texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
     texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
 
-    camera->attach(osg::Camera::COLOR_BUFFER, texture);
+    SceneUtil::attachAlphaToCoverageFriendlyFramebufferToCamera(camera, osg::Camera::COLOR_BUFFER, texture);
 
     camera->addChild(mSceneRoot);
     mRoot->addChild(camera);
@@ -356,11 +369,6 @@ void LocalMap::requestExteriorMap(const MWWorld::CellStore* cell)
 
     osg::ref_ptr<osg::Camera> camera = createOrthographicCamera(x*mMapWorldSize + mMapWorldSize/2.f, y*mMapWorldSize + mMapWorldSize/2.f, mMapWorldSize, mMapWorldSize,
                                                                 osg::Vec3d(0,1,0), zmin, zmax);
-    camera->getOrCreateUserDataContainer()->addDescription("NoTerrainLod");
-    std::ostringstream stream;
-    stream << x << " " << y;
-    camera->getOrCreateUserDataContainer()->addDescription(stream.str());
-
     setupRenderToTexture(camera, cell->getCell()->getGridX(), cell->getCell()->getGridY());
 
     MapSegment& segment = mSegments[std::make_pair(cell->getCell()->getGridX(), cell->getCell()->getGridY())];
@@ -424,56 +432,74 @@ void LocalMap::requestInteriorMap(const MWWorld::CellStore* cell)
     // If there is fog state in the CellStore (e.g. when it came from a savegame) we need to do some checks
     // to see if this state is still valid.
     // Both the cell bounds and the NorthMarker rotation could be changed by the content files or exchanged models.
-    // If they changed by too much (for bounds, < padding is considered acceptable) then parts of the interior might not
-    // be covered by the map anymore.
+    // If they changed by too much then parts of the interior might not be covered by the map anymore.
     // The following code detects this, and discards the CellStore's fog state if it needs to.
-    bool cellHasValidFog = false;
+    std::vector<std::pair<int, int>> segmentMappings;
     if (cell->getFog())
     {
         ESM::FogState* fog = cell->getFog();
 
-        osg::Vec3f newMin (fog->mBounds.mMinX, fog->mBounds.mMinY, zMin);
-        osg::Vec3f newMax (fog->mBounds.mMaxX, fog->mBounds.mMaxY, zMax);
-
-        osg::Vec3f minDiff = newMin - mBounds._min;
-        osg::Vec3f maxDiff = newMax - mBounds._max;
-
-        if (std::abs(minDiff.x()) > padding || std::abs(minDiff.y()) > padding
-            || std::abs(maxDiff.x()) > padding || std::abs(maxDiff.y()) > padding
-                || std::abs(mAngle - fog->mNorthMarkerAngle) > osg::DegreesToRadians(5.f))
+        if (std::abs(mAngle - fog->mNorthMarkerAngle) < osg::DegreesToRadians(5.f))
         {
-            // Nuke it
-            cellHasValidFog = false;
-        }
-        else
-        {
-            // Looks sane, use it
-            mBounds = osg::BoundingBox(newMin, newMax);
+            // Expand mBounds so the saved textures fit the same grid
+            int xOffset = 0;
+            int yOffset = 0;
+            if(fog->mBounds.mMinX < mBounds.xMin())
+            {
+                mBounds.xMin() = fog->mBounds.mMinX;
+            }
+            else if(fog->mBounds.mMinX > mBounds.xMin())
+            {
+                float diff = fog->mBounds.mMinX - mBounds.xMin();
+                xOffset += diff / mMapWorldSize;
+                xOffset++;
+                mBounds.xMin() = fog->mBounds.mMinX - xOffset * mMapWorldSize;
+            }
+            if(fog->mBounds.mMinY < mBounds.yMin())
+            {
+                mBounds.yMin() = fog->mBounds.mMinY;
+            }
+            else if(fog->mBounds.mMinY > mBounds.yMin())
+            {
+                float diff = fog->mBounds.mMinY - mBounds.yMin();
+                yOffset += diff / mMapWorldSize;
+                yOffset++;
+                mBounds.yMin() = fog->mBounds.mMinY - yOffset * mMapWorldSize;
+            }
+            mBounds.xMax() = std::max(mBounds.xMax(), fog->mBounds.mMaxX);
+            mBounds.yMax() = std::max(mBounds.yMax(), fog->mBounds.mMaxY);
+
+            if(xOffset != 0 || yOffset != 0)
+                Log(Debug::Warning) << "Warning: expanding fog by " << xOffset << ", " << yOffset;
+
+            const auto& textures = fog->mFogTextures;
+            segmentMappings.reserve(textures.size());
+            osg::BoundingBox savedBounds{
+                fog->mBounds.mMinX, fog->mBounds.mMinY, 0,
+                fog->mBounds.mMaxX, fog->mBounds.mMaxY, 0
+            };
+            auto segments = divideIntoSegments(savedBounds, mMapWorldSize);
+            for (int x = 0; x < segments.first; ++x)
+                for (int y = 0; y < segments.second; ++y)
+                    segmentMappings.emplace_back(std::make_pair(x + xOffset, y + yOffset));
+
             mAngle = fog->mNorthMarkerAngle;
-            cellHasValidFog = true;
         }
     }
 
     osg::Vec2f min(mBounds.xMin(), mBounds.yMin());
-    osg::Vec2f max(mBounds.xMax(), mBounds.yMax());
 
-    osg::Vec2f length = max-min;
+    osg::Vec2f center(mBounds.center().x(), mBounds.center().y());
+    osg::Quat cameraOrient (mAngle, osg::Vec3d(0,0,-1));
 
-    osg::Vec2f center(bounds.center().x(), bounds.center().y());
-
-    // divide into segments
-    const int segsX = static_cast<int>(std::ceil(length.x() / mMapWorldSize));
-    const int segsY = static_cast<int>(std::ceil(length.y() / mMapWorldSize));
-
-    int i = 0;
-    for (int x=0; x<segsX; ++x)
+    auto segments = divideIntoSegments(mBounds, mMapWorldSize);
+    for (int x = 0; x < segments.first; ++x)
     {
-        for (int y=0; y<segsY; ++y)
+        for (int y = 0; y < segments.second; ++y)
         {
             osg::Vec2f start = min + osg::Vec2f(mMapWorldSize*x, mMapWorldSize*y);
             osg::Vec2f newcenter = start + osg::Vec2f(mMapWorldSize/2.f, mMapWorldSize/2.f);
 
-            osg::Quat cameraOrient (mAngle, osg::Vec3d(0,0,-1));
             osg::Vec2f a = newcenter - center;
             osg::Vec3f rotatedCenter = cameraOrient * (osg::Vec3f(a.x(), a.y(), 0));
 
@@ -485,26 +511,24 @@ void LocalMap::requestInteriorMap(const MWWorld::CellStore* cell)
 
             setupRenderToTexture(camera, x, y);
 
-            MapSegment& segment = mSegments[std::make_pair(x,y)];
+            auto coords = std::make_pair(x,y);
+            MapSegment& segment = mSegments[coords];
             if (!segment.mFogOfWarImage)
             {
-                if (!cellHasValidFog)
-                    segment.initFogOfWar();
-                else
+                bool loaded = false;
+                for(size_t index{}; index < segmentMappings.size(); index++)
                 {
-                    ESM::FogState* fog = cell->getFog();
-
-                    // We are using the same bounds and angle as we were using when the textures were originally made. Segments should come out the same.
-                    if (i >= int(fog->mFogTextures.size()))
+                    if(segmentMappings[index] == coords)
                     {
-                        Log(Debug::Warning) << "Warning: fog texture count mismatch";
+                        ESM::FogState* fog = cell->getFog();
+                        segment.loadFogOfWar(fog->mFogTextures[index]);
+                        loaded = true;
                         break;
                     }
-
-                    segment.loadFogOfWar(fog->mFogTextures[i]);
                 }
+                if(!loaded)
+                    segment.initFogOfWar();
             }
-            ++i;
         }
     }
 }
@@ -693,12 +717,10 @@ void LocalMap::MapSegment::loadFogOfWar(const ESM::FogTexture &esm)
         return;
     }
 
-    // TODO: deprecate tga and use raw data instead
-
-    osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension("tga");
+    osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension("png");
     if (!readerwriter)
     {
-        Log(Debug::Error) << "Error: Unable to load fog, can't find a tga ReaderWriter" ;
+        Log(Debug::Error) << "Error: Unable to load fog, can't find a png ReaderWriter" ;
         return;
     }
 
@@ -727,10 +749,10 @@ void LocalMap::MapSegment::saveFogOfWar(ESM::FogTexture &fog) const
 
     std::ostringstream ostream;
 
-    osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension("tga");
+    osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension("png");
     if (!readerwriter)
     {
-        Log(Debug::Error) << "Error: Unable to write fog, can't find a tga ReaderWriter";
+        Log(Debug::Error) << "Error: Unable to write fog, can't find a png ReaderWriter";
         return;
     }
 

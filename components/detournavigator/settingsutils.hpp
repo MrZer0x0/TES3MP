@@ -1,4 +1,4 @@
-#ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGSUTILS_H
+﻿#ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGSUTILS_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGSUTILS_H
 
 #include "settings.hpp"
@@ -12,7 +12,8 @@
 #include <osg/Vec2i>
 #include <osg/Vec3f>
 
-#include <utility>
+#include <algorithm>
+#include <cmath>
 
 namespace DetourNavigator
 {
@@ -28,7 +29,7 @@ namespace DetourNavigator
 
     inline float getRadius(const Settings& settings, const osg::Vec3f& agentHalfExtents)
     {
-        return agentHalfExtents.x() * settings.mRecastScaleFactor;
+        return std::max(agentHalfExtents.x(), agentHalfExtents.y()) * std::sqrt(2) * settings.mRecastScaleFactor;
     }
 
     inline float toNavMeshCoordinates(const Settings& settings, float value)
@@ -52,7 +53,7 @@ namespace DetourNavigator
 
     inline float getTileSize(const Settings& settings)
     {
-        return settings.mTileSize * settings.mCellSize;
+        return static_cast<float>(settings.mTileSize) * settings.mCellSize;
     }
 
     inline TilePosition getTilePosition(const Settings& settings, const osg::Vec3f& position)
@@ -73,7 +74,7 @@ namespace DetourNavigator
 
     inline float getBorderSize(const Settings& settings)
     {
-        return settings.mBorderSize * settings.mCellSize;
+        return static_cast<float>(settings.mBorderSize) * settings.mCellSize;
     }
 
     inline float getSwimLevel(const Settings& settings, const float agentHalfExtentsZ)
@@ -88,6 +89,16 @@ namespace DetourNavigator
             transform.getBasis(),
             transform.getOrigin() + btVector3(0, 0, getSwimLevel(settings, agentHalfExtentsZ) - agentHalfExtentsZ)
         );
+    }
+
+    inline float getRealTileSize(const Settings& settings)
+    {
+        return settings.mTileSize * settings.mCellSize / settings.mRecastScaleFactor;
+    }
+
+    inline float getMaxNavmeshAreaRadius(const Settings& settings)
+    {
+        return std::floor(std::sqrt(settings.mMaxTilesNumber / osg::PI)) - 1;
     }
 }
 

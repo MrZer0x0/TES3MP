@@ -4,17 +4,16 @@
 #include <memory>
 #include <array>
 #include <atomic>
+#include <condition_variable>
+#include <thread>
+#include <mutex>
+#include <chrono>
 
 #include <stdint.h>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/constants.hpp>
 #include <components/vfs/manager.hpp>
-
-#include <OpenThreads/Thread>
-#include <OpenThreads/Condition>
-#include <OpenThreads/Mutex>
-#include <OpenThreads/ScopedLock>
 
 #include "openal_output.hpp"
 #include "sound_decoder.hpp"
@@ -309,31 +308,33 @@ const ALfloat OpenAL_SoundStream::sBufferLength = 0.125f;
 //
 // A background streaming thread (keeps active streams processed)
 //
-struct OpenAL_Output::StreamThread : public OpenThreads::Thread {
+struct OpenAL_Output::StreamThread
+{
     typedef std::vector<OpenAL_SoundStream*> StreamVec;
     StreamVec mStreams;
 
     std::atomic<bool> mQuitNow;
-    OpenThreads::Mutex mMutex;
-    OpenThreads::Condition mCondVar;
+    std::mutex mMutex;
+    std::condition_variable mCondVar;
+    std::thread mThread;
 
     StreamThread()
       : mQuitNow(false)
+      , mThread([this] { run(); })
     {
-        start();
     }
     ~StreamThread()
     {
         mQuitNow = true;
         mMutex.lock(); mMutex.unlock();
-        mCondVar.broadcast();
-        join();
+        mCondVar.notify_all();
+        mThread.join();
     }
 
     // thread entry point
-    virtual void run()
+    void run()
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        std::unique_lock<std::mutex> lock(mMutex);
         while(!mQuitNow)
         {
             StreamVec::iterator iter = mStreams.begin();
@@ -345,30 +346,30 @@ struct OpenAL_Output::StreamThread : public OpenThreads::Thread {
                     ++iter;
             }
 
-            mCondVar.wait(&mMutex, 50);
+            mCondVar.wait_for(lock, std::chrono::milliseconds(50));
         }
     }
 
     void add(OpenAL_SoundStream *stream)
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
         if(std::find(mStreams.begin(), mStreams.end(), stream) == mStreams.end())
         {
             mStreams.push_back(stream);
-            mCondVar.broadcast();
+            mCondVar.notify_all();
         }
     }
 
     void remove(OpenAL_SoundStream *stream)
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
         StreamVec::iterator iter = std::find(mStreams.begin(), mStreams.end(), stream);
         if(iter != mStreams.end()) mStreams.erase(iter);
     }
 
     void removeAll()
     {
-        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
         mStreams.clear();
     }
 
@@ -578,7 +579,7 @@ std::vector<std::string> OpenAL_Output::enumerate()
         devnames = alcGetString(nullptr, ALC_DEVICE_SPECIFIER);
     while(devnames && *devnames)
     {
-        devlist.push_back(devnames);
+        devlist.emplace_back(devnames);
         devnames += strlen(devnames)+1;
     }
     return devlist;
@@ -623,7 +624,7 @@ bool OpenAL_Output::init(const std::string &devname, const std::string &hrtfname
     attrs.reserve(15);
     if(ALC.SOFT_HRTF)
     {
-        LPALCGETSTRINGISOFT alcGetStringiSOFT = 0;
+        LPALCGETSTRINGISOFT alcGetStringiSOFT = nullptr;
         getALCFunc(alcGetStringiSOFT, mDevice, "alcGetStringiSOFT");
 
         attrs.push_back(ALC_HRTF_SOFT);
@@ -849,13 +850,13 @@ void OpenAL_Output::deinit()
         alDeleteFilters(1, &mWaterFilter);
     mWaterFilter = 0;
 
-    alcMakeContextCurrent(0);
+    alcMakeContextCurrent(nullptr);
     if(mContext)
         alcDestroyContext(mContext);
-    mContext = 0;
+    mContext = nullptr;
     if(mDevice)
         alcCloseDevice(mDevice);
-    mDevice = 0;
+    mDevice = nullptr;
 
     mInitialized = false;
 }
@@ -868,7 +869,7 @@ std::vector<std::string> OpenAL_Output::enumerateHrtf()
     if(!mDevice || !ALC.SOFT_HRTF)
         return ret;
 
-    LPALCGETSTRINGISOFT alcGetStringiSOFT = 0;
+    LPALCGETSTRINGISOFT alcGetStringiSOFT = nullptr;
     getALCFunc(alcGetStringiSOFT, mDevice, "alcGetStringiSOFT");
 
     ALCint num_hrtf;
@@ -877,7 +878,7 @@ std::vector<std::string> OpenAL_Output::enumerateHrtf()
     for(ALCint i = 0;i < num_hrtf;++i)
     {
         const ALCchar *entry = alcGetStringiSOFT(mDevice, ALC_HRTF_SPECIFIER_SOFT, i);
-        ret.push_back(entry);
+        ret.emplace_back(entry);
     }
 
     return ret;
@@ -891,10 +892,10 @@ void OpenAL_Output::setHrtf(const std::string &hrtfname, HrtfMode hrtfmode)
         return;
     }
 
-    LPALCGETSTRINGISOFT alcGetStringiSOFT = 0;
+    LPALCGETSTRINGISOFT alcGetStringiSOFT = nullptr;
     getALCFunc(alcGetStringiSOFT, mDevice, "alcGetStringiSOFT");
 
-    LPALCRESETDEVICESOFT alcResetDeviceSOFT = 0;
+    LPALCRESETDEVICESOFT alcResetDeviceSOFT = nullptr;
     getALCFunc(alcResetDeviceSOFT, mDevice, "alcResetDeviceSOFT");
 
     std::vector<ALCint> attrs;
@@ -1212,7 +1213,7 @@ void OpenAL_Output::finishSound(Sound *sound)
 {
     if(!sound->mHandle) return;
     ALuint source = GET_PTRID(sound->mHandle);
-    sound->mHandle = 0;
+    sound->mHandle = nullptr;
 
     // Rewind the stream to put the source back into an AL_INITIAL state, for
     // the next time it's used.
@@ -1315,7 +1316,7 @@ void OpenAL_Output::finishStream(Stream *sound)
     OpenAL_SoundStream *stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
     ALuint source = stream->mSource;
 
-    sound->mHandle = 0;
+    sound->mHandle = nullptr;
     mStreamThread->remove(stream);
 
     // Rewind the stream to put the source back into an AL_INITIAL state, for
@@ -1341,7 +1342,7 @@ double OpenAL_Output::getStreamOffset(Stream *sound)
 {
     if(!sound->mHandle) return 0.0;
     OpenAL_SoundStream *stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
-    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mStreamThread->mMutex);
+    std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
     return stream->getStreamOffset();
 }
 
@@ -1349,7 +1350,7 @@ float OpenAL_Output::getStreamLoudness(Stream *sound)
 {
     if(!sound->mHandle) return 0.0;
     OpenAL_SoundStream *stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
-    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mStreamThread->mMutex);
+    std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
     return stream->getCurrentLoudness();
 }
 
@@ -1357,7 +1358,7 @@ bool OpenAL_Output::isStreamPlaying(Stream *sound)
 {
     if(!sound->mHandle) return false;
     OpenAL_SoundStream *stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
-    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mStreamThread->mMutex);
+    std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
     return stream->isPlaying();
 }
 
@@ -1461,7 +1462,7 @@ void OpenAL_Output::pauseActiveDevice()
 
     if(alcIsExtensionPresent(mDevice, "ALC_SOFT_PAUSE_DEVICE"))
     {
-        LPALCDEVICEPAUSESOFT alcDevicePauseSOFT = 0;
+        LPALCDEVICEPAUSESOFT alcDevicePauseSOFT = nullptr;
         getALCFunc(alcDevicePauseSOFT, mDevice, "alcDevicePauseSOFT");
         alcDevicePauseSOFT(mDevice);
         getALCError(mDevice);
@@ -1477,7 +1478,7 @@ void OpenAL_Output::resumeActiveDevice()
 
     if(alcIsExtensionPresent(mDevice, "ALC_SOFT_PAUSE_DEVICE"))
     {
-        LPALCDEVICERESUMESOFT alcDeviceResumeSOFT = 0;
+        LPALCDEVICERESUMESOFT alcDeviceResumeSOFT = nullptr;
         getALCFunc(alcDeviceResumeSOFT, mDevice, "alcDeviceResumeSOFT");
         alcDeviceResumeSOFT(mDevice);
         getALCError(mDevice);
@@ -1512,7 +1513,7 @@ void OpenAL_Output::resumeSounds(int types)
 
 OpenAL_Output::OpenAL_Output(SoundManager &mgr)
   : Sound_Output(mgr)
-  , mDevice(0), mContext(0)
+  , mDevice(nullptr), mContext(nullptr)
   , mListenerPos(0.0f, 0.0f, 0.0f), mListenerEnv(Env_Normal)
   , mWaterFilter(0), mWaterEffect(0), mDefaultEffect(0), mEffectSlot(0)
   , mStreamThread(new StreamThread)

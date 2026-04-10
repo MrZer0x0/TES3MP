@@ -10,23 +10,23 @@ namespace ESM
 {
     // format 0, saved games only
 
-    struct NpcState : public ObjectState
+    struct NpcState final : public ObjectState
     {
         InventoryState mInventory;
         NpcStats mNpcStats;
         CreatureStats mCreatureStats;
 
         /// Initialize to default state
-        void blank();
+        void blank() override;
 
-        virtual void load (ESMReader &esm);
-        virtual void save (ESMWriter &esm, bool inInventory = false) const;
+        void load (ESMReader &esm) override;
+        void save (ESMWriter &esm, bool inInventory = false) const override;
 
-        virtual NpcState& asNpcState()
+        NpcState& asNpcState() override
         {
             return *this;
         }
-        virtual const NpcState& asNpcState() const
+        const NpcState& asNpcState() const override
         {
             return *this;
         }
