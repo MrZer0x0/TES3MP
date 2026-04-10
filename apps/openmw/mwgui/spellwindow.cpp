@@ -311,7 +311,6 @@ namespace MWGui
 
         updateSpells();
 
-        mwmp::Main::get().getLocalPlayer()->sendSelectedSpell(spellId);
     }
 
     void SpellWindow::askDeleteSpell(const std::string &spellId)
@@ -392,7 +391,6 @@ namespace MWGui
 
         updateSpells();
 
-        mwmp::Main::get().getLocalPlayer()->sendSelectedSpell(spellId);
     }
 
     void SpellWindow::onDeleteSpellAccept()
