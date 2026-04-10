@@ -15,7 +15,7 @@
         <!-- Dialog buttons -->
         <Widget type="AutoSizedButton" skin="MW_Button" position="171 208 57 24" name="OKButton">
             <Property key="ExpandDirection" value="Left"/>
-            <Property key="Caption" value="#{setting=UI,chargen.class_description.enter}"/>
+            <Property key="Caption" value="Enter"/>
         </Widget>
 
     </Widget>

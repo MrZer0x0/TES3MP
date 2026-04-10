@@ -5,7 +5,7 @@
 
         <!-- Appearance -->
         <Widget type="TextBox" skin="HeaderText" position="8 16 241 18" name="AppearanceT" align="Left Top">
-            <Property key="Caption" value="#{gmst=sRaceMenu1,Appearance}"/>
+            <Property key="Caption" value="Appearance"/>
             <Property key="TextAlign" value="Left Top"/>
         </Widget>
         <Widget type="Widget" skin="MW_Box" position="8 39 241 220">

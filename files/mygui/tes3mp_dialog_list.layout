@@ -19,7 +19,7 @@
                 <Property key="Spacing" value="8"/>
 
                 <Widget type="AutoSizedButton" skin="MW_Button" name="OkButton" align="Right Bottom">
-                    <Property key="Caption" value="#{sOK}"/>
+                    <Property key="Caption" value="OK"/>
                 </Widget>
             </Widget>
 

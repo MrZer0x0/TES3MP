@@ -39,9 +39,9 @@ add_openmw_dir (mwgui
     itemselection spellbuyingwindow loadingscreen levelupdialog waitdialog spellcreationdialog
     enchantingdialog trainingwindow travelwindow exposedwindow cursor spellicons
     merchantrepair repair soulgemdialog companionwindow bookpage journalviewmodel journalbooks
-    itemmodel containeritemmodel inventoryitemmodel sortfilteritemmodel itemview itemlistwidget itemlistwidgetheader
+    itemmodel containeritemmodel inventoryitemmodel sortfilteritemmodel itemview
     tradeitemmodel companionitemmodel pickpocketitemmodel controllers savegamedialog
-    recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview spelllistwidget
+    recharge mode videowidget backgroundimage itemwidget screenfader debugwindow spellmodel spellview
     draganddrop timeadvancer jailscreen itemchargeview keyboardnavigation textcolours statswatcher
     )
 

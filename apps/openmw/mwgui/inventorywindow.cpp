@@ -3,7 +3,6 @@
 #include <cmath>
 #include <stdexcept>
 
-#include <MyGUI_Gui.h>
 #include <MyGUI_Window.h>
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_RenderManager.h>
@@ -13,8 +12,8 @@
 
 #include <osg/Texture2D>
 
-#include <components/widgets/box.hpp>
 #include <components/misc/stringops.hpp>
+
 #include <components/myguiplatform/myguitexture.hpp>
 
 #include <components/settings/settings.hpp>
@@ -28,6 +27,7 @@
 #include "../mwmp/Networking.hpp"
 #include "../mwmp/ObjectList.hpp"
 #include "../mwmp/LocalPlayer.hpp"
+#include "../mwworld/cellstore.hpp"
 /*
     End of tes3mp addition
 */
@@ -54,8 +54,6 @@
 #include "widgets.hpp"
 #include "tooltips.hpp"
 
-#include "descriptions.hpp"
-
 namespace
 {
 
@@ -72,31 +70,6 @@ namespace
 namespace MWGui
 {
 
-    /**
-     * Makes it possible to use ItemModel::moveItem to move an item from an inventory to the world.
-     */
-    class ProxyWorldItemModel : public ItemModel
-    {
-    public:
-        ProxyWorldItemModel(){}
-        virtual ~ProxyWorldItemModel() {}
-        virtual MWWorld::Ptr copyItem (const ItemStack& item, size_t count, bool /*allowAutoEquip*/)
-        {
-            MWBase::World* world = MWBase::Environment::get().getWorld();
-
-            MWWorld::Ptr dropped= world->dropObjectOnGround(world->getPlayerPtr(), item.mBase, 1);
-            dropped.getCellRef().setOwner("");
-
-            return dropped;
-        }
-
-        virtual void removeItem (const ItemStack& item, size_t count) { throw std::runtime_error("removeItem not implemented"); }
-        virtual ModelIndex getIndex (ItemStack item) { throw std::runtime_error("getIndex not implemented"); }
-        virtual void update() {}
-        virtual size_t getItemCount() { return 0; }
-        virtual ItemStack getItem (ModelIndex index) { throw std::runtime_error("getItem not implemented"); }
-    };
-
     InventoryWindow::InventoryWindow(DragAndDrop* dragAndDrop, osg::Group* parent, Resource::ResourceSystem* resourceSystem)
         : WindowPinnableBase("openmw_inventory_window.layout")
         , mDragAndDrop(dragAndDrop)
@@ -106,19 +79,10 @@ namespace MWGui
         , mGuiMode(GM_Inventory)
         , mLastXSize(0)
         , mLastYSize(0)
-        , mRoll(0)
-        , mYaw(0)
-        , mPitch(0)
         , mPreview(new MWRender::InventoryPreview(parent, resourceSystem, MWMechanics::getPlayer()))
         , mTrading(false)
-        , mScaleFactor(1.0f)
         , mUpdateTimer(0.f)
-        , mScale(1.0)
     {
-        float uiScale = Settings::Manager::getFloat("scaling factor", "GUI");
-        if (uiScale > 1.0)
-            mScaleFactor = uiScale;
-
         mPreviewTexture.reset(new osgMyGUI::OSGTexture(mPreview->getTexture()));
         mPreview->rebuild();
 
@@ -126,227 +90,52 @@ namespace MWGui
 
         getWidget(mAvatar, "Avatar");
         getWidget(mAvatarImage, "AvatarImage");
-        getWidget(mToggleAvatar,"ToggleAvatar"); 
-
+        getWidget(mEncumbranceBar, "EncumbranceBar");
+        getWidget(mFilterAll, "AllButton");
+        getWidget(mFilterWeapon, "WeaponButton");
+        getWidget(mFilterApparel, "ApparelButton");
+        getWidget(mFilterMagic, "MagicButton");
+        getWidget(mFilterMisc, "MiscButton");
         getWidget(mLeftPane, "LeftPane");
         getWidget(mRightPane, "RightPane");
-
-        getWidget(mDescription, "Description");
-
-        getWidget(mAllButton,"AllButton"); 
-        getWidget(mWeaponButton,"WeaponButton"); 
-        getWidget(mArmorButton,"ArmorButton"); 
-        getWidget(mClothButton,"ClothButton"); 
-        getWidget(mPotionButton,"PotionButton"); 
-        getWidget(mIngredientButton,"IngredientButton"); 
-        getWidget(mBookButton,"BookButton"); 
-        getWidget(mToolButton,"ToolButton"); 
-        getWidget(mMagicButton,"MagicButton"); 
-        getWidget(mMiscButton,"MiscButton"); 
-
-        getWidget(mCategories,"Categories"); 
-
-        getWidget(mEncumbranceBar, "EncumbranceBar");
         getWidget(mArmorRating, "ArmorRating");
-        getWidget(mPlayerGold, "PlayerGold"); 
         getWidget(mFilterEdit, "FilterEdit");
 
         mAvatarImage->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onAvatarClicked);
-        mAvatarImage->eventMouseButtonPressed += MyGUI::newDelegate(this, &InventoryWindow::onDragStart);
-        mAvatarImage->eventMouseDrag += MyGUI::newDelegate(this, &InventoryWindow::onMouseDrag);
-        mAvatarImage->eventMouseWheel += MyGUI::newDelegate(this, &InventoryWindow::onMouseWheel);
         mAvatarImage->setRenderItemTexture(mPreviewTexture.get());
         mAvatarImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f, 1.f, 1.f));
 
-        mToggleAvatar->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onAvatarToggled);
-
         getWidget(mItemView, "ItemView");
-
         mItemView->eventItemClicked += MyGUI::newDelegate(this, &InventoryWindow::onItemSelected);
         mItemView->eventBackgroundClicked += MyGUI::newDelegate(this, &InventoryWindow::onBackgroundSelected);
-        mItemView->getHeader()->eventItemClicked += MyGUI::newDelegate(this, &InventoryWindow::onHeaderClicked);
-        mItemView->eventKeyButtonPressed += MyGUI::newDelegate(this, &InventoryWindow::onKeyButtonPressed);
-        mItemView->eventItemFocused += MyGUI::newDelegate(this, &InventoryWindow::onItemFocus);
 
-        mAllButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mWeaponButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mArmorButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mClothButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mPotionButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mIngredientButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mBookButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mMiscButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mToolButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-        mMagicButton->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
-
+        mFilterAll->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
+        mFilterWeapon->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
+        mFilterApparel->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
+        mFilterMagic->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
+        mFilterMisc->eventMouseButtonClick += MyGUI::newDelegate(this, &InventoryWindow::onFilterChanged);
         mFilterEdit->eventEditTextChange += MyGUI::newDelegate(this, &InventoryWindow::onNameFilterChanged);
 
-        mAllButton->setStateSelected(true);
+        mFilterAll->setStateSelected(true);
 
         setGuiMode(mGuiMode);
 
-        std::string setting = getModeSetting();
-        bool showAvatar = Settings::Manager::getBool(setting + " avatar", "Windows");
-
-        mLeftPane->setVisible(showAvatar);
         adjustPanes();
-    }
-
-    void InventoryWindow::resetAvatar()
-    {
-        mDescription->setCaption({});
-        mRoll = 0;
-        mYaw = 0;
-        mPitch = 0;
-        mScale = 1.0;
-        mViewMode = View_Avatar;
-        mPreview->updatePtr(MWMechanics::getPlayer());
-        mPreview->rebuild();
-        mPreview->update();
-    }
-
-    void InventoryWindow::onItemFocus(ItemListWidget* item)
-    {
-        mRoll = 0;
-        mYaw = 200;
-        mPitch = 60;
-        mScale = 0.8;
-        
-        const int largeFont = MWBase::Environment::get().getWindowManager()->getFontHeight() * 1.1;
-        mDescription->setCaption({});
-        mDescription->setFontHeight(largeFont);
-        mDescription->setEditWordWrap(true);
-
-        if (item && !item->getPtr().isEmpty() && !mDragAndDrop->mIsOnDragAndDrop)
-        {
-            mViewMode = View_Item;
-            mPreview->setScale(mScale);
-            mPreview->setItem(item->getPtr());
-            mPreview->ryp(0.f,osg::DegreesToRadians(static_cast<double>(mYaw)),osg::DegreesToRadians(static_cast<double>(mPitch)));
-            
-            const auto ptr = item->getPtr();
-        
-            std::string description = {};
-            std::string key = {};
-            if (ptr.getTypeName() == typeid(ESM::Miscellaneous).name() && ptr.getCellRef().getSoul() != "")
-            {
-                key = MWBase::Environment::get().getWorld()->getStore().get<ESM::Creature>().search(ptr.getCellRef().getSoul())->mId;
-                description = filledGemDescriptions.at(key);
-            }
-            else 
-                key = ptr.getCellRef().getRefId(); 
- 
-            const auto it = generalDescriptions.find(key);
-            if (description.empty() && it != generalDescriptions.cend())
-                description = it->second; 
-
-            mDescription->setCaptionWithReplacing("#dac091" + description);
-        }
-        else
-            resetAvatar();
-    }
-
-    void InventoryWindow::onDragStart(MyGUI::Widget* _sender, int _left, int _top, MyGUI::MouseButton _id)
-    {
-        if (_id != MyGUI::MouseButton::Left) return;
-        mLastDragPos = MyGUI::IntPoint(_left, _top);
-    }
-
-    void InventoryWindow::onMouseWheel(MyGUI::Widget* _sender, int _rel)
-    { 
-        if (mViewMode == View_Avatar) return;
-
-        static constexpr float scaleMax = 1.18;
-        static constexpr float scaleMin = 0.6;
-
-        if (_rel > 0)
-        {
-            if (mScale < scaleMax)
-            {
-                mScale += 0.01;
-            }
-        }
-        else if (_rel < 0)
-        {
-            if (mScale > scaleMin)
-            {
-                mScale -= 0.01;
-            }
-        }
-        mPreview->setScale(mScale);
-        dirtyPreview();
-    }
-
-    void InventoryWindow::onMouseDrag(MyGUI::Widget* _sender, int _left, int _top, MyGUI::MouseButton _id)
-    {
-        if (_id != MyGUI::MouseButton::Left || mViewMode == View_Avatar) return;
-        
-        MyGUI::IntPoint pos = MyGUI::InputManager::getInstance().getMousePosition();
-        MyGUI::IntPoint diff = MyGUI::IntPoint(_left, _top) - mLastDragPos;
-        mPreview->ryp(osg::DegreesToRadians(static_cast<float>(mRoll)),
-                           osg::DegreesToRadians(static_cast<float>(mYaw)),
-                           osg::DegreesToRadians(static_cast<float>(mPitch)));
-        
-        if (mViewMode == View_Item)
-        {
-            mRoll += 0;
-            mPitch += diff.top;
-            mRoll %= 360; 
-            mPitch %= 360;
-        }
-        mYaw += diff.left;
-        mYaw %= 360; 
-
-        dirtyPreview();
-        
-        mLastDragPos = MyGUI::IntPoint(_left, _top);
-    }
-
-    void InventoryWindow::adjustCategoryHeader()
-    {
-        static int maxPadding = MyGUI::utility::parseInt(mCategories->getUserString("MaxPadding"));
-        static int maxSize = MyGUI::utility::parseInt(mCategories->getUserString("MaxSize"));
-        static int minMargin = MyGUI::utility::parseInt(mCategories->getUserString("MinMargin"));
-        static int minSize = MyGUI::utility::parseInt(mCategories->getUserString("MinSize"));
-        static int padding = MyGUI::utility::parseInt(mCategories->getUserString("Padding"));
-        
-        int count = mCategories->getChildCount();
-
-        int width = std::min(maxSize,std::max(static_cast<int>(((mCategories->getWidth()-(2*minMargin)-(padding*count)) / static_cast<float>(count))), minSize));
-        int sidemargin = ((mCategories->getWidth() - ((width+padding) * count))/2) + 8; 
-        
-        if (sidemargin < 0)
-            sidemargin = minMargin;
-
-        MyGUI::Widget* widget = mCategories->getChildAt(0);
-        widget->setCoord(MyGUI::IntCoord(sidemargin,widget->getTop(),width,width));
-        for (size_t i = 1; i < count; i++)
-        {
-            widget = mCategories->getChildAt(i);
-            widget->setCoord(MyGUI::IntCoord(mCategories->getChildAt(i-1)->getLeft()+width+padding,widget->getTop(),width,width));
-        }
     }
 
     void InventoryWindow::adjustPanes()
     {
         const float aspect = 0.5; // fixed aspect ratio for the avatar image
-        int leftPaneWidth = static_cast<int>((mMainWidget->getSize().height - 44) * aspect);
-        if (!mLeftPane->getVisible())
-            leftPaneWidth = 0;
-
-        mLeftPane->setSize( leftPaneWidth, mMainWidget->getSize().height-12);
+        int leftPaneWidth = static_cast<int>((mMainWidget->getSize().height - 44 - mArmorRating->getHeight()) * aspect);
+        mLeftPane->setSize( leftPaneWidth, mMainWidget->getSize().height-44 );
         mRightPane->setCoord( mLeftPane->getPosition().left + leftPaneWidth + 4,
                               mRightPane->getPosition().top,
-                              mMainWidget->getSize().width - leftPaneWidth,
-                              mMainWidget->getSize().height);
-
-        adjustCategoryHeader();
-        updatePreviewSize();
+                              mMainWidget->getSize().width - 12 - leftPaneWidth - 15,
+                              mMainWidget->getSize().height-44 );
     }
 
     void InventoryWindow::updatePlayer()
     {
-
         mPtr = MWBase::Environment::get().getWorld ()->getPlayerPtr();
         mTradeModel = new TradeItemModel(new InventoryItemModel(mPtr), MWWorld::Ptr());
 
@@ -359,8 +148,11 @@ namespace MWGui
 
         mItemView->setModel(mSortModel);
 
-        mSortModel->setCategory(SortFilterItemModel::Category_All);
-        onFilterChanged(mAllButton);
+        mFilterAll->setStateSelected(true);
+        mFilterWeapon->setStateSelected(false);
+        mFilterApparel->setStateSelected(false);
+        mFilterMagic->setStateSelected(false);
+        mFilterMisc->setStateSelected(false);
 
         mPreview->updatePtr(mPtr);
         mPreview->rebuild();
@@ -368,6 +160,9 @@ namespace MWGui
 
         dirtyPreview();
 
+        updatePreviewSize();
+
+        updateEncumbranceBar();
         mItemView->update();
         notifyContentChanged();
     }
@@ -419,7 +214,7 @@ namespace MWGui
                             static_cast<int>(Settings::Manager::getFloat(setting + " y", "Windows") * viewSize.height));
         MyGUI::IntSize size(static_cast<int>(Settings::Manager::getFloat(setting + " w", "Windows") * viewSize.width),
                             static_cast<int>(Settings::Manager::getFloat(setting + " h", "Windows") * viewSize.height));
-        
+
         bool needUpdate = (size.width != mMainWidget->getWidth() || size.height != mMainWidget->getHeight());
 
         mMainWidget->setPosition(pos);
@@ -429,23 +224,6 @@ namespace MWGui
 
         if (needUpdate)
             updatePreviewSize();
-    }
-
-    void InventoryWindow::onAvatarToggled(MyGUI::Widget* _sender)
-    {
-        std::string setting = getModeSetting();
-        bool show = false; 
-        if (mLeftPane->getVisible())
-            mLeftPane->setVisible(false);
-        else
-        {
-            show = true;
-            mLeftPane->setVisible(true);
-        }
-
-        Settings::Manager::setBool(setting + " avatar", "Windows", show);
-        adjustPanes();
-        adjustPanes();
     }
 
     SortFilterItemModel* InventoryWindow::getSortFilterModel()
@@ -463,85 +241,6 @@ namespace MWGui
         return mTradeModel;
     }
 
-    void InventoryWindow::onKeyButtonPressed(MyGUI::Widget* sender, MyGUI::KeyCode key)
-    {
-        if (MyGUI::InputManager::getInstance().getMouseFocusWidget() != sender || mDragAndDrop->mIsOnDragAndDrop)
-            return; 
-        
-        GuiMode mode = MWBase::Environment::get().getWindowManager()->getMode();
-        if (mode != GM_Inventory)
-            return; 
-
-        int index = (*sender->getUserData<std::pair<ItemModel::ModelIndex, ItemModel*> >()).first;
-        auto model = (*sender->getUserData<std::pair<ItemModel::ModelIndex, ItemModel*> >()).second;
-        auto item = model->getItem(index);
-        if (key == MyGUI::KeyCode::X) // use/activate 
-        {
-            mDrop = Settings::Manager::getBool("leftclick activates", "MorroUI"); 
-            if (!mDrop)
-            {
-                if (item.mBase.isEmpty()) return;
-
-                MWWorld::Ptr player = MWMechanics::getPlayer();
-                MWWorld::InventoryStore& invStore = player.getClass().getInventoryStore(player);
-
-                std::string sound = item.mBase.getClass().getUpSoundId(item.mBase);
-                MWBase::Environment::get().getWindowManager()->playSound(sound);
-
-                if (invStore.isEquipped(item.mBase))
-                    invStore.unequipItem(item.mBase, player);
-                else 
-                    mwmp::Main::get().getLocalPlayer()->sendItemUse(item.mBase);
-
-                mItemView->update();
-                notifyContentChanged();
-            }
-            else 
-                onItemSelected(index);
-        }
-        else if (key == MyGUI::KeyCode::R) // drop at ground 
-        {
-
-
-            // Can't drop conjured items 
-            if (item.mFlags & ItemStack::Flag_Bound)
-                return;
-
-            MWWorld::InventoryStore& invStore = mPtr.getClass().getInventoryStore(mPtr);
-
-            // If we unequip weapon during attack, it can lead to unexpected behaviour
-            if (MWBase::Environment::get().getMechanicsManager()->isAttackingOrSpell(mPtr))
-            {
-                bool isWeapon = item.mBase.getTypeName() == typeid(ESM::Weapon).name();
-                if (isWeapon && invStore.isEquipped(item.mBase))
-                {
-                    MWBase::Environment::get().getWindowManager()->messageBox("#{sCantEquipWeapWarning}");
-                    return;
-                }
-            }
-
-            auto sound = item.mBase.getClass().getDownSoundId(item.mBase);
-            MWBase::Environment::get().getWindowManager()->playSound(sound);
-
-            auto world = MWBase::Environment::get().getWorld();
-
-            world->breakInvisibility(MWMechanics::getPlayer());
-            
-            mSelectedItem = index;
-            ensureSelectedItemUnequipped(1);
-
-            ProxyWorldItemModel dropped;
-            model->moveItem(model->getItem(index), 1, &dropped);
-            model->update();
-            mItemView->update();
-
-            if (model->getItemCount() == 0)
-                resetAvatar();
-
-            notifyContentChanged();
-        }
-    }
-
     void InventoryWindow::onBackgroundSelected()
     {
         if (mDragAndDrop->mIsOnDragAndDrop)
@@ -551,34 +250,6 @@ namespace MWGui
     void InventoryWindow::onItemSelected (int index)
     {
         onItemSelectedFromSourceModel (mSortModel->mapToSource(index));
-    }
-
-    void InventoryWindow::onToggleItem(MyGUI::Widget* sender, int count)
-    {
-        auto item = mTradeModel->getItem(mSelectedItem);
-
-        if (item.mBase.isEmpty()) return;
-
-        if (mDrop)
-        {
-            mDrop = false; 
-            dragItem(sender, count);
-            return;
-        }
-
-        MWWorld::Ptr player = MWMechanics::getPlayer();
-        MWWorld::InventoryStore& invStore = player.getClass().getInventoryStore(player);
-
-        std::string sound = item.mBase.getClass().getUpSoundId(item.mBase);
-        MWBase::Environment::get().getWindowManager()->playSound(sound);
-
-        if (invStore.isEquipped(item.mBase))
-            invStore.unequipItem(item.mBase, player);
-        else 
-            mwmp::Main::get().getLocalPlayer()->sendItemUse(item.mBase);
-
-        mItemView->update();
-        notifyContentChanged();
     }
 
     void InventoryWindow::onItemSelectedFromSourceModel (int index)
@@ -633,10 +304,6 @@ namespace MWGui
             }
         }
 
-        auto mode = MWBase::Environment::get().getWindowManager()->getMode();
-
-        bool leftClickActivates = Settings::Manager::getBool("leftclick activates", "MorroUI"); 
- 
         if (count > 1 && !shift)
         {
             CountDialog* dialog = MWBase::Environment::get().getWindowManager()->getCountDialog();
@@ -647,12 +314,7 @@ namespace MWGui
             if (mTrading)
                 dialog->eventOkClicked += MyGUI::newDelegate(this, &InventoryWindow::sellItem);
             else
-            {
-                if (mode == GM_Container || mode == GM_Companion || !leftClickActivates)
-                    dialog->eventOkClicked += MyGUI::newDelegate(this, &InventoryWindow::dragItem);
-                else
-                    dialog->eventOkClicked += MyGUI::newDelegate(this, &InventoryWindow::onToggleItem);
-            }
+                dialog->eventOkClicked += MyGUI::newDelegate(this, &InventoryWindow::dragItem);
             mSelectedItem = index;
         }
         else
@@ -661,12 +323,7 @@ namespace MWGui
             if (mTrading)
                 sellItem (nullptr, count);
             else
-            {
-                if (mode == GM_Container || mode == GM_Companion || !leftClickActivates)
-                    dragItem(nullptr, count);
-                else 
-                    onToggleItem (nullptr, count);
-            }
+                dragItem (nullptr, count);
         }
     }
 
@@ -705,8 +362,6 @@ namespace MWGui
 
     void InventoryWindow::dragItem(MyGUI::Widget* sender, int count)
     {
-        resetAvatar();
-
         ensureSelectedItemUnequipped(count);
         mDragAndDrop->startDrag(mSelectedItem, mSortModel, mTradeModel, mItemView, count);
         notifyContentChanged();
@@ -746,30 +401,18 @@ namespace MWGui
     }
 
     void InventoryWindow::onOpen()
-    {   
+    {
         // Reset the filter focus when opening the window
         MyGUI::Widget* focus = MyGUI::InputManager::getInstance().getKeyFocusWidget();
         if (focus == mFilterEdit)
             MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
-        if (MWBase::Environment::get().getWindowManager()->getMode() != GM_Inventory)
-        {
-            mLeftPane->setVisible(false);
-            mToggleAvatar->setVisible(false);
-        }
-        else 
-        {
-            std::string setting = getModeSetting();
-            resetAvatar();
-            mLeftPane->setVisible(Settings::Manager::getBool(setting + " avatar", "Windows"));
-            mToggleAvatar->setVisible(true);
-        }
 
         if (!mPtr.isEmpty())
         {
+            updateEncumbranceBar();
             mItemView->update();
             notifyContentChanged();
         }
-
         adjustPanes();
     }
 
@@ -816,96 +459,10 @@ namespace MWGui
         {
             mLastXSize = mMainWidget->getSize().width;
             mLastYSize = mMainWidget->getSize().height;
-            
+
             updatePreviewSize();
             updateArmorRating();
         }
-    }
-    
-    void InventoryWindow::onAvatarClicked(MyGUI::Widget* _sender)
-    {
-        if (mDragAndDrop->mIsOnDragAndDrop)
-        {
-            MWWorld::Ptr ptr = mDragAndDrop->mItem.mBase;
-
-            mDragAndDrop->finish();
-
-            if (mDragAndDrop->mSourceModel != mTradeModel)
-            {
-                // Move item to the player's inventory
-                ptr = mDragAndDrop->mSourceModel->moveItem(mDragAndDrop->mItem, mDragAndDrop->mDraggedCount, mTradeModel);
-            }
-
-            mwmp::Main::get().getLocalPlayer()->sendItemUse(ptr);
-
-            // If item is ingredient or potion don't stop drag and drop to simplify action of taking more than one 1 item
-            if ((ptr.getTypeName() == typeid(ESM::Potion).name() ||
-                 ptr.getTypeName() == typeid(ESM::Ingredient).name())
-                && mDragAndDrop->mDraggedCount > 1)
-            {
-                // Item can be provided from other window for example container.
-                // But after DragAndDrop::startDrag item automaticly always gets to player inventory.
-                mSelectedItem = getModel()->getIndex(mDragAndDrop->mItem);
-                dragItem(nullptr, mDragAndDrop->mDraggedCount - 1);
-            }
-        }
-        else
-        {
-            MyGUI::IntPoint mousePos = MyGUI::InputManager::getInstance ().getLastPressedPosition (MyGUI::MouseButton::Left);
-            MyGUI::IntPoint relPos = mousePos - mAvatarImage->getAbsolutePosition ();
-
-            MWWorld::Ptr itemSelected = getAvatarSelectedItem (relPos.left, relPos.top);
-            if (itemSelected.isEmpty ())
-                return;
-
-            for (size_t i=0; i < mTradeModel->getItemCount (); ++i)
-            {
-                if (mTradeModel->getItem(i).mBase == itemSelected)
-                {
-                    mDrop = true;
-                    onItemSelectedFromSourceModel(i);
-                    return;
-                }
-            }
-            throw std::runtime_error("Can't find clicked item");
-        }
-    }
-
-    MWWorld::Ptr InventoryWindow::getAvatarSelectedItem(int x, int y)
-    {
-        // convert to OpenGL lower-left origin
-        y = (mAvatarImage->getHeight()-1) - y;
-
-        // Scale coordinates
-        x = int(x*mScaleFactor);
-        y = int(y*mScaleFactor);
-
-        int slot = mPreview->getSlotSelected (x, y);
-
-        if (slot == -1)
-            return MWWorld::Ptr();
-
-        MWWorld::InventoryStore& invStore = mPtr.getClass().getInventoryStore(mPtr);
-        if(invStore.getSlot(slot) != invStore.end())
-        {
-            MWWorld::Ptr item = *invStore.getSlot(slot);
-            if (!item.getClass().showsInInventory(item))
-                return MWWorld::Ptr();
-            return item;
-        }
-
-        return MWWorld::Ptr();
-    }
-
-    void InventoryWindow::updatePreviewSize()
-    {
-        MyGUI::IntSize size = mAvatarImage->getSize();
-        int width = std::min(mPreview->getTextureWidth(), size.width);
-        int height = std::min(mPreview->getTextureHeight(), size.height);
-        mPreview->setViewport(int(width*mScaleFactor), int(height*mScaleFactor));
-
-        mAvatarImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f,
-                                                                     width*mScaleFactor/float(mPreview->getTextureWidth()), height*mScaleFactor/float(mPreview->getTextureHeight())));
     }
 
     void InventoryWindow::updateArmorRating()
@@ -916,11 +473,16 @@ namespace MWGui
             mArmorRating->setCaptionWithReplacing (MyGUI::utility::toString(static_cast<int>(mPtr.getClass().getArmorRating(mPtr))));
     }
 
-    void InventoryWindow::updatePlayerGold()
+    void InventoryWindow::updatePreviewSize()
     {
-        MWWorld::Ptr player = MWMechanics::getPlayer(); 
-        int playerGold = player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId);
-        mPlayerGold->setCaptionWithReplacing (MyGUI::utility::toString(static_cast<int>(playerGold)));
+        MyGUI::IntSize size = mAvatarImage->getSize();
+        int width = std::min(mPreview->getTextureWidth(), size.width);
+        int height = std::min(mPreview->getTextureHeight(), size.height);
+        float scalingFactor = MWBase::Environment::get().getWindowManager()->getScalingFactor();
+        mPreview->setViewport(int(width*scalingFactor), int(height*scalingFactor));
+
+        mAvatarImage->getSubWidgetMain()->_setUVSet(MyGUI::FloatRect(0.f, 0.f,
+                                                                     width*scalingFactor/float(mPreview->getTextureWidth()), height*scalingFactor/float(mPreview->getTextureHeight())));
     }
 
     void InventoryWindow::onNameFilterChanged(MyGUI::EditBox* _sender)
@@ -928,55 +490,28 @@ namespace MWGui
         mSortModel->setNameFilter(_sender->getCaption());
         mItemView->update();
     }
-    
-    void InventoryWindow::onHeaderClicked(int sort)
-    {
-        mSortModel->toggleSort(sort);
-        mItemView->update();
-    }
 
     void InventoryWindow::onFilterChanged(MyGUI::Widget* _sender)
     {
-        MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
-        resetAvatar();
-
-        setTitle(_sender->getUserString("Title"));
-
-        if (_sender == mAllButton)
+        if (_sender == mFilterAll)
             mSortModel->setCategory(SortFilterItemModel::Category_All);
-        else if (_sender == mWeaponButton)
+        else if (_sender == mFilterWeapon)
             mSortModel->setCategory(SortFilterItemModel::Category_Weapon);
-        else if (_sender == mArmorButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Armor);
-        else if (_sender == mClothButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Cloth);
-        else if (_sender == mPotionButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Potion);
-        else if (_sender == mIngredientButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Ingredient);
-        else if (_sender == mMagicButton)
+        else if (_sender == mFilterApparel)
+            mSortModel->setCategory(SortFilterItemModel::Category_Apparel);
+        else if (_sender == mFilterMagic)
             mSortModel->setCategory(SortFilterItemModel::Category_Magic);
-        else if (_sender == mBookButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Book);
-        else if (_sender == mToolButton)
-            mSortModel->setCategory(SortFilterItemModel::Category_Tool);
-        else if (_sender == mMiscButton)
+        else if (_sender == mFilterMisc)
             mSortModel->setCategory(SortFilterItemModel::Category_Misc);
-
-        mAllButton->setStateSelected(false);
-        mWeaponButton->setStateSelected(false);
-        mArmorButton->setStateSelected(false);
-        mClothButton->setStateSelected(false);
-        mPotionButton->setStateSelected(false);
-        mIngredientButton->setStateSelected(false);
-        mToolButton->setStateSelected(false);
-        mBookButton->setStateSelected(false);
-        mMagicButton->setStateSelected(false);
-        mMiscButton->setStateSelected(false);
+        mFilterAll->setStateSelected(false);
+        mFilterWeapon->setStateSelected(false);
+        mFilterApparel->setStateSelected(false);
+        mFilterMagic->setStateSelected(false);
+        mFilterMisc->setStateSelected(false);
 
         mItemView->update();
 
-        _sender->castType<Gui::ImagePushButton>()->setStateSelected(true);
+        _sender->castType<MyGUI::Button>()->setStateSelected(true);
     }
 
     void InventoryWindow::onPinToggled()
@@ -1057,7 +592,92 @@ namespace MWGui
         }
         // else: will be updated in open()
     }
-    
+
+    void InventoryWindow::onAvatarClicked(MyGUI::Widget* _sender)
+    {
+        if (mDragAndDrop->mIsOnDragAndDrop)
+        {
+            MWWorld::Ptr ptr = mDragAndDrop->mItem.mBase;
+
+            mDragAndDrop->finish();
+
+            if (mDragAndDrop->mSourceModel != mTradeModel)
+            {
+                // Move item to the player's inventory
+                ptr = mDragAndDrop->mSourceModel->moveItem(mDragAndDrop->mItem, mDragAndDrop->mDraggedCount, mTradeModel);
+            }
+
+            /*
+                Start of tes3mp change (major)
+
+                Instead of unilaterally using an item, send an ID_PLAYER_ITEM_USE packet and let the server
+                decide if the item actually gets used
+            */
+            //useItem(ptr);
+            mwmp::Main::get().getLocalPlayer()->sendItemUse(ptr);
+            /*
+                End of tes3mp change (major)
+            */
+
+            // If item is ingredient or potion don't stop drag and drop to simplify action of taking more than one 1 item
+            if ((ptr.getTypeName() == typeid(ESM::Potion).name() ||
+                 ptr.getTypeName() == typeid(ESM::Ingredient).name())
+                && mDragAndDrop->mDraggedCount > 1)
+            {
+                // Item can be provided from other window for example container.
+                // But after DragAndDrop::startDrag item automaticly always gets to player inventory.
+                mSelectedItem = getModel()->getIndex(mDragAndDrop->mItem);
+                dragItem(nullptr, mDragAndDrop->mDraggedCount - 1);
+            }
+        }
+        else
+        {
+            MyGUI::IntPoint mousePos = MyGUI::InputManager::getInstance ().getLastPressedPosition (MyGUI::MouseButton::Left);
+            MyGUI::IntPoint relPos = mousePos - mAvatarImage->getAbsolutePosition ();
+
+            MWWorld::Ptr itemSelected = getAvatarSelectedItem (relPos.left, relPos.top);
+            if (itemSelected.isEmpty ())
+                return;
+
+            for (size_t i=0; i < mTradeModel->getItemCount (); ++i)
+            {
+                if (mTradeModel->getItem(i).mBase == itemSelected)
+                {
+                    onItemSelectedFromSourceModel(i);
+                    return;
+                }
+            }
+            throw std::runtime_error("Can't find clicked item");
+        }
+    }
+
+    MWWorld::Ptr InventoryWindow::getAvatarSelectedItem(int x, int y)
+    {
+        // convert to OpenGL lower-left origin
+        y = (mAvatarImage->getHeight()-1) - y;
+
+        // Scale coordinates
+        float scalingFactor = MWBase::Environment::get().getWindowManager()->getScalingFactor();
+        x = static_cast<int>(x*scalingFactor);
+        y = static_cast<int>(y*scalingFactor);
+
+        int slot = mPreview->getSlotSelected (x, y);
+
+        if (slot == -1)
+            return MWWorld::Ptr();
+
+        MWWorld::InventoryStore& invStore = mPtr.getClass().getInventoryStore(mPtr);
+        if(invStore.getSlot(slot) != invStore.end())
+        {
+            MWWorld::Ptr item = *invStore.getSlot(slot);
+            if (!item.getClass().showsInInventory(item))
+                return MWWorld::Ptr();
+            return item;
+        }
+
+        return MWWorld::Ptr();
+    }
+
     void InventoryWindow::updateEncumbranceBar()
     {
         MWWorld::Ptr player = MWMechanics::getPlayer();
@@ -1065,13 +685,7 @@ namespace MWGui
         float capacity = player.getClass().getCapacity(player);
         float encumbrance = player.getClass().getEncumbrance(player);
         mTradeModel->adjustEncumbrance(encumbrance);
-
-        mArmorRating->setCaptionWithReplacing (MyGUI::utility::toString(static_cast<int>(mPtr.getClass().getArmorRating(mPtr))));
-
-
-        mEncumbranceBar->setCaptionWithReplacing(MyGUI::utility::toString(std::ceil(encumbrance))
-            + "/" 
-            + MyGUI::utility::toString(static_cast<int>(capacity)));
+        mEncumbranceBar->setValue(std::ceil(encumbrance), static_cast<int>(capacity));
     }
 
     void InventoryWindow::onFrame(float dt)
@@ -1105,8 +719,6 @@ namespace MWGui
         mPreview->update();
 
         updateArmorRating();
-        updatePlayerGold();
-        updateEncumbranceBar();
     }
 
     void InventoryWindow::notifyContentChanged()
@@ -1202,7 +814,8 @@ namespace MWGui
             return;
 
         const MWMechanics::CreatureStats &stats = player.getClass().getCreatureStats(player);
-        if (stats.isParalyzed() || stats.getKnockedDown() || stats.isDead() || stats.getHitRecovery())
+        bool godmode = MWBase::Environment::get().getWorld()->getGodModeState();
+        if ((!godmode && stats.isParalyzed()) || stats.getKnockedDown() || stats.isDead() || stats.getHitRecovery())
             return;
 
         ItemModel::ModelIndex selected = -1;
@@ -1251,7 +864,17 @@ namespace MWGui
         if (!found || selected == cycled)
             return;
 
+        /*
+            Start of tes3mp change (major)
+
+            Instead of unilaterally using an item, send an ID_PLAYER_ITEM_USE packet and let the server
+            decide if the item actually gets used
+        */
+        //useItem(model.getItem(cycled).mBase);
         mwmp::Main::get().getLocalPlayer()->sendItemUse(model.getItem(cycled).mBase);
+        /*
+            End of tes3mp change (major)
+        */
     }
 
     void InventoryWindow::rebuildAvatar()

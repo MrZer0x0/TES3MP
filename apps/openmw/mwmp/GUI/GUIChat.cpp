@@ -30,7 +30,7 @@ namespace mwmp
         mCommandLine->eventKeyButtonPressed +=
                 newDelegate(this, &GUIChat::keyPress);
 
-        setTitle("#{setting=UI,chat.title}");
+        setTitle("Chat");
 
         mHistory->setOverflowToTheLeft(true);
         mHistory->setEditWordWrap(true);

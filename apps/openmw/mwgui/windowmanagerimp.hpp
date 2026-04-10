@@ -632,7 +632,6 @@ namespace MWGui
      * Called when MyGUI tries to retrieve a tag's value. Tags must be denoted in #{tag} notation and will be replaced upon setting a user visible text/property.
      * Supported syntax:
      * #{GMSTName}: retrieves String value of the GMST called GMSTName
-     * #{gmst=GMSTName,FallbackText}: retrieves String value of the GMST called GMSTName, or FallbackText if the GMST is missing/not a string
      * #{setting=CATEGORY_NAME,SETTING_NAME}: retrieves String value of SETTING_NAME under category CATEGORY_NAME from settings.cfg
      * #{sCell=CellID}: retrieves translated name of the given CellID (used only by some Morrowind localisations, in others cell ID is == cell name)
      * #{fontcolour=FontColourName}: retrieves the value of the fallback setting "FontColor_color_<FontColourName>" from openmw.cfg,
