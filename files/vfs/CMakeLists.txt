@@ -97,7 +97,7 @@ set(VFS_FILES
     textures/ui/weapon_pressed.dds
 
     # MorroUI sound effects
-    sound/fx/inventory hover.mp3
+    sound/fx/inventory_hover.mp3
     # End of MorroUI addition
 )
 

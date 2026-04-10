@@ -246,13 +246,9 @@ run_cmd() {
 		eval $CMD $@ > output.log 2>&1 || RET=$?
 
 		if [ $RET -ne 0 ]; then
-			if [ -z $APPVEYOR ]; then
-				echo "Command $CMD failed, output can be found in $(real_pwd)/output.log"
-			else
-				echo
-				echo "Command $CMD failed;"
-				cat output.log
-			fi
+			echo
+			echo "Command $CMD failed (cmake output follows):"
+			cat output.log
 		else
 			rm output.log
 		fi
@@ -294,7 +290,7 @@ download() {
 			fi
 
 			if [ $RET -ne 0 ]; then
-				echo "Failed!"
+			if [ $RET -ne 0 ]; then
 				wrappedExit $RET
 			else
 				echo "Done."
@@ -1253,7 +1249,7 @@ if [ -z $VERBOSE ]; then
 	fi
 fi
 if [ $RET -ne 0 ]; then
-	wrappedExit $RET
+if [ $RET -ne 0 ]; then
 fi
 
 echo "Script completed successfully."
