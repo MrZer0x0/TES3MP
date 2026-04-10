@@ -23,10 +23,10 @@ namespace MWRender
     /// \brief Camera control
     class Camera
     {
-    public:
-        enum class Mode { Normal, Vanity, Preview, StandingPreview };
+        struct CamData {
+            float pitch, yaw, offset;
+        };
 
-    private:
         MWWorld::Ptr mTrackingPtr;
         osg::ref_ptr<const osg::Node> mTrackingNode;
         float mHeightScale;
@@ -36,73 +36,31 @@ namespace MWRender
         NpcAnimation *mAnimation;
 
         bool mFirstPersonView;
-        Mode mMode;
-        bool mVanityAllowed;
-        bool mStandingPreviewAllowed;
-        bool mDeferredRotationAllowed;
-
+        bool mPreviewMode;
         float mNearest;
         float mFurthest;
         bool mIsNearest;
 
-        float mHeight, mBaseCameraDistance;
-        float mPitch, mYaw, mRoll;
+        struct {
+            bool enabled, allowed;
+        } mVanity;
+
+        float mHeight, mMaxCameraDistance;
+        CamData mMainCam, mPreviewCam;
 
         bool mVanityToggleQueued;
         bool mVanityToggleQueuedValue;
         bool mViewModeToggleQueued;
 
         float mCameraDistance;
-        float mMaxNextCameraDistance;
-
-        osg::Vec3d mFocalPointAdjustment;
-        osg::Vec2d mFocalPointCurrentOffset;
-        osg::Vec2d mFocalPointTargetOffset;
-        float mFocalPointTransitionSpeedCoef;
-        bool mSkipFocalPointTransition;
-
-        // This fields are used to make focal point transition smooth if previous transition was not finished.
-        float mPreviousTransitionInfluence;
-        osg::Vec2d mFocalPointTransitionSpeed;
-        osg::Vec2d mPreviousTransitionSpeed;
-        osg::Vec2d mPreviousExtraOffset;
-
-        float mSmoothedSpeed;
-        float mZoomOutWhenMoveCoef;
-        bool mDynamicCameraDistanceEnabled;
-        bool mShowCrosshairInThirdPersonMode;
-
-        bool mHeadBobbingEnabled;
-        float mHeadBobbingOffset;
-        float mHeadBobbingWeight; // Value from 0 to 1 for smooth enabling/disabling.
-        float mTotalMovement; // Needed for head bobbing.
-        void updateHeadBobbing(float duration);
-
-        void updateFocalPointOffset(float duration);
-        void updatePosition();
-        float getCameraDistanceCorrection() const;
 
         osg::ref_ptr<osg::NodeCallback> mUpdateCallback;
-
-        // Used to rotate player to the direction of view after exiting preview or vanity mode.
-        osg::Vec3f mDeferredRotation;
-        bool mDeferredRotationDisabled;
-        void calculateDeferredRotation();
-        void updateStandingPreviewMode();
 
     public:
         Camera(osg::Camera* camera);
         ~Camera();
 
-        /// Attach camera to object
-        void attachTo(const MWWorld::Ptr &ptr) { mTrackingPtr = ptr; }
-        MWWorld::Ptr getTrackingPtr() const { return mTrackingPtr; }
-
-        void setFocalPointTransitionSpeed(float v) { mFocalPointTransitionSpeedCoef = v; }
-        void setFocalPointTargetOffset(osg::Vec2d v);
-        void instantTransition();
-        void enableDynamicCameraDistance(bool v) { mDynamicCameraDistanceEnabled = v; }
-        void enableCrosshairInThirdPersonMode(bool v) { mShowCrosshairInThirdPersonMode = v; }
+        MWWorld::Ptr getTrackingPtr() const;
 
         /// Update the view matrix of \a cam
         void updateCamera(osg::Camera* cam);
@@ -113,13 +71,15 @@ namespace MWRender
         /// Set where the camera is looking at. Uses Morrowind (euler) angles
         /// \param rot Rotation angles in radians
         void rotateCamera(float pitch, float yaw, bool adjust);
-        void rotateCameraToTrackingPtr();
 
-        float getYaw() const { return mYaw; }
+        float getYaw();
         void setYaw(float angle);
 
-        float getPitch() const { return mPitch; }
+        float getPitch();
         void setPitch(float angle);
+
+        /// Attach camera to object
+        void attachTo(const MWWorld::Ptr &);
 
         /// @param Force view mode switch, even if currently not allowed by the animation.
         void toggleViewMode(bool force=false);
@@ -130,35 +90,37 @@ namespace MWRender
         /// @note this may be ignored if an important animation is currently playing
         void togglePreviewMode(bool enable);
 
-        void applyDeferredPreviewRotationToPlayer(float dt);
-        void disableDeferredPreviewRotation() { mDeferredRotationDisabled = true; }
-
         /// \brief Lowers the camera for sneak.
         void setSneakOffset(float offset);
 
-        bool isFirstPerson() const { return mFirstPersonView && mMode == Mode::Normal; }
+        bool isFirstPerson() const
+        { return !(mVanity.enabled || mPreviewMode || !mFirstPersonView); }
 
         void processViewChange();
 
         void update(float duration, bool paused=false);
 
-        /// Adds distDelta to the camera distance. Switches 3rd/1st person view if distance is less than limit.
-        void adjustCameraDistance(float distDelta);
+        /// Set camera distance for current mode. Don't work on 1st person view.
+        /// \param adjust Indicates should distance be adjusted or set.
+        /// \param override If true new distance will be used as default.
+        /// If false, default distance can be restored with setCameraDistance().
+        void setCameraDistance(float dist, bool adjust = false, bool override = true);
+
+        /// Restore default camera distance for current mode.
+        void setCameraDistance();
 
         float getCameraDistance() const;
 
         void setAnimation(NpcAnimation *anim);
 
-        osg::Vec3d getFocalPoint() const;
-        osg::Vec3d getFocalPointOffset() const;
+        osg::Vec3d getFocalPoint();
 
         /// Stores focal and camera world positions in passed arguments
-        void getPosition(osg::Vec3d &focal, osg::Vec3d &camera) const;
+        void getPosition(osg::Vec3f &focal, osg::Vec3f &camera);
 
-        bool isVanityOrPreviewModeEnabled() const { return mMode != Mode::Normal; }
-        Mode getMode() const { return mMode; }
+        bool isVanityOrPreviewModeEnabled();
 
-        bool isNearest() const { return mIsNearest; }
+        bool isNearest();
     };
 }
 

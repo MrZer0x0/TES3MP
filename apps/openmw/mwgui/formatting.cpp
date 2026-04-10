@@ -30,18 +30,14 @@ namespace MWGui
 
             // vanilla game does not show any text after the last EOL tag.
             const std::string lowerText = Misc::StringUtils::lowerCase(mText);
-            size_t brIndex = lowerText.rfind("<br>");
-            size_t pIndex = lowerText.rfind("<p>");
-            mPlainTextEnd = 0;
-            if (brIndex != pIndex)
-            {
-                if (brIndex != std::string::npos && pIndex != std::string::npos)
-                    mPlainTextEnd = std::max(brIndex, pIndex);
-                else if (brIndex != std::string::npos)
-                    mPlainTextEnd = brIndex;
-                else
-                    mPlainTextEnd = pIndex;
-            }
+            int brIndex = lowerText.rfind("<br>");
+            int pIndex = lowerText.rfind("<p>");
+            if (brIndex == pIndex)
+                mText = "";
+            else if (brIndex > pIndex)
+                mText = mText.substr(0, brIndex+4);
+            else
+                mText = mText.substr(0, pIndex+3);
 
             registerTag("br", Event_BrTag);
             registerTag("p", Event_PTag);
@@ -107,8 +103,7 @@ namespace MWGui
                 {
                     if (!mIgnoreLineEndings || ch != '\n')
                     {
-                        if (mIndex < mPlainTextEnd)
-                            mBuffer.push_back(ch);
+                        mBuffer.push_back(ch);
                         mIgnoreLineEndings = false;
                         mIgnoreNewlineTags = false;
                     }
@@ -416,8 +411,11 @@ namespace MWGui
             box->setNeedKeyFocus(false);
             box->setMaxTextLength(text.size());
             box->setTextAlign(mBlockStyle.mAlign);
-            box->setTextColour(mTextStyle.mColour);
+            //box->setTextColour(mTextStyle.mColour);
+            box->setTextColour(MyGUI::Colour("0.10 0.08 0.08"));
+            //box->setFontName(mTextStyle.mFont);
             box->setFontName(mTextStyle.mFont);
+            box->setFontHeight(Settings::Manager::getInt("book font size", "MorroUI"));
             box->setCaption(MyGUI::TextIterator::toTagsString(text));
             box->setSize(box->getSize().width, box->getTextSize().height);
             mEditBox = box;
@@ -431,7 +429,7 @@ namespace MWGui
         int TextElement::pageSplit()
         {
             // split lines
-            const int lineHeight = MWBase::Environment::get().getWindowManager()->getFontHeight();
+            const int lineHeight = Settings::Manager::getInt("book font size", "MorroUI"); 
             unsigned int lastLine = (mPaginator.getStartTop() + mPaginator.getPageHeight() - mPaginator.getCurrentTop());
             if (lineHeight > 0)
                 lastLine /= lineHeight;

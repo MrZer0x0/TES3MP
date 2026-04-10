@@ -161,9 +161,9 @@ namespace ESM
             {
                 // Generate WNAM record
                 signed char wnam[LAND_GLOBAL_MAP_LOD_SIZE];
-                constexpr float max = std::numeric_limits<signed char>::max();
-                constexpr float min = std::numeric_limits<signed char>::min();
-                constexpr float vertMult = static_cast<float>(ESM::Land::LAND_SIZE - 1) / LAND_GLOBAL_MAP_LOD_SIZE_SQRT;
+                float max = std::numeric_limits<signed char>::max();
+                float min = std::numeric_limits<signed char>::min();
+                float vertMult = static_cast<float>(ESM::Land::LAND_SIZE - 1) / LAND_GLOBAL_MAP_LOD_SIZE_SQRT;
                 for (int row = 0; row < LAND_GLOBAL_MAP_LOD_SIZE_SQRT; ++row)
                 {
                     for (int col = 0; col < LAND_GLOBAL_MAP_LOD_SIZE_SQRT; ++col)
@@ -331,10 +331,9 @@ namespace ESM
         std::copy(land.mWnam, land.mWnam + LAND_GLOBAL_MAP_LOD_SIZE, mWnam);
     }
 
-    Land& Land::operator= (const Land& land)
+    Land& Land::operator= (Land land)
     {
-        Land tmp(land);
-        swap(tmp);
+        swap (land);
         return *this;
     }
 

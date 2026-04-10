@@ -369,7 +369,7 @@ namespace MWGui
             if (!playable) // Only display playable races
                 continue;
 
-            items.emplace_back(race.mId, race.mName);
+            items.push_back(std::make_pair(race.mId, race.mName));
         }
         std::sort(items.begin(), items.end(), sortRaces);
 

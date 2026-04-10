@@ -25,22 +25,22 @@ namespace MWScript
             CompilerContext (Type type);
 
             /// Is the compiler allowed to declare local variables?
-            bool canDeclareLocals() const override;
+            virtual bool canDeclareLocals() const;
 
             /// 'l: long, 's': short, 'f': float, ' ': does not exist.
-            char getGlobalType (const std::string& name) const override;
+            virtual char getGlobalType (const std::string& name) const;
 
-            std::pair<char, bool> getMemberType (const std::string& name,
-                const std::string& id) const override;
+            virtual std::pair<char, bool> getMemberType (const std::string& name,
+                const std::string& id) const;
             ///< Return type of member variable \a name in script \a id or in script of reference of
             /// \a id
             /// \return first: 'l: long, 's': short, 'f': float, ' ': does not exist.
             /// second: true: script of reference
 
-            bool isId (const std::string& name) const override;
+            virtual bool isId (const std::string& name) const;
             ///< Does \a name match an ID, that can be referenced?
 
-            bool isJournalId (const std::string& name) const override;
+            virtual bool isJournalId (const std::string& name) const;
             ///< Does \a name match a journal ID?
     };
 }

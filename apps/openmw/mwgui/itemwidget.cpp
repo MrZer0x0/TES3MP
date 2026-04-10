@@ -5,11 +5,7 @@
 #include <MyGUI_RenderManager.h>
 #include <MyGUI_TextBox.h>
 
-#include <components/debug/debuglog.hpp>
 // correctIconPath
-#include <components/resource/resourcesystem.hpp>
-#include <components/vfs/manager.hpp>
-
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
 
@@ -110,13 +106,7 @@ namespace MWGui
         std::string invIcon = ptr.getClass().getInventoryIcon(ptr);
         if (invIcon.empty())
             invIcon = "default icon.tga";
-        invIcon = MWBase::Environment::get().getWindowManager()->correctIconPath(invIcon);
-        if (!MWBase::Environment::get().getResourceSystem()->getVFS()->exists(invIcon))
-        {
-            Log(Debug::Error) << "Failed to open image: '" << invIcon << "' not found, falling back to 'default-icon.tga'";
-            invIcon = MWBase::Environment::get().getWindowManager()->correctIconPath("default icon.tga");
-        }
-        setIcon(invIcon);
+        setIcon(MWBase::Environment::get().getWindowManager()->correctIconPath(invIcon));
     }
 
 

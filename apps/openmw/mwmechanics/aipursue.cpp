@@ -3,11 +3,11 @@
 #include <components/esm/aisequence.hpp>
 
 #include "../mwbase/environment.hpp"
-#include "../mwbase/mechanicsmanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
 #include "../mwworld/class.hpp"
+#include "../mwworld/action.hpp"
 
 /*
     Start of tes3mp addition
@@ -39,6 +39,10 @@ AiPursue::AiPursue(const ESM::AiSequence::AiPursue *pursue)
     mTargetActorId = pursue->mTargetActorId;
 }
 
+AiPursue *MWMechanics::AiPursue::clone() const
+{
+    return new AiPursue(*this);
+}
 bool AiPursue::execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration)
 {
     if(actor.getClass().getCreatureStats(actor).isDead())
@@ -51,8 +55,8 @@ bool AiPursue::execute (const MWWorld::Ptr& actor, CharacterController& characte
     if (target == MWWorld::Ptr() || !target.getRefData().getCount() || !target.getRefData().isEnabled())
         return true;
 
-    if (isTargetMagicallyHidden(target) && !MWBase::Environment::get().getMechanicsManager()->awarenessCheck(target, actor))
-        return false;
+    if (isTargetMagicallyHidden(target))
+        return true;
 
     if (target.getClass().getCreatureStats(target).isDead())
         return true;
@@ -85,11 +89,8 @@ bool AiPursue::execute (const MWWorld::Ptr& actor, CharacterController& characte
 
     const float pathTolerance = 100.f;
 
-    // check the true distance in case the target is far away in Z-direction
-    bool reached = pathTo(actor, dest, duration, pathTolerance) &&
-                   std::abs(dest.z() - actorPos.z()) < pathTolerance;
-
-    if (reached)
+    if (pathTo(actor, dest, duration, pathTolerance) &&
+        std::abs(dest.z() - actorPos.z()) < pathTolerance) // check the true distance in case the target is far away in Z-direction
     {
         if (!MWBase::Environment::get().getWorld()->getLOS(target, actor))
             return false;
@@ -115,6 +116,11 @@ bool AiPursue::execute (const MWWorld::Ptr& actor, CharacterController& characte
     actor.getClass().getCreatureStats(actor).setMovementFlag(MWMechanics::CreatureStats::Flag_Run, true); //Make NPC run
 
     return false;
+}
+
+int AiPursue::getTypeId() const
+{
+    return TypeIdPursue;
 }
 
 MWWorld::Ptr AiPursue::getTarget() const

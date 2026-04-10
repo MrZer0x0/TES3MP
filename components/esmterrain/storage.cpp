@@ -2,6 +2,8 @@
 
 #include <set>
 
+#include <OpenThreads/ScopedLock>
+
 #include <osg/Image>
 #include <osg/Plane>
 
@@ -71,7 +73,7 @@ namespace ESMTerrain
         int endColumn = startColumn + size * (ESM::Land::LAND_SIZE-1) + 1;
 
         osg::ref_ptr<const LandObject> land = getLand (cellX, cellY);
-        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VHGT) : nullptr;
+        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VHGT) : 0;
         if (data)
         {
             min = std::numeric_limits<float>::max();
@@ -119,7 +121,7 @@ namespace ESMTerrain
         }
 
         const LandObject* land = getLand(cellX, cellY, cache);
-        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VNML) : nullptr;
+        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VNML) : 0;
         if (data)
         {
             normal.x() = data->mNormals[col*ESM::Land::LAND_SIZE*3+row*3];
@@ -156,7 +158,7 @@ namespace ESMTerrain
         }
 
         const LandObject* land = getLand(cellX, cellY, cache);
-        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VCLR) : nullptr;
+        const ESM::Land::LandData* data = land ? land->getData(ESM::Land::DATA_VCLR) : 0;
         if (data)
         {
             color.r() = data->mColours[col*ESM::Land::LAND_SIZE*3+row*3];
@@ -207,9 +209,9 @@ namespace ESMTerrain
             for (int cellX = startCellX; cellX < startCellX + std::ceil(size); ++cellX)
             {
                 const LandObject* land = getLand(cellX, cellY, cache);
-                const ESM::Land::LandData *heightData = nullptr;
-                const ESM::Land::LandData *normalData = nullptr;
-                const ESM::Land::LandData *colourData = nullptr;
+                const ESM::Land::LandData *heightData = 0;
+                const ESM::Land::LandData *normalData = 0;
+                const ESM::Land::LandData *colourData = 0;
                 if (land)
                 {
                     heightData = land->getData(ESM::Land::DATA_VHGT);
@@ -341,7 +343,7 @@ namespace ESMTerrain
 
         const LandObject* land = getLand(cellX, cellY, cache);
 
-        const ESM::Land::LandData *data = land ? land->getData(ESM::Land::DATA_VTEX) : nullptr;
+        const ESM::Land::LandData *data = land ? land->getData(ESM::Land::DATA_VTEX) : 0;
         if (data)
         {
             int tex = data->mTextures[y * ESM::Land::LAND_TEXTURE_SIZE + x];
@@ -546,7 +548,7 @@ namespace ESMTerrain
 
     Terrain::LayerInfo Storage::getLayerInfo(const std::string& texture)
     {
-        std::lock_guard<std::mutex> lock(mLayerInfoMutex);
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mLayerInfoMutex);
 
         // Already have this cached?
         std::map<std::string, Terrain::LayerInfo>::iterator found = mLayerInfoMap.find(texture);

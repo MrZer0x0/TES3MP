@@ -12,7 +12,7 @@ void ESM::Locals::load (ESMReader &esm)
         Variant value;
         value.read (esm, Variant::Format_Local);
 
-        mVariables.emplace_back (id, value);
+        mVariables.push_back (std::make_pair (id, value));
     }
 }
 

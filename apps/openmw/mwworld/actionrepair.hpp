@@ -9,7 +9,7 @@ namespace MWWorld
     {
         bool mForce;
 
-        void executeImp (const Ptr& actor) override;
+        virtual void executeImp (const Ptr& actor);
 
     public:
         /// @param item repair hammer

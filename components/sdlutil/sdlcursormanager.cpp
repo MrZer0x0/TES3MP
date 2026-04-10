@@ -50,7 +50,7 @@ namespace CursorDecompression
                 traits->alpha = 8;
                 traits->windowDecoration = false;
                 traits->doubleBuffer = false;
-                traits->sharedContext = nullptr;
+                traits->sharedContext = 0;
                 traits->pbuffer = true;
 
                 osg::GraphicsContext::ScreenIdentifier si;
@@ -267,7 +267,7 @@ namespace SDLUtil
         if (mCursorMap.find(name) != mCursorMap.end())
             return;
 
-        static bool forceSoftwareDecompression = (getenv("OPENMW_DECOMPRESS_TEXTURES") != nullptr);
+        static bool forceSoftwareDecompression = (getenv("OPENMW_DECOMPRESS_TEXTURES") != 0);
 
         SurfaceUniquePtr (*decompressionFunction)(osg::ref_ptr<osg::Image>, float);
         if (forceSoftwareDecompression || CursorDecompression::DXTCSupported) {

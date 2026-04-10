@@ -8,7 +8,7 @@ namespace MWWorld
     class ActionAlchemy : public Action
     {
         bool mForce;
-        void executeImp (const Ptr& actor) override;
+        virtual void executeImp (const Ptr& actor);
 
     public:
         ActionAlchemy(bool force=false);

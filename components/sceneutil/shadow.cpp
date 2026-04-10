@@ -2,7 +2,6 @@
 
 #include <osgShadow/ShadowedScene>
 
-#include <components/misc/stringops.hpp>
 #include <components/settings/settings.hpp>
 
 namespace SceneUtil
@@ -39,11 +38,9 @@ namespace SceneUtil
         }
 
         mShadowSettings->setMinimumShadowMapNearFarRatio(Settings::Manager::getFloat("minimum lispsm near far ratio", "Shadows"));
-
-        std::string computeSceneBounds = Settings::Manager::getString("compute scene bounds", "Shadows");
-        if (Misc::StringUtils::lowerCase(computeSceneBounds) == "primitives")
+        if (Settings::Manager::getBool("compute tight scene bounds", "Shadows"))
             mShadowSettings->setComputeNearFarModeOverride(osg::CullSettings::COMPUTE_NEAR_FAR_USING_PRIMITIVES);
-        else if (Misc::StringUtils::lowerCase(computeSceneBounds) == "bounds")
+        else
             mShadowSettings->setComputeNearFarModeOverride(osg::CullSettings::COMPUTE_NEAR_FAR_USING_BOUNDING_VOLUMES);
 
         int mapres = Settings::Manager::getInt("shadow map resolution", "Shadows");
@@ -72,9 +69,6 @@ namespace SceneUtil
 
     void ShadowManager::disableShadowsForStateSet(osg::ref_ptr<osg::StateSet> stateset)
     {
-        if (!Settings::Manager::getBool("enable shadows", "Shadows"))
-            return;
-
         int numberOfShadowMapsPerLight = Settings::Manager::getInt("number of shadow maps", "Shadows");
         numberOfShadowMapsPerLight = std::max(1, std::min(numberOfShadowMapsPerLight, 8));
 
@@ -171,7 +165,7 @@ namespace SceneUtil
         if (Settings::Manager::getBool("enable indoor shadows", "Shadows"))
             mShadowSettings->setCastsShadowTraversalMask(mIndoorShadowCastingMask);
         else
-            mShadowTechnique->disableShadows(true);
+            mShadowTechnique->disableShadows();
     }
 
     void ShadowManager::enableOutdoorMode()

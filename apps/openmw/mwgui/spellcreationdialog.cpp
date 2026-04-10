@@ -405,8 +405,7 @@ namespace MWGui
         MWWorld::Ptr player = MWMechanics::getPlayer();
         int playerGold = player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId);
 
-        int price = MyGUI::utility::parseInt(mPriceLabel->getCaption());
-        if (price > playerGold)
+        if (MyGUI::utility::parseInt(mPriceLabel->getCaption()) > playerGold)
         {
             MWBase::Environment::get().getWindowManager()->messageBox ("#{sNotifyMessage18}");
             return;
@@ -414,10 +413,16 @@ namespace MWGui
 
         mSpell.mName = mNameEdit->getCaption();
 
+        int price = MyGUI::utility::parseInt(mPriceLabel->getCaption());
+
         player.getClass().getContainerStore(player).remove(MWWorld::ContainerStore::sGoldId, price, player);
 
         // add gold to NPC trading gold pool
         MWMechanics::CreatureStats& npcStats = mPtr.getClass().getCreatureStats(mPtr);
+        npcStats.setGoldPool(npcStats.getGoldPool() + price);
+
+        MWBase::Environment::get().getWindowManager()->playSound ("Mysticism Hit");
+
 
         /*
             Start of tes3mp change (major)
@@ -450,6 +455,7 @@ namespace MWGui
 
         MWMechanics::CreatureStats& stats = player.getClass().getCreatureStats(player);
         MWMechanics::Spells& spells = stats.getSpells();
+        spells.add (spell->mId);
         spells.add(spell->mId);
         */
 
@@ -516,8 +522,7 @@ namespace MWGui
         float fSpellMakingValueMult =
             store.get<ESM::GameSetting>().find("fSpellMakingValueMult")->mValue.getFloat();
 
-        int price = std::max(1, static_cast<int>(y * fSpellMakingValueMult));
-        price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, price, true);
+        int price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, static_cast<int>(y * fSpellMakingValueMult),true);
 
         mPriceLabel->setCaption(MyGUI::utility::toString(int(price)));
 
@@ -628,7 +633,7 @@ namespace MWGui
         mAddEffectDialog.newEffect(effect);
         mAddEffectDialog.setAttribute (mSelectAttributeDialog->getAttributeId());
         MWBase::Environment::get().getWindowManager ()->removeDialog (mSelectAttributeDialog);
-        mSelectAttributeDialog = nullptr;
+        mSelectAttributeDialog = 0;
     }
 
     void EffectEditorBase::onSelectSkill ()
@@ -639,7 +644,7 @@ namespace MWGui
         mAddEffectDialog.newEffect(effect);
         mAddEffectDialog.setSkill (mSelectSkillDialog->getSkillId());
         MWBase::Environment::get().getWindowManager ()->removeDialog (mSelectSkillDialog);
-        mSelectSkillDialog = nullptr;
+        mSelectSkillDialog = 0;
     }
 
     void EffectEditorBase::onAttributeOrSkillCancel ()
@@ -649,8 +654,8 @@ namespace MWGui
         if (mSelectAttributeDialog)
             MWBase::Environment::get().getWindowManager ()->removeDialog (mSelectAttributeDialog);
 
-        mSelectSkillDialog = nullptr;
-        mSelectAttributeDialog = nullptr;
+        mSelectSkillDialog = 0;
+        mSelectAttributeDialog = 0;
     }
 
     void EffectEditorBase::onAvailableEffectClicked (MyGUI::Widget* sender)
@@ -780,24 +785,5 @@ namespace MWGui
     {
         mAddEffectDialog.setConstantEffect(constant);
         mConstantEffect = constant;
-
-        if (!constant)
-            return;
-
-        for (auto it = mEffects.begin(); it != mEffects.end();)
-        {
-            if (it->mRange != ESM::RT_Self)
-            {
-                auto& store = MWBase::Environment::get().getWorld()->getStore();
-                auto magicEffect = store.get<ESM::MagicEffect>().find(it->mEffectID);
-                if ((magicEffect->mData.mFlags & ESM::MagicEffect::CastSelf) == 0)
-                {
-                    it = mEffects.erase(it);
-                    continue;
-                }
-                it->mRange = ESM::RT_Self;
-            }
-            ++it;
-        }
     }
 }

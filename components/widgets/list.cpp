@@ -7,9 +7,9 @@
 namespace Gui
 {
 
-    MWList::MWList()
-        : mScrollView(nullptr)
-        , mClient(nullptr)
+    MWList::MWList() :
+        mScrollView(0)
+        ,mClient(0)
         , mItemHeight(0)
     {
     }
@@ -19,7 +19,7 @@ namespace Gui
         Base::initialiseOverride();
 
         assignWidget(mClient, "Client");
-        if (mClient == nullptr)
+        if (mClient == 0)
             mClient = this;
 
         mScrollView = mClient->createWidgetReal<MyGUI::ScrollView>(
@@ -34,7 +34,7 @@ namespace Gui
 
     void MWList::addSeparator()
     {
-        mItems.emplace_back("");
+        mItems.push_back("");
     }
 
     void MWList::adjustSize()
@@ -115,7 +115,7 @@ namespace Gui
 
     unsigned int MWList::getItemCount()
     {
-        return static_cast<unsigned int>(mItems.size());
+        return mItems.size();
     }
 
     std::string MWList::getItemNameAt(unsigned int at)

@@ -12,7 +12,8 @@ namespace Compiler
 
     int Extensions::searchKeyword (const std::string& keyword) const
     {
-        auto iter = mKeywords.find (keyword);
+        std::map<std::string, int>::const_iterator iter = mKeywords.find (keyword);
+
         if (iter==mKeywords.end())
             return 0;
 
@@ -22,7 +23,8 @@ namespace Compiler
     bool Extensions::isFunction (int keyword, ScriptReturn& returnType, ScriptArgs& argumentType,
         bool& explicitReference) const
     {
-        auto iter = mFunctions.find (keyword);
+        std::map<int, Function>::const_iterator iter = mFunctions.find (keyword);
+
         if (iter==mFunctions.end())
             return false;
 
@@ -37,7 +39,8 @@ namespace Compiler
     bool Extensions::isInstruction (int keyword, ScriptArgs& argumentType,
         bool& explicitReference) const
     {
-        auto iter = mInstructions.find (keyword);
+        std::map<int, Instruction>::const_iterator iter = mInstructions.find (keyword);
+
         if (iter==mInstructions.end())
             return false;
 
@@ -112,7 +115,8 @@ namespace Compiler
     {
         assert (optionalArguments>=0);
 
-        auto iter = mFunctions.find (keyword);
+        std::map<int, Function>::const_iterator iter = mFunctions.find (keyword);
+
         if (iter==mFunctions.end())
             throw std::logic_error ("unknown custom function keyword");
 
@@ -160,7 +164,8 @@ namespace Compiler
     {
         assert (optionalArguments>=0);
 
-        auto iter = mInstructions.find (keyword);
+        std::map<int, Instruction>::const_iterator iter = mInstructions.find (keyword);
+
         if (iter==mInstructions.end())
             throw std::logic_error ("unknown custom instruction keyword");
 
@@ -204,7 +209,8 @@ namespace Compiler
 
     void Extensions::listKeywords (std::vector<std::string>& keywords) const
     {
-        for (const auto & mKeyword : mKeywords)
-            keywords.push_back (mKeyword.first);
+        for (std::map<std::string, int>::const_iterator iter (mKeywords.begin());
+            iter!=mKeywords.end(); ++iter)
+            keywords.push_back (iter->first);
     }
 }

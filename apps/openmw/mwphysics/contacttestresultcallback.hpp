@@ -5,7 +5,7 @@
 
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
 
-#include "physicssystem.hpp"
+#include "../mwworld/ptr.hpp"
 
 class btCollisionObject;
 struct btCollisionObjectWrapper;
@@ -19,11 +19,11 @@ namespace MWPhysics
     public:
         ContactTestResultCallback(const btCollisionObject* testedAgainst);
 
-        btScalar addSingleResult(btManifoldPoint& cp,
+        virtual btScalar addSingleResult(btManifoldPoint& cp,
                                          const btCollisionObjectWrapper* col0Wrap,int partId0,int index0,
-                                         const btCollisionObjectWrapper* col1Wrap,int partId1,int index1) override;
+                                         const btCollisionObjectWrapper* col1Wrap,int partId1,int index1);
 
-        std::vector<ContactPoint> mResult;
+        std::vector<MWWorld::Ptr> mResult;
     };
 }
 

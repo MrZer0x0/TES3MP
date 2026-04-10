@@ -52,6 +52,7 @@ namespace MWMechanics
     PathgridGraph::PathgridGraph(const MWWorld::CellStore *cell)
         : mCell(nullptr)
         , mPathgrid(nullptr)
+        , mIsExterior(0)
         , mGraph(0)
         , mIsGraphConstructed(false)
         , mSCCId(0)
@@ -105,6 +106,7 @@ namespace MWMechanics
             return true;
 
         mCell = cell->getCell();
+        mIsExterior = cell->getCell()->isExterior();
         mPathgrid = MWBase::Environment::get().getWorld()->getStore().get<ESM::Pathgrid>().search(*cell->getCell());
         if(!mPathgrid)
             return false;

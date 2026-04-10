@@ -58,7 +58,7 @@ namespace Compiler
 
     // destructor
 
-    Parser::~Parser() = default;
+    Parser::~Parser() {}
 
     // Handle an int token.
     // \return fetch another token?

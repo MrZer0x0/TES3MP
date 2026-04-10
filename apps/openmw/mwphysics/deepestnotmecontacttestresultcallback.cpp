@@ -39,7 +39,6 @@ namespace MWPhysics
                 mObject = collisionObject;
                 mLeastDistSqr = distsqr;
                 mContactPoint = cp.getPositionWorldOnA();
-                mContactNormal = cp.m_normalWorldOnB;
             }
         }
 

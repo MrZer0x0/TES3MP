@@ -58,7 +58,7 @@ namespace SceneUtil
         light->setQuadraticAttenuation(quadraticAttenuation);
     }
 
-    osg::ref_ptr<LightSource> addLight(osg::Group* node, const ESM::Light* esmLight, unsigned int partsysMask, unsigned int lightMask, bool isExterior)
+    void addLight (osg::Group* node, const ESM::Light* esmLight, unsigned int partsysMask, unsigned int lightMask, bool isExterior)
     {
         SceneUtil::FindByNameVisitor visitor("AttachLight");
         node->accept(visitor);
@@ -85,9 +85,8 @@ namespace SceneUtil
             attachTo = trans;
         }
 
-        osg::ref_ptr<LightSource> lightSource = createLightSource(esmLight, lightMask, isExterior, osg::Vec4f(0,0,0,1));
+        osg::ref_ptr<LightSource> lightSource = createLightSource(esmLight, lightMask, isExterior);
         attachTo->addChild(lightSource);
-        return lightSource;
     }
 
     osg::ref_ptr<LightSource> createLightSource(const ESM::Light* esmLight, unsigned int lightMask, bool isExterior, const osg::Vec4f& ambient)

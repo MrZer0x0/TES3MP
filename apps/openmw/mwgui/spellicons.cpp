@@ -25,8 +25,8 @@
 namespace MWGui
 {
 
-    void EffectSourceVisitor::visit (MWMechanics::EffectKey key, int effectIndex,
-                                     const std::string& sourceName, const std::string& sourceId, int casterActorId,
+    void EffectSourceVisitor::visit (MWMechanics::EffectKey key,
+                                           const std::string& sourceName, const std::string& sourceId, int casterActorId,
                                      float magnitude, float remainingTime, float totalTime)
     {
         MagicEffectInfo newEffectSource;
@@ -181,9 +181,7 @@ namespace MWGui
             }
             else if (mWidgetMap.find(effectId) != mWidgetMap.end())
             {
-                MyGUI::ImageBox* image = mWidgetMap[effectId];
-                image->setVisible(false);
-                image->setAlpha(1.f);
+                mWidgetMap[effectId]->setVisible(false);
             }
         }
 

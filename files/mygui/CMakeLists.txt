@@ -61,6 +61,7 @@ set(MYGUI_FILES
     openmw_text_input.layout
     openmw_text.skin.xml
     openmw_tooltips.layout
+    openmw_quickloot.layout
     openmw_trade_window.layout
     openmw_spell_buying_window.layout
     openmw_windows.skin.xml
@@ -97,15 +98,6 @@ set(MYGUI_FILES
     # End of tes3mp addition
     OpenMWResourcePlugin.xml
     skins.xml
-    Ayembedt.ttf
-	Pelagiad.ttf
-    tes3mp_login.layout
-    tes3mp_login.skin.xml
-    tes3mp_dialog_list.layout
-    tes3mp_chat.layout
-    tes3mp_chat.skin.xml
-    tes3mp_text_input.layout
-    RussoOne-Regular.ttf
 )
 
 

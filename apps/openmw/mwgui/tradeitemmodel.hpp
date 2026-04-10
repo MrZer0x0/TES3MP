@@ -15,12 +15,12 @@ namespace MWGui
     public:
         TradeItemModel (ItemModel* sourceModel, const MWWorld::Ptr& merchant);
 
-        bool allowedToUseItems() const override;
+        bool allowedToUseItems() const;
 
-        ItemStack getItem (ModelIndex index) override;
-        size_t getItemCount() override;
+        virtual ItemStack getItem (ModelIndex index);
+        virtual size_t getItemCount();
 
-        void update() override;
+        virtual void update();
 
         void borrowItemFromUs (ModelIndex itemIndex, size_t count);
 
@@ -40,7 +40,7 @@ namespace MWGui
         /// and removing weight for items we've lent to someone else.
         void adjustEncumbrance (float& encumbrance);
 
-        const std::vector<ItemStack> getItemsBorrowedToUs() const;
+        std::vector<ItemStack> getItemsBorrowedToUs();
 
     private:
         void borrowImpl(const ItemStack& item, std::vector<ItemStack>& out);

@@ -1,10 +1,8 @@
 #ifndef OPENMW_MWWORLD_ESMSTORE_H
 #define OPENMW_MWWORLD_ESMSTORE_H
 
-#include <memory>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_map>
 
 #include <components/esm/records.hpp>
 #include "store.hpp"
@@ -12,11 +10,6 @@
 namespace Loading
 {
     class Listener;
-}
-
-namespace MWMechanics
-{
-    class SpellList;
 }
 
 namespace MWWorld
@@ -75,20 +68,15 @@ namespace MWWorld
         // Lookup of all IDs. Makes looking up references faster. Just
         // maps the id name to the record type.
         std::map<std::string, int> mIds;
-        std::map<std::string, int> mStaticIds;
-
-        std::unordered_map<std::string, int> mRefCount;
-
         std::map<int, StoreBase *> mStores;
 
-        unsigned int mDynamicCount;
+        ESM::NPC mPlayerTemplate;
 
-        mutable std::map<std::string, std::weak_ptr<MWMechanics::SpellList> > mSpellListCache;
+        unsigned int mDynamicCount;
 
         /// Validate entries in store after setup
         void validate();
 
-        void countRecords();
     public:
         /// \todo replace with SharedIterator<StoreBase>
         typedef std::map<int, StoreBase *>::const_iterator iterator;
@@ -107,14 +95,6 @@ namespace MWWorld
         {
             std::map<std::string, int>::const_iterator it = mIds.find(id);
             if (it == mIds.end()) {
-                return 0;
-            }
-            return it->second;
-        }
-        int findStatic(const std::string &id) const
-        {
-            std::map<std::string, int>::const_iterator it = mStaticIds.find(id);
-            if (it == mStaticIds.end()) {
                 return 0;
             }
             return it->second;
@@ -171,17 +151,15 @@ namespace MWWorld
             for (std::map<int, StoreBase *>::iterator it = mStores.begin(); it != mStores.end(); ++it)
                 it->second->clearDynamic();
 
-            movePlayerRecord();
+            mNpcs.insert(mPlayerTemplate);
         }
 
         void movePlayerRecord ()
         {
-            auto player = mNpcs.find("player");
-            mNpcs.insert(*player);
+            mPlayerTemplate = *mNpcs.find("player");
+            mNpcs.eraseStatic(mPlayerTemplate.mId);
+            mNpcs.insert(mPlayerTemplate);
         }
-
-        /// Validate entries in store after loading a save
-        void validateDynamic();
 
         void load(ESM::ESMReader &esm, Loading::Listener* listener);
 
@@ -197,7 +175,7 @@ namespace MWWorld
             const std::string id = "$dynamic" + std::to_string(mDynamicCount++);
 
             Store<T> &store = const_cast<Store<T> &>(get<T>());
-            if (store.search(id) != nullptr)
+            if (store.search(id) != 0)
             {
                 const std::string msg = "Try to override existing record '" + id + "'";
                 throw std::runtime_error(msg);
@@ -235,7 +213,7 @@ namespace MWWorld
             const std::string id = "$dynamic" + std::to_string(mDynamicCount++);
 
             Store<T> &store = const_cast<Store<T> &>(get<T>());
-            if (store.search(id) != nullptr)
+            if (store.search(id) != 0)
             {
                 const std::string msg = "Try to override existing record '" + id + "'";
                 throw std::runtime_error(msg);
@@ -261,16 +239,6 @@ namespace MWWorld
 
         bool readRecord (ESM::ESMReader& reader, uint32_t type);
         ///< \return Known type?
-
-        // To be called when we are done with dynamic record loading
-        void checkPlayer();
-
-        /// @return The number of instances defined in the base files. Excludes changes from the save file.
-        int getRefCount(const std::string& id) const;
-
-        /// Actors with the same ID share spells, abilities, etc.
-        /// @return The shared spell list to use for this actor and whether or not it has already been initialized.
-        std::pair<std::shared_ptr<MWMechanics::SpellList>, bool> getSpellList(const std::string& id) const;
     };
 
     /*
@@ -315,7 +283,7 @@ namespace MWWorld
         {
             return mNpcs.insert(npc);
         }
-        else if (mNpcs.search(id) != nullptr)
+        else if (mNpcs.search(id) != 0)
         {
             const std::string msg = "Try to override existing record '" + id + "'";
             throw std::runtime_error(msg);

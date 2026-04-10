@@ -7,36 +7,19 @@
 
 #include <boost/filesystem/fstream.hpp>
 
-#include <Base64.h>
-
-void Settings::SettingsFileParser::loadSettingsFile(const std::string& file, CategorySettingValueMap& settings, bool base64Encoded)
+void Settings::SettingsFileParser::loadSettingsFile(const std::string& file, CategorySettingValueMap& settings)
 {
     mFile = file;
-    boost::filesystem::ifstream fstream;
-    fstream.open(boost::filesystem::path(file));
-    auto stream = std::ref<std::istream>(fstream);
-
-    std::istringstream decodedStream;
-    if (base64Encoded)
-    {
-        std::string base64String(std::istreambuf_iterator<char>(fstream), {});
-        std::string decodedString;
-        auto result = Base64::Base64::Decode(base64String, decodedString);
-        if (!result.empty())
-            fail("Could not decode Base64 file: " + result);
-        // Move won't do anything until C++20, but won't hurt to do it anyway.
-        decodedStream.str(std::move(decodedString));
-        stream = std::ref<std::istream>(decodedStream);
-    }
-
+    boost::filesystem::ifstream stream;
+    stream.open(boost::filesystem::path(file));
     Log(Debug::Info) << "Loading settings file: " << file;
     std::string currentCategory;
     mLine = 0;
-    while (!stream.get().eof() && !stream.get().fail())
+    while (!stream.eof() && !stream.fail())
     {
         ++mLine;
         std::string line;
-        std::getline( stream.get(), line );
+        std::getline( stream, line );
 
         size_t i = 0;
         if (!skipWhiteSpace(i, line))
@@ -224,11 +207,13 @@ void Settings::SettingsFileParser::saveSettingsFile(const std::string& file, con
         CategorySetting key = std::make_pair(currentCategory, setting);
         CategorySettingStatusMap::iterator finder = written.find(key);
 
-        // Settings not in the written map were added by the game engine at runtime,
-        // by mods, or by manual user edits.  Preserve them as-is so they survive
-        // launcher restarts instead of being commented out and gradually duplicated.
+        // Settings not in the written map are definitely invalid.  Currently, this can only
+        // happen if the player edited the file while playing, because loadSettingsFile()
+        // will accept anything and pass it along in the map, but in the future, we might
+        // want to handle invalid settings more gracefully here.
         if (finder == written.end()) {
-            ostream << line << std::endl;
+            ostream << "# invalid setting: " << line << std::endl;
+            changed = true;
             continue;
         }
 
@@ -270,7 +255,7 @@ void Settings::SettingsFileParser::saveSettingsFile(const std::string& file, con
         ostream << "# This is the OpenMW user 'settings.cfg' file.  This file only contains" << std::endl;
         ostream << "# explicitly changed settings.  If you would like to revert a setting" << std::endl;
         ostream << "# to its default, simply remove it from this file.  For available" << std::endl;
-        ostream << "# settings, see the file 'files/settings-default.cfg' in our source repo or the documentation at:" << std::endl;
+        ostream << "# settings, see the file 'settings-default.cfg' or the documentation at:" << std::endl;
         ostream << "#" << std::endl;
         ostream << "#   https://openmw.readthedocs.io/en/master/reference/modding/settings/index.html" << std::endl;
     }

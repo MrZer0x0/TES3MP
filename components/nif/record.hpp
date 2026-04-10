@@ -43,8 +43,8 @@ enum RecordType
   RC_NiCollisionSwitch,
   RC_NiTriShape,
   RC_NiTriStrips,
-  RC_NiLines,
-  RC_NiParticles,
+  RC_NiRotatingParticles,
+  RC_NiAutoNormalParticles,
   RC_NiBSParticleNode,
   RC_NiCamera,
   RC_NiTexturingProperty,
@@ -83,7 +83,6 @@ enum RecordType
   RC_NiFloatData,
   RC_NiTriShapeData,
   RC_NiTriStripsData,
-  RC_NiLinesData,
   RC_NiVisData,
   RC_NiColorData,
   RC_NiPixelData,
@@ -93,49 +92,25 @@ enum RecordType
   RC_NiUVData,
   RC_NiPosData,
   RC_NiRotatingParticlesData,
-  RC_NiParticlesData,
+  RC_NiAutoNormalParticlesData,
   RC_NiSequenceStreamHelper,
   RC_NiSourceTexture,
   RC_NiSkinInstance,
   RC_RootCollisionNode,
   RC_NiSphericalCollider,
   RC_NiLookAtController,
-  RC_NiPalette,
-  RC_NiIntegerExtraData,
-  RC_NiIntegersExtraData,
-  RC_NiBinaryExtraData,
-  RC_NiBooleanExtraData,
-  RC_NiVectorExtraData,
-  RC_NiColorExtraData,
-  RC_NiFloatExtraData,
-  RC_NiFloatsExtraData,
-  RC_NiStringPalette,
-  RC_NiBoolData,
-  RC_NiSkinPartition,
-  RC_BSXFlags,
-  RC_BSBound,
-  RC_bhkBlendController,
-  RC_NiFloatInterpolator,
-  RC_NiPoint3Interpolator,
-  RC_NiBoolInterpolator,
-  RC_NiTransformInterpolator,
-  RC_NiColorInterpolator,
-  RC_BSShaderTextureSet,
-  RC_BSLODTriShape,
-  RC_BSShaderProperty,
-  RC_BSShaderPPLightingProperty,
-  RC_BSShaderNoLightingProperty
+  RC_NiPalette
 };
 
 /// Base class for all records
 struct Record
 {
     // Record type and type name
-    int recType{RC_MISSING};
+    int recType;
     std::string recName;
-    unsigned int recIndex{~0u};
+    size_t recIndex;
 
-    Record() = default;
+    Record() : recType(RC_MISSING), recIndex(~(size_t)0) {}
 
     /// Parses the record from file
     virtual void read(NIFStream *nif) = 0;

@@ -36,7 +36,7 @@ namespace MWGui
     };
 
     bool operator == (const ItemStack& left, const ItemStack& right);
-
+    bool operator != (const ItemStack& left, const ItemStack& right);
 
     /// @brief The base class that all item models should derive from.
     class ItemModel
@@ -88,15 +88,15 @@ namespace MWGui
         ProxyItemModel();
         virtual ~ProxyItemModel();
 
-        bool allowedToUseItems() const override;
+        bool allowedToUseItems() const;
 
-        void onClose() override;
-        bool onDropItem(const MWWorld::Ptr &item, int count) override;
-        bool onTakeItem(const MWWorld::Ptr &item, int count) override;
+        virtual void onClose();
+        virtual bool onDropItem(const MWWorld::Ptr &item, int count);
+        virtual bool onTakeItem(const MWWorld::Ptr &item, int count);
 
-        MWWorld::Ptr copyItem (const ItemStack& item, size_t count, bool allowAutoEquip = true) override;
-        void removeItem (const ItemStack& item, size_t count) override;
-        ModelIndex getIndex (ItemStack item) override;
+        virtual MWWorld::Ptr copyItem (const ItemStack& item, size_t count, bool allowAutoEquip = true);
+        virtual void removeItem (const ItemStack& item, size_t count);
+        virtual ModelIndex getIndex (ItemStack item);
 
         /// @note Takes ownership of the passed pointer.
         void setSourceModel(ItemModel* sourceModel);

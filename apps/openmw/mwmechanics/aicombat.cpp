@@ -1,11 +1,8 @@
 #include "aicombat.hpp"
 
 #include <components/misc/rng.hpp>
-#include <components/misc/coordinateconverter.hpp>
 
 #include <components/esm/aisequence.hpp>
-
-#include <components/misc/mathutil.hpp>
 
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/detournavigator/navigator.hpp>
@@ -40,6 +37,7 @@
 #include "movement.hpp"
 #include "character.hpp"
 #include "aicombataction.hpp"
+#include "coordinateconverter.hpp"
 #include "actorutil.hpp"
 
 namespace
@@ -143,11 +141,10 @@ namespace MWMechanics
             {
                 //Update every frame. UpdateLOS uses a timer, so the LOS check does not happen every frame.
                 updateLOS(actor, target, duration, storage);
-                const float targetReachedTolerance = storage.mLOS && !storage.mUseCustomDestination
-                        ? storage.mAttackRange : 0.0f;
-                const osg::Vec3f destination = storage.mUseCustomDestination
-                        ? storage.mCustomDestination : target.getRefData().getPosition().asVec3();
-                const bool is_target_reached = pathTo(actor, destination, duration, targetReachedTolerance);
+                float targetReachedTolerance = 0.0f;
+                if (storage.mLOS)
+                    targetReachedTolerance = storage.mAttackRange;
+                const bool is_target_reached = pathTo(actor, target.getRefData().getPosition().asVec3(), duration, targetReachedTolerance);
                 if (is_target_reached) storage.mReadyToAttack = true;
             }
 
@@ -178,10 +175,19 @@ namespace MWMechanics
         }
         storage.mActionCooldown -= duration;
 
-        if (storage.mReaction.update(duration) == Misc::TimerStatus::Waiting)
-            return false;
+        float& timerReact = storage.mTimerReact;
+        if (timerReact < AI_REACTION_TIME)
+        {
+            timerReact += duration;
+        }
+        else
+        {
+            timerReact = 0;
+            if (attack(actor, target, storage, characterController))
+                return true;
+        }
 
-        return attack(actor, target, storage, characterController);
+        return false;
     }
 
     bool AiCombat::attack(const MWWorld::Ptr& actor, const MWWorld::Ptr& target, AiCombatStorage& storage, CharacterController& characterController)
@@ -293,88 +299,36 @@ namespace MWMechanics
         const ESM::Weapon* weapon = currentAction->getWeapon();
 
         ESM::Position pos = actor.getRefData().getPosition();
-        const osg::Vec3f vActorPos(pos.asVec3());
-        const osg::Vec3f vTargetPos(target.getRefData().getPosition().asVec3());
+        osg::Vec3f vActorPos(pos.asVec3());
+        osg::Vec3f vTargetPos(target.getRefData().getPosition().asVec3());
 
+        osg::Vec3f vAimDir = MWBase::Environment::get().getWorld()->aimToTarget(actor, target);
         float distToTarget = MWBase::Environment::get().getWorld()->getHitDistance(actor, target);
 
         storage.mReadyToAttack = (currentAction->isAttackingOrSpell() && distToTarget <= rangeAttack && storage.mLOS);
-
-        if (isRangedCombat)
-        {
-            // rotate actor taking into account target movement direction and projectile speed
-            osg::Vec3f vAimDir = AimDirToMovingTarget(actor, target, storage.mLastTargetPos, AI_REACTION_TIME, (weapon ? weapon->mData.mType : 0), storage.mStrength);
-
-            storage.mMovement.mRotation[0] = getXAngleToDir(vAimDir);
-            storage.mMovement.mRotation[2] = getZAngleToDir(vAimDir);
-        }
-        else
-        {
-            osg::Vec3f vAimDir = MWBase::Environment::get().getWorld()->aimToTarget(actor, target, false);
-            storage.mMovement.mRotation[0] = getXAngleToDir(vAimDir);
-            storage.mMovement.mRotation[2] = getZAngleToDir((vTargetPos-vActorPos)); // using vAimDir results in spastic movements since the head is animated
-        }
-
-        storage.mLastTargetPos = vTargetPos;
 
         if (storage.mReadyToAttack)
         {
             storage.startCombatMove(isRangedCombat, distToTarget, rangeAttack, actor, target);
             // start new attack
             storage.startAttackIfReady(actor, characterController, weapon, isRangedCombat);
-        }
 
-        // If actor uses custom destination it has to try to rebuild path because environment can change
-        // (door is opened between actor and target) or target position has changed and current custom destination
-        // is not good enough to attack target.
-        if (storage.mCurrentAction->isAttackingOrSpell()
-            && ((!storage.mReadyToAttack && !mPathFinder.isPathConstructed())
-                || (storage.mUseCustomDestination && (storage.mCustomDestination - vTargetPos).length() > rangeAttack)))
-        {
-            const MWBase::World* world = MWBase::Environment::get().getWorld();
-            // Try to build path to the target.
-            const auto halfExtents = world->getPathfindingHalfExtents(actor);
-            const auto navigatorFlags = getNavigatorFlags(actor);
-            const auto areaCosts = getAreaCosts(actor);
-            const auto pathGridGraph = getPathGridGraph(actor.getCell());
-            mPathFinder.buildPath(actor, vActorPos, vTargetPos, actor.getCell(), pathGridGraph, halfExtents, navigatorFlags, areaCosts);
-
-            if (!mPathFinder.isPathConstructed())
+            if (isRangedCombat)
             {
-                // If there is no path, try to find a point on a line from the actor position to target projected
-                // on navmesh to attack the target from there.
-                const auto navigator = world->getNavigator();
-                const auto hit = navigator->raycast(halfExtents, vActorPos, vTargetPos, navigatorFlags);
+                // rotate actor taking into account target movement direction and projectile speed
+                osg::Vec3f& lastTargetPos = storage.mLastTargetPos;
+                vAimDir = AimDirToMovingTarget(actor, target, lastTargetPos, AI_REACTION_TIME, (weapon ? weapon->mData.mType : 0), storage.mStrength);
+                lastTargetPos = vTargetPos;
 
-                if (hit.has_value() && (*hit - vTargetPos).length() <= rangeAttack)
-                {
-                    // If the point is close enough, try to find a path to that point.
-                    mPathFinder.buildPath(actor, vActorPos, *hit, actor.getCell(), pathGridGraph, halfExtents, navigatorFlags, areaCosts);
-                    if (mPathFinder.isPathConstructed())
-                    {
-                        // If path to that point is found use it as custom destination.
-                        storage.mCustomDestination = *hit;
-                        storage.mUseCustomDestination = true;
-                    }
-                }
-
-                if (!mPathFinder.isPathConstructed())
-                {
-                    storage.mUseCustomDestination = false;
-                    storage.stopAttack();
-                    characterController.setAttackingOrSpell(false);
-                    currentAction.reset(new ActionFlee());
-                    actionCooldown = currentAction->getActionCooldown();
-                    storage.startFleeing();
-                    MWBase::Environment::get().getDialogueManager()->say(actor, "flee");
-                }
+                storage.mMovement.mRotation[0] = getXAngleToDir(vAimDir);
+                storage.mMovement.mRotation[2] = getZAngleToDir(vAimDir);
             }
             else
             {
-                storage.mUseCustomDestination = false;
+                storage.mMovement.mRotation[0] = getXAngleToDir(vAimDir);
+                storage.mMovement.mRotation[2] = getZAngleToDir((vTargetPos-vActorPos)); // using vAimDir results in spastic movements since the head is animated
             }
         }
-
         return false;
     }
 
@@ -414,10 +368,10 @@ namespace MWMechanics
 
                         bool runFallback = true;
 
-                        if (pathgrid != nullptr && !pathgrid->mPoints.empty() && !actor.getClass().isPureWaterCreature(actor))
+                        if (pathgrid && !actor.getClass().isPureWaterCreature(actor))
                         {
                             ESM::Pathgrid::PointList points;
-                            Misc::CoordinateConverter coords(storage.mCell->getCell());
+                            CoordinateConverter coords(storage.mCell->getCell());
 
                             osg::Vec3f localPos = actor.getRefData().getPosition().asVec3();
                             coords.toLocal(localPos);
@@ -459,7 +413,6 @@ namespace MWMechanics
                     {
                         storage.mFleeBlindRunTimer += duration;
 
-                        storage.mMovement.mRotation[0] = -actor.getRefData().getPosition().rot[0];
                         storage.mMovement.mRotation[2] = osg::PI + getZAngleToDir(target.getRefData().getPosition().asVec3()-actor.getRefData().getPosition().asVec3());
                         storage.mMovement.mPosition[1] = 1;
                         updateActorsMovement(actor, duration, storage);
@@ -487,13 +440,9 @@ namespace MWMechanics
     void AiCombat::updateActorsMovement(const MWWorld::Ptr& actor, float duration, AiCombatStorage& storage)
     {
         // apply combat movement
-        float deltaAngle = storage.mMovement.mRotation[2] - actor.getRefData().getPosition().rot[2];
-        osg::Vec2f movement = Misc::rotateVec2f(
-            osg::Vec2f(storage.mMovement.mPosition[0], storage.mMovement.mPosition[1]), -deltaAngle);
-
         MWMechanics::Movement& actorMovementSettings = actor.getClass().getMovementSettings(actor);
-        actorMovementSettings.mPosition[0] = movement.x();
-        actorMovementSettings.mPosition[1] = movement.y();
+        actorMovementSettings.mPosition[0] = storage.mMovement.mPosition[0];
+        actorMovementSettings.mPosition[1] = storage.mMovement.mPosition[1];
         actorMovementSettings.mPosition[2] = storage.mMovement.mPosition[2];
 
         rotateActorOnAxis(actor, 2, actorMovementSettings, storage);
@@ -504,16 +453,46 @@ namespace MWMechanics
         MWMechanics::Movement& actorMovementSettings, AiCombatStorage& storage)
     {
         actorMovementSettings.mRotation[axis] = 0;
-        bool isRangedCombat = false;
-        storage.mCurrentAction->getCombatRange(isRangedCombat);
-        float eps = isRangedCombat ? osg::DegreesToRadians(0.5) : osg::DegreesToRadians(3.f);
-        float targetAngleRadians = storage.mMovement.mRotation[axis];
-        smoothTurn(actor, targetAngleRadians, axis, eps);
+        float& targetAngleRadians = storage.mMovement.mRotation[axis];
+        if (targetAngleRadians != 0)
+        {
+            // Some attack animations contain small amount of movement.
+            // Since we use cone shapes for melee, we can use a threshold to avoid jittering
+            std::shared_ptr<Action>& currentAction = storage.mCurrentAction;
+            bool isRangedCombat = false;
+            currentAction->getCombatRange(isRangedCombat);
+            // Check if the actor now facing desired direction, no need to turn any more
+            if (isRangedCombat)
+            {
+                if (smoothTurn(actor, targetAngleRadians, axis))
+                    targetAngleRadians = 0;
+            }
+            else
+            {
+                if (smoothTurn(actor, targetAngleRadians, axis, osg::DegreesToRadians(3.f)))
+                    targetAngleRadians = 0;
+            }
+        }
+    }
+
+    int AiCombat::getTypeId() const
+    {
+        return TypeIdCombat;
+    }
+
+    unsigned int AiCombat::getPriority() const
+    {
+        return 1;
     }
 
     MWWorld::Ptr AiCombat::getTarget() const
     {
         return MWBase::Environment::get().getWorld()->searchPtrViaActorId(mTargetActorId);
+    }
+
+    AiCombat *MWMechanics::AiCombat::clone() const
+    {
+        return new AiCombat(*this);
     }
 
     void AiCombat::writeState(ESM::AiSequence::AiSequence &sequence) const
@@ -593,19 +572,12 @@ namespace MWMechanics
         // Note: do not use for ranged combat yet since in couple with back up behaviour can move actor out of cliff
         else if (actor.getClass().isBipedal(actor))
         {
-            float moveDuration = 0;
-            float angleToTarget = Misc::normalizeAngle(mMovement.mRotation[2] - actor.getRefData().getPosition().rot[2]);
-            // Apply a big side step if enemy tries to get around and come from behind.
-            // Otherwise apply a random side step (kind of dodging) with some probability
-            // if actor is within range of target's weapon.
-            if (std::abs(angleToTarget) > osg::PI / 4)
-                moveDuration = 0.2f;
-            else if (distToTarget <= rangeAttackOfTarget && Misc::Rng::rollClosedProbability() < 0.25)
-                moveDuration = 0.1f + 0.1f * Misc::Rng::rollClosedProbability();
-            if (moveDuration > 0)
+            // apply sideway movement (kind of dodging) with some probability
+            // if actor is within range of target's weapon
+            if (distToTarget <= rangeAttackOfTarget && Misc::Rng::rollClosedProbability() < 0.25)
             {
                 mMovement.mPosition[0] = Misc::Rng::rollProbability() < 0.5 ? 1.0f : -1.0f; // to the left/right
-                mTimerCombatMove = moveDuration;
+                mTimerCombatMove = 0.1f + 0.1f * Misc::Rng::rollClosedProbability();
                 mCombatMove = true;
             }
         }
@@ -787,7 +759,7 @@ osg::Vec3f AimDirToMovingTarget(const MWWorld::Ptr& actor, const MWWorld::Ptr& t
     // idea: perpendicular to dir to target speed components of target move vector and projectile vector should be the same
 
     osg::Vec3f vTargetPos = target.getRefData().getPosition().asVec3();
-    osg::Vec3f vDirToTarget = MWBase::Environment::get().getWorld()->aimToTarget(actor, target, true);
+    osg::Vec3f vDirToTarget = MWBase::Environment::get().getWorld()->aimToTarget(actor, target);
     float distToTarget = vDirToTarget.length();
 
     osg::Vec3f vTargetMoveDir = vTargetPos - vLastTargetPos;
@@ -807,18 +779,16 @@ osg::Vec3f AimDirToMovingTarget(const MWWorld::Ptr& actor, const MWWorld::Ptr& t
     float t_collision;
 
     float projVelDirSquared = projSpeed * projSpeed - velPerp * velPerp;
+
+    osg::Vec3f vTargetMoveDirNormalized = vTargetMoveDir;
+    vTargetMoveDirNormalized.normalize();
+
+    float projDistDiff = vDirToTarget * vTargetMoveDirNormalized; // dot product
+    projDistDiff = std::sqrt(distToTarget * distToTarget - projDistDiff * projDistDiff);
+
     if (projVelDirSquared > 0)
-    {
-        osg::Vec3f vTargetMoveDirNormalized = vTargetMoveDir;
-        vTargetMoveDirNormalized.normalize();
-
-        float projDistDiff = vDirToTarget * vTargetMoveDirNormalized; // dot product
-        projDistDiff = std::sqrt(distToTarget * distToTarget - projDistDiff * projDistDiff);
-
         t_collision = projDistDiff / (std::sqrt(projVelDirSquared) - velDir);
-    }
-    else
-        t_collision = 0; // speed of projectile is not enough to reach moving target
+    else t_collision = 0; // speed of projectile is not enough to reach moving target
 
     return vDirToTarget + vTargetMoveDir * t_collision;
 }

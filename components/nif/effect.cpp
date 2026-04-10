@@ -28,10 +28,6 @@ void NiTextureEffect::read(NIFStream *nif)
     // Texture Filtering
     nif->skip(4);
 
-    // Max anisotropy samples
-    if (nif->getVersion() >= NIFStream::generateVersion(20,5,0,4))
-        nif->skip(2);
-
     clamp = nif->getUInt();
 
     textureType = (TextureType)nif->getUInt();
@@ -40,12 +36,14 @@ void NiTextureEffect::read(NIFStream *nif)
 
     texture.read(nif);
 
-    nif->skip(1); // Use clipping plane
-    nif->skip(16); // Clipping plane dimensions vector
-    if (nif->getVersion() <= NIFStream::generateVersion(10,2,0,0))
-        nif->skip(4); // PS2-specific shorts
-    if (nif->getVersion() <= NIFStream::generateVersion(4,1,0,12))
-        nif->skip(2); // Unknown short
+    /*
+           byte = 0
+           vector4 = [1,0,0,0]
+           short = 0
+           short = -75
+           short = 0
+        */
+    nif->skip(23);
 }
 
 void NiTextureEffect::post(NIFFile *nif)

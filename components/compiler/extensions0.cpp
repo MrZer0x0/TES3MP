@@ -241,15 +241,6 @@ namespace Compiler
     {
         void registerExtensions (Extensions& extensions)
         {
-            extensions.registerFunction ("menumode", 'l', "", opcodeMenuMode);
-            extensions.registerFunction ("random", 'f', "l", opcodeRandom);
-            extensions.registerFunction ("scriptrunning", 'l', "c", opcodeScriptRunning);
-            extensions.registerInstruction ("startscript", "c", opcodeStartScript, opcodeStartScriptExplicit);
-            extensions.registerInstruction ("stopscript", "c", opcodeStopScript);
-            extensions.registerFunction ("getsecondspassed", 'f', "", opcodeGetSecondsPassed);
-            extensions.registerInstruction ("enable", "x", opcodeEnable, opcodeEnableExplicit);
-            extensions.registerInstruction ("disable", "x", opcodeDisable, opcodeDisableExplicit);
-            extensions.registerFunction ("getdisabled", 'l', "x", opcodeGetDisabled, opcodeGetDisabledExplicit);
             extensions.registerFunction ("xbox", 'l', "", opcodeXBox);
             extensions.registerFunction ("onactivate", 'l', "", opcodeOnActivate, opcodeOnActivateExplicit);
             extensions.registerInstruction ("activate", "x", opcodeActivate, opcodeActivateExplicit);
@@ -423,13 +414,13 @@ namespace Compiler
 
             for (int i=0; i<numberOfAttributes; ++i)
             {
-                extensions.registerFunction (get + attributes[i], 'f', "",
+                extensions.registerFunction (get + attributes[i], 'l', "",
                     opcodeGetAttribute+i, opcodeGetAttributeExplicit+i);
 
-                extensions.registerInstruction (set + attributes[i], "f",
+                extensions.registerInstruction (set + attributes[i], "l",
                     opcodeSetAttribute+i, opcodeSetAttributeExplicit+i);
 
-                extensions.registerInstruction (mod + attributes[i], "f",
+                extensions.registerInstruction (mod + attributes[i], "l",
                     opcodeModAttribute+i, opcodeModAttributeExplicit+i);
             }
 
@@ -453,13 +444,13 @@ namespace Compiler
 
             for (int i=0; i<numberOfSkills; ++i)
             {
-                extensions.registerFunction (get + skills[i], 'f', "",
+                extensions.registerFunction (get + skills[i], 'l', "",
                     opcodeGetSkill+i, opcodeGetSkillExplicit+i);
 
-                extensions.registerInstruction (set + skills[i], "f",
+                extensions.registerInstruction (set + skills[i], "l",
                     opcodeSetSkill+i, opcodeSetSkillExplicit+i);
 
-                extensions.registerInstruction (mod + skills[i], "f",
+                extensions.registerInstruction (mod + skills[i], "l",
                     opcodeModSkill+i, opcodeModSkillExplicit+i);
             }
 
@@ -542,7 +533,6 @@ namespace Compiler
     {
         void registerExtensions (Extensions& extensions)
         {
-            extensions.registerFunction("getdistance",'f',"c",opcodeGetDistance,opcodeGetDistanceExplicit);
             extensions.registerInstruction("setscale","f",opcodeSetScale,opcodeSetScaleExplicit);
             extensions.registerFunction("getscale",'f',"",opcodeGetScale,opcodeGetScaleExplicit);
             extensions.registerInstruction("setangle","cf",opcodeSetAngle,opcodeSetAngleExplicit);

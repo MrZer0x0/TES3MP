@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 
+#include <components/esm/defs.hpp>
 #include <components/esm/activespells.hpp>
 
 #include "../mwworld/timestamp.hpp"
@@ -43,14 +44,15 @@ namespace MWMechanics
 
             TIterator end() const;
 
-            void update(float duration) const;
-
         private:
 
             mutable TContainer mSpells;
             mutable MagicEffects mEffects;
             mutable bool mSpellsChanged;
+            mutable MWWorld::TimeStamp mLastUpdate;
 
+            void update() const;
+            
             /*
                 Start of tes3mp addition
 
@@ -87,6 +89,9 @@ namespace MWMechanics
             void addSpell (const std::string& id, bool stack, std::vector<ActiveEffect> effects,
                            const std::string& displayName, int casterActorId);
 
+            /// Removes the active effects from this spell/potion/.. with \a id
+            void removeEffects (const std::string& id);
+
             /*
                 Start of tes3mp addition
 
@@ -116,7 +121,7 @@ namespace MWMechanics
             void purgeEffect (short effectId);
 
             /// Remove all active effects with this effect id and source id
-            void purgeEffect (short effectId, const std::string& sourceId, int effectIndex=-1);
+            void purgeEffect (short effectId, const std::string& sourceId);
 
             /// Remove all active effects, if roll succeeds (for each effect)
             void purgeAll(float chance, bool spellOnly = false);
@@ -149,8 +154,6 @@ namespace MWMechanics
 
             bool isSpellActive (const std::string& id) const;
             ///< case insensitive
-
-            void purgeCorprusDisease();
 
             const MagicEffects& getMagicEffects() const;
 

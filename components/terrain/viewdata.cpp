@@ -1,7 +1,5 @@
 #include "viewdata.hpp"
 
-#include "quadtreenode.hpp"
-
 namespace Terrain
 {
 
@@ -10,7 +8,6 @@ ViewData::ViewData()
     , mLastUsageTimeStamp(0.0)
     , mChanged(false)
     , mHasViewPoint(false)
-    , mWorldUpdateRevision(0)
 {
 
 }
@@ -27,8 +24,6 @@ void ViewData::copyFrom(const ViewData& other)
     mChanged = other.mChanged;
     mHasViewPoint = other.mHasViewPoint;
     mViewPoint = other.mViewPoint;
-    mActiveGrid = other.mActiveGrid;
-    mWorldUpdateRevision = other.mWorldUpdateRevision;
 }
 
 void ViewData::add(QuadTreeNode *node)
@@ -95,12 +90,7 @@ void ViewData::clear()
     mHasViewPoint = false;
 }
 
-bool ViewData::suitableToUse(const osg::Vec4i &activeGrid) const
-{
-    return hasViewPoint() && activeGrid == mActiveGrid && getNumEntries();
-}
-
-bool ViewData::contains(QuadTreeNode *node) const
+bool ViewData::contains(QuadTreeNode *node)
 {
     for (unsigned int i=0; i<mNumEntries; ++i)
         if (mEntries[i].mNode == node)
@@ -128,115 +118,79 @@ bool ViewData::Entry::set(QuadTreeNode *node)
     }
 }
 
-ViewData *ViewDataMap::getViewData(osg::Object *viewer, const osg::Vec3f& viewPoint, const osg::Vec4i &activeGrid, bool& needsUpdate)
+bool suitable(ViewData* vd, const osg::Vec3f& viewPoint, float& maxDist)
 {
-    ViewerMap::const_iterator found = mViewers.find(viewer);
+    return vd->hasViewPoint() && (vd->getViewPoint() - viewPoint).length2() < maxDist*maxDist;
+}
+
+ViewData *ViewDataMap::getViewData(osg::Object *viewer, const osg::Vec3f& viewPoint, bool& needsUpdate)
+{
+    Map::const_iterator found = mViews.find(viewer);
     ViewData* vd = nullptr;
-    if (found == mViewers.end())
+    if (found == mViews.end())
     {
         vd = createOrReuseView();
-        mViewers[viewer] = vd;
+        mViews[viewer] = vd;
     }
     else
         vd = found->second;
-    needsUpdate = false;
 
-    if (!vd->suitableToUse(activeGrid) || (vd->getViewPoint()-viewPoint).length2() >= mReuseDistance*mReuseDistance || vd->getWorldUpdateRevision() < mWorldUpdateRevision)
+    if (!suitable(vd, viewPoint, mReuseDistance))
     {
-        float shortestDist = viewer ? mReuseDistance*mReuseDistance : std::numeric_limits<float>::max();
-        const ViewData* mostSuitableView = nullptr;
-        for (const ViewData* other : mUsedViews)
+        for (Map::const_iterator other = mViews.begin(); other != mViews.end(); ++other)
         {
-            if (other->suitableToUse(activeGrid) && other->getWorldUpdateRevision() >= mWorldUpdateRevision)
+            if (suitable(other->second, viewPoint, mReuseDistance) && other->second->getNumEntries())
             {
-                float dist = (viewPoint-other->getViewPoint()).length2();
-                if (dist < shortestDist)
-                {
-                    shortestDist = dist;
-                    mostSuitableView = other;
-                }
+                vd->copyFrom(*other->second);
+                needsUpdate = false;
+                return vd;
             }
         }
-        if (mostSuitableView && mostSuitableView != vd)
-        {
-            vd->copyFrom(*mostSuitableView);
-            return vd;
-        }
-        else if (!mostSuitableView)
-        {
-            vd->setViewPoint(viewPoint);
-            needsUpdate = true;
-        }
-    }
-    if (!vd->suitableToUse(activeGrid))
-    {
         vd->setViewPoint(viewPoint);
-        vd->setActiveGrid(activeGrid);
         needsUpdate = true;
     }
-    return vd;
-}
+    else
+        needsUpdate = false;
 
-bool ViewDataMap::storeView(const ViewData* view, double referenceTime)
-{
-    if (view->getWorldUpdateRevision() < mWorldUpdateRevision)
-        return false;
-    ViewData* store = createOrReuseView();
-    store->copyFrom(*view);
-    store->setLastUsageTimeStamp(referenceTime);
-    return true;
+    return vd;
 }
 
 ViewData *ViewDataMap::createOrReuseView()
 {
-    ViewData* vd = nullptr;
     if (mUnusedViews.size())
     {
-        vd = mUnusedViews.front();
+        ViewData* vd = mUnusedViews.front();
         mUnusedViews.pop_front();
+        return vd;
     }
     else
     {
-        mViewVector.emplace_back();
-        vd = &mViewVector.back();
+        mViewVector.push_back(ViewData());
+        return &mViewVector.back();
     }
-    mUsedViews.push_back(vd);
-    vd->setWorldUpdateRevision(mWorldUpdateRevision);
-    return vd;
-}
-
-ViewData *ViewDataMap::createIndependentView() const
-{
-    ViewData* vd = new ViewData;
-    vd->setWorldUpdateRevision(mWorldUpdateRevision);
-    return vd;
 }
 
 void ViewDataMap::clearUnusedViews(double referenceTime)
 {
-    for (ViewerMap::iterator it = mViewers.begin(); it != mViewers.end(); )
+    for (Map::iterator it = mViews.begin(); it != mViews.end(); )
     {
-        if (it->second->getLastUsageTimeStamp() + mExpiryDelay < referenceTime)
-            mViewers.erase(it++);
-        else
-            ++it;
-    }
-    for (std::deque<ViewData*>::iterator it = mUsedViews.begin(); it != mUsedViews.end(); )
-    {
-        if ((*it)->getLastUsageTimeStamp() + mExpiryDelay < referenceTime)
+        ViewData* vd = it->second;
+        if (vd->getLastUsageTimeStamp() + mExpiryDelay < referenceTime)
         {
-            (*it)->clear();
-            mUnusedViews.push_back(*it);
-            it = mUsedViews.erase(it);
+            vd->clear();
+            mUnusedViews.push_back(vd);
+            mViews.erase(it++);
         }
         else
             ++it;
     }
 }
 
-void ViewDataMap::rebuildViews()
+void ViewDataMap::clear()
 {
-    ++mWorldUpdateRevision;
+    mViews.clear();
+    mUnusedViews.clear();
+    mViewVector.clear();
 }
 
 }

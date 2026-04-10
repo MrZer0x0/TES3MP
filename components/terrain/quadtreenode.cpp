@@ -63,7 +63,7 @@ QuadTreeNode::QuadTreeNode(QuadTreeNode* parent, ChildDirection direction, float
     , mCenter(center)
 {
     for (unsigned int i=0; i<4; ++i)
-        mNeighbours[i] = nullptr;
+        mNeighbours[i] = 0;
 }
 
 QuadTreeNode::~QuadTreeNode()
@@ -108,31 +108,81 @@ void QuadTreeNode::initNeighbours()
         getChild(i)->initNeighbours();
 }
 
-void QuadTreeNode::traverseNodes(ViewData* vd, const osg::Vec3f& viewPoint, LodCallback* lodCallback)
+void QuadTreeNode::traverseNodes(ViewData* vd, const osg::Vec3f& viewPoint, LodCallback* lodCallback, float maxDist)
 {
     if (!hasValidBounds())
         return;
-    LodCallback::ReturnValue lodResult = lodCallback->isSufficientDetail(this, distance(viewPoint));
-    if (lodResult == LodCallback::StopTraversal)
+
+    float dist = distance(viewPoint);
+    if (dist > maxDist)
         return;
-    else if (lodResult == LodCallback::Deeper && getNumChildren())
+
+    bool stopTraversal = (lodCallback->isSufficientDetail(this, dist)) || !getNumChildren();
+
+    if (stopTraversal)
+        vd->add(this);
+    else
     {
         for (unsigned int i=0; i<getNumChildren(); ++i)
-            getChild(i)->traverseNodes(vd, viewPoint, lodCallback);
+            getChild(i)->traverseNodes(vd, viewPoint, lodCallback, maxDist);
     }
-    else
+}
+
+void QuadTreeNode::traverseTo(ViewData* vd, float size, const osg::Vec2f& center)
+{
+    if (!hasValidBounds())
+        return;
+
+    if (getCenter().x() + getSize()/2.f <= center.x() - size/2.f
+            || getCenter().x() - getSize()/2.f >= center.x() + size/2.f
+            || getCenter().y() + getSize()/2.f <= center.y() - size/2.f
+            || getCenter().y() - getSize()/2.f >= center.y() + size/2.f)
+        return;
+
+    bool stopTraversal = (getSize() == size);
+
+    if (stopTraversal)
         vd->add(this);
+    else
+    {
+        for (unsigned int i=0; i<getNumChildren(); ++i)
+            getChild(i)->traverseTo(vd, size, center);
+    }
+}
+
+void QuadTreeNode::intersect(ViewData* vd, TerrainLineIntersector& intersector)
+{
+    if (!hasValidBounds())
+        return;
+
+    if (!intersector.intersectAndClip(getBoundingBox()))
+        return;
+
+    if (getNumChildren() == 0)
+        vd->add(this);
+    else
+    {
+        for (unsigned int i=0; i<getNumChildren(); ++i)
+            getChild(i)->intersect(vd, intersector);
+    }
 }
 
 void QuadTreeNode::setBoundingBox(const osg::BoundingBox &boundingBox)
 {
     mBoundingBox = boundingBox;
     mValidBounds = boundingBox.valid();
+    dirtyBound();
+    getBound();
 }
 
 const osg::BoundingBox &QuadTreeNode::getBoundingBox() const
 {
     return mBoundingBox;
+}
+
+osg::BoundingSphere QuadTreeNode::computeBound() const
+{
+    return osg::BoundingSphere(mBoundingBox);
 }
 
 float QuadTreeNode::getSize() const

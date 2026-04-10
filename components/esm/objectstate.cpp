@@ -26,7 +26,6 @@ void ESM::ObjectState::load (ESMReader &esm)
     mCount = 1;
     esm.getHNOT (mCount, "COUN");
 
-    mPosition = mRef.mPos;
     esm.getHNOT (mPosition, "POS_", 24);
 
     if (esm.isNextSub("LROT"))
@@ -62,7 +61,7 @@ void ESM::ObjectState::save (ESMWriter &esm, bool inInventory) const
     if (mCount!=1)
         esm.writeHNT ("COUN", mCount);
 
-    if (!inInventory && mPosition != mRef.mPos)
+    if (!inInventory)
         esm.writeHNT ("POS_", mPosition, 24);
 
     if (mFlags != 0)

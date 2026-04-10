@@ -26,8 +26,6 @@
 #include "../mwmechanics/npcstats.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
-#include <components/settings/settings.hpp>
-
 #include "tooltips.hpp"
 
 namespace
@@ -54,7 +52,6 @@ namespace MWGui
     TrainingWindow::TrainingWindow()
         : WindowBase("openmw_trainingwindow.layout")
         , mTimeAdvancer(0.05f)
-        , mTrainingSkillBasedOnBaseSkill(Settings::Manager::getBool("trainers training skills based on base skill", "Game"))
     {
         getWidget(mTrainingOptions, "TrainingOptions");
         getWidget(mCancelButton, "CancelButton");
@@ -89,14 +86,13 @@ namespace MWGui
         mPlayerGold->setCaptionWithReplacing("#{sGold}: " + MyGUI::utility::toString(playerGold));
 
         // NPC can train you in his best 3 skills
-        std::vector< std::pair<int, float> > skills;
+        std::vector< std::pair<int, int> > skills;
 
-        MWMechanics::NpcStats const& actorStats(actor.getClass().getNpcStats(actor));
         for (int i=0; i<ESM::Skill::Length; ++i)
         {
-            float value = getSkillForTraining(actorStats, i);
+            int value = actor.getClass().getSkill(actor, i);
 
-            skills.emplace_back(i, value);
+            skills.push_back(std::make_pair(i, value));
         }
 
         std::sort(skills.begin(), skills.end(), sortSkills);
@@ -111,9 +107,8 @@ namespace MWGui
 
         for (int i=0; i<3; ++i)
         {
-            int price = static_cast<int>(pcStats.getSkill (skills[i].first).getBase() * gmst.find("iTrainingMod")->mValue.getInteger());
-            price = std::max(1, price);
-            price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, price, true);
+            int price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer
+                    (mPtr,pcStats.getSkill (skills[i].first).getBase() * gmst.find("iTrainingMod")->mValue.getInteger(),true);
 
             MyGUI::Button* button = mTrainingOptions->createWidget<MyGUI::Button>(price <= playerGold ? "SandTextButton" : "SandTextButtonDisabled", // can't use setEnabled since that removes tooltip
                 MyGUI::IntCoord(5, 5+i*18, mTrainingOptions->getWidth()-10, 18), MyGUI::Align::Default);
@@ -157,7 +152,7 @@ namespace MWGui
         if (price > player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId))
             return;
 
-        if (getSkillForTraining(mPtr.getClass().getNpcStats(mPtr), skillId) <= pcStats.getSkill(skillId).getBase())
+        if (mPtr.getClass().getSkill(mPtr, skillId) <= pcStats.getSkill (skillId).getBase ())
         {
             MWBase::Environment::get().getWindowManager()->messageBox ("#{sServiceTrainingWords}");
             return;
@@ -183,6 +178,11 @@ namespace MWGui
 
         // add gold to NPC trading gold pool
         MWMechanics::NpcStats& npcStats = mPtr.getClass().getNpcStats(mPtr);
+        npcStats.setGoldPool(npcStats.getGoldPool() + price);
+
+        // advance time
+        MWBase::Environment::get().getMechanicsManager()->rest(2, false);
+        MWBase::Environment::get().getWorld ()->advanceTime (2);
 
         /*
             Start of tes3mp change (major)
@@ -235,13 +235,6 @@ namespace MWGui
         // go back to game mode
         MWBase::Environment::get().getWindowManager()->removeGuiMode (GM_Training);
         MWBase::Environment::get().getWindowManager()->exitCurrentGuiMode();
-    }
-
-    float TrainingWindow::getSkillForTraining(const MWMechanics::NpcStats& stats, int skillId) const
-    {
-        if (mTrainingSkillBasedOnBaseSkill)
-            return stats.getSkill(skillId).getBase();
-        return stats.getSkill(skillId).getModified();
     }
 
     void TrainingWindow::onFrame(float dt)

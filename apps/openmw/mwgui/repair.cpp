@@ -3,6 +3,8 @@
 #include <iomanip>
 
 #include <MyGUI_ScrollView.h>
+#include <MyGUI_Gui.h>
+#include <MyGUI_ItemBox.h>
 
 #include <components/widgets/box.hpp>
 
@@ -15,7 +17,6 @@
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/class.hpp"
 
-#include "itemselection.hpp"
 #include "itemwidget.hpp"
 #include "itemchargeview.hpp"
 #include "sortfilteritemmodel.hpp"

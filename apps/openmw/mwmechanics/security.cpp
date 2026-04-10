@@ -33,8 +33,8 @@ namespace MWMechanics
         : mActor(actor)
     {
         CreatureStats& creatureStats = actor.getClass().getCreatureStats(actor);
-        mAgility = creatureStats.getAttribute(ESM::Attribute::Agility).getModified();
-        mLuck = creatureStats.getAttribute(ESM::Attribute::Luck).getModified();
+        mAgility = static_cast<float>(creatureStats.getAttribute(ESM::Attribute::Agility).getModified());
+        mLuck = static_cast<float>(creatureStats.getAttribute(ESM::Attribute::Luck).getModified());
         mSecuritySkill = static_cast<float>(actor.getClass().getSkill(actor, ESM::Skill::Security));
         mFatigueTerm = creatureStats.getFatigueTerm();
     }
@@ -45,10 +45,6 @@ namespace MWMechanics
         if (lock.getCellRef().getLockLevel() <= 0 ||
             lock.getCellRef().getLockLevel() == ESM::UnbreakableLock ||
             !lock.getClass().hasToolTip(lock)) //If it's unlocked or can not be unlocked back out immediately
-            return;
-
-        int uses = lockpick.getClass().getItemHealth(lockpick);
-        if (uses == 0)
             return;
 
         int lockStrength = lock.getCellRef().getLockLevel();
@@ -70,6 +66,7 @@ namespace MWMechanics
         {
             if (Misc::Rng::roll0to99() <= x)
             {
+                lock.getCellRef().unlock();
                 /*
                     Start of tes3mp change (major)
 
@@ -103,7 +100,9 @@ namespace MWMechanics
                 resultMessage = "#{sLockFail}";
         }
 
-        lockpick.getCellRef().setCharge(--uses);
+        int uses = lockpick.getClass().getItemHealth(lockpick);
+        --uses;
+        lockpick.getCellRef().setCharge(uses);
         if (!uses)
             lockpick.getContainerStore()->remove(lockpick, 1, mActor);
     }
@@ -111,11 +110,7 @@ namespace MWMechanics
     void Security::probeTrap(const MWWorld::Ptr &trap, const MWWorld::Ptr &probe,
                              std::string& resultMessage, std::string& resultSound)
     {
-        if (trap.getCellRef().getTrap().empty())
-            return;
-
-        int uses = probe.getClass().getItemHealth(probe);
-        if (uses == 0)
+        if (trap.getCellRef().getTrap()  == "")
             return;
 
         float probeQuality = probe.get<ESM::Probe>()->mBase->mData.mQuality;
@@ -138,6 +133,7 @@ namespace MWMechanics
         {
             if (Misc::Rng::roll0to99() <= x)
             {
+                trap.getCellRef().setTrap("");
                 /*
                     Start of tes3mp change (major)
 
@@ -171,7 +167,9 @@ namespace MWMechanics
                 resultMessage = "#{sTrapFail}";
         }
 
-        probe.getCellRef().setCharge(--uses);
+        int uses = probe.getClass().getItemHealth(probe);
+        --uses;
+        probe.getCellRef().setCharge(uses);
         if (!uses)
             probe.getContainerStore()->remove(probe, 1, mActor);
     }

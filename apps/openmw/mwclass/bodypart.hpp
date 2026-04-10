@@ -8,24 +8,24 @@ namespace MWClass
 
     class BodyPart : public MWWorld::Class
     {
-        MWWorld::Ptr copyToCellImpl(const MWWorld::ConstPtr &ptr, MWWorld::CellStore &cell) const override;
+        virtual MWWorld::Ptr copyToCellImpl(const MWWorld::ConstPtr &ptr, MWWorld::CellStore &cell) const;
 
     public:
 
-        void insertObjectRendering (const MWWorld::Ptr& ptr, const std::string& model, MWRender::RenderingInterface& renderingInterface) const override;
+        virtual void insertObjectRendering (const MWWorld::Ptr& ptr, const std::string& model, MWRender::RenderingInterface& renderingInterface) const;
         ///< Add reference into a cell for rendering
 
-        void insertObject(const MWWorld::Ptr& ptr, const std::string& model, MWPhysics::PhysicsSystem& physics) const override;
+        virtual void insertObject(const MWWorld::Ptr& ptr, const std::string& model, MWPhysics::PhysicsSystem& physics) const;
 
-        std::string getName (const MWWorld::ConstPtr& ptr) const override;
+        virtual std::string getName (const MWWorld::ConstPtr& ptr) const;
         ///< \return name or ID; can return an empty string.
 
-        bool hasToolTip (const MWWorld::ConstPtr& ptr) const override;
+        virtual bool hasToolTip (const MWWorld::ConstPtr& ptr) const;
         ///< @return true if this object has a tooltip when focused (default implementation: true)
 
         static void registerSelf();
 
-        std::string getModel(const MWWorld::ConstPtr &ptr) const override;
+        virtual std::string getModel(const MWWorld::ConstPtr &ptr) const;
     };
 
 }

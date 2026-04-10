@@ -26,11 +26,11 @@ enum InterpolationType
 template<typename T>
 struct KeyT {
     T mValue;
-    T mInTan; // Only for Quadratic interpolation, and never for QuaternionKeyList
-    T mOutTan; // Only for Quadratic interpolation, and never for QuaternionKeyList
 
-    // FIXME: Implement TBC interpolation
+    // FIXME: Implement Quadratic and TBC interpolation
     /*
+    T mForwardValue;  // Only for Quadratic interpolation, and never for QuaternionKeyList
+    T mBackwardValue; // Only for Quadratic interpolation, and never for QuaternionKeyList
     float mTension;    // Only for TBC interpolation
     float mBias;       // Only for TBC interpolation
     float mContinuity; // Only for TBC interpolation
@@ -52,32 +52,21 @@ struct KeyMapT {
     MapType mKeys;
 
     //Read in a KeyGroup (see http://niftools.sourceforge.net/doc/nif/NiKeyframeData.html)
-    void read(NIFStream *nif, bool force = false, bool morph = false)
+    void read(NIFStream *nif, bool force=false)
     {
         assert(nif);
 
         mInterpolationType = InterpolationType_Unknown;
 
-        if (morph && nif->getVersion() >= NIFStream::generateVersion(10,1,0,106))
-            nif->getString(); // Frame name
-
         size_t count = nif->getUInt();
-        if (count == 0 && !force && !morph)
+        if(count == 0 && !force)
             return;
-
-        if (morph && nif->getVersion() > NIFStream::generateVersion(10,1,0,0))
-        {
-            if (nif->getVersion() >= NIFStream::generateVersion(10,1,0,104) &&
-                nif->getVersion() <= NIFStream::generateVersion(20,1,0,2) && nif->getBethVersion() < 10)
-                nif->getFloat(); // Legacy weight
-            return;
-        }
 
         mKeys.clear();
 
         mInterpolationType = nif->getUInt();
 
-        KeyType key = {};
+        KeyT<T> key;
         NIFStream &nifReference = *nif;
 
         if (mInterpolationType == InterpolationType_Linear
@@ -147,8 +136,8 @@ private:
     static void readQuadratic(NIFStream &nif, KeyT<U> &key)
     {
         readValue(nif, key);
-        key.mInTan = (nif.*getValue)();
-        key.mOutTan = (nif.*getValue)();
+        /*key.mForwardValue = */(nif.*getValue)();
+        /*key.mBackwardValue = */(nif.*getValue)();
     }
 
     static void readQuadratic(NIFStream &nif, KeyT<osg::Quat> &key)

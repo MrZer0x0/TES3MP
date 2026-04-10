@@ -1,27 +1,24 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESHMANAGER_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_RECASTMESHMANAGER_H
 
-#include "oscillatingrecastmeshobject.hpp"
+#include "recastmeshbuilder.hpp"
+#include "recastmeshobject.hpp"
 #include "objectid.hpp"
-#include "version.hpp"
 
 #include <LinearMath/btTransform.h>
 
 #include <osg/Vec2i>
 
-#include <list>
+#include <boost/optional.hpp>
+
 #include <map>
-#include <optional>
-#include <memory>
-#include <mutex>
+#include <unordered_map>
+#include <list>
 
 class btCollisionShape;
 
 namespace DetourNavigator
 {
-    struct Settings;
-    class RecastMesh;
-
     struct RemovedRecastMeshObject
     {
         std::reference_wrapper<const btCollisionShape> mShape;
@@ -39,43 +36,32 @@ namespace DetourNavigator
 
         RecastMeshManager(const Settings& settings, const TileBounds& bounds, std::size_t generation);
 
-        bool addObject(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
+        bool addObject(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
                        const AreaType areaType);
 
         bool updateObject(const ObjectId id, const btTransform& transform, const AreaType areaType);
 
         bool addWater(const osg::Vec2i& cellPosition, const int cellSize, const btTransform& transform);
 
-        std::optional<Water> removeWater(const osg::Vec2i& cellPosition);
+        boost::optional<Water> removeWater(const osg::Vec2i& cellPosition);
 
-        std::optional<RemovedRecastMeshObject> removeObject(const ObjectId id);
+        boost::optional<RemovedRecastMeshObject> removeObject(const ObjectId id);
 
         std::shared_ptr<RecastMesh> getMesh();
 
         bool isEmpty() const;
 
-        void reportNavMeshChange(Version recastMeshVersion, Version navMeshVersion);
-
-        Version getVersion() const;
-
     private:
-        struct Report
-        {
-            std::size_t mRevision;
-            Version mNavMeshVersion;
-        };
-
-        const Settings& mSettings;
-        const std::size_t mGeneration;
-        const TileBounds mTileBounds;
-        mutable std::mutex mMutex;
         std::size_t mRevision = 0;
-        std::list<OscillatingRecastMeshObject> mObjectsOrder;
-        std::map<ObjectId, std::list<OscillatingRecastMeshObject>::iterator> mObjects;
+        std::size_t mLastBuildRevision = 0;
+        std::size_t mGeneration;
+        RecastMeshBuilder mMeshBuilder;
+        std::list<RecastMeshObject> mObjectsOrder;
+        std::unordered_map<ObjectId, std::list<RecastMeshObject>::iterator> mObjects;
         std::list<Water> mWaterOrder;
         std::map<osg::Vec2i, std::list<Water>::iterator> mWater;
-        std::optional<Report> mLastNavMeshReportedChange;
-        std::optional<Report> mLastNavMeshReport;
+
+        void rebuild();
     };
 }
 

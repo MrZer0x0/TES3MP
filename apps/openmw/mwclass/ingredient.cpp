@@ -149,8 +149,8 @@ namespace MWClass
 
         std::string text;
 
-        text += MWGui::ToolTips::getWeightString(ref->mBase->mData.mWeight, "#{sWeight}");
-        text += MWGui::ToolTips::getValueString(ref->mBase->mData.mValue, "#{sValue}");
+        info.weight = MWGui::ToolTips::getWeightString(ref->mBase->mData.mWeight, "#{sWeight}");
+        info.value = MWGui::ToolTips::getValueString(ref->mBase->mData.mValue, "#{sValue}");
 
         if (MWBase::Environment::get().getWindowManager()->getFullHelp()) {
             text += MWGui::ToolTips::getCellRefString(ptr.getCellRef());
@@ -158,7 +158,7 @@ namespace MWClass
         }
 
         MWWorld::Ptr player = MWBase::Environment::get().getWorld ()->getPlayerPtr();
-        float alchemySkill = player.getClass().getSkill(player, ESM::Skill::Alchemy);
+        int alchemySkill = player.getClass().getSkill(player, ESM::Skill::Alchemy);
 
         static const float fWortChanceValue =
                 MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fWortChanceValue")->mValue.getFloat();

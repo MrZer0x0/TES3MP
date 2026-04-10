@@ -5,7 +5,6 @@
 #include "tileposition.hpp"
 #include "navmeshtilescache.hpp"
 #include "dtstatus.hpp"
-#include "navmeshtileview.hpp"
 
 #include <components/misc/guarded.hpp>
 
@@ -23,9 +22,6 @@ namespace DetourNavigator
         replaced = removed | added,
         failed = 1 << 2,
         lost = removed | failed,
-        cached = 1 << 3,
-        unchanged = replaced | cached,
-        restored = added | cached,
     };
 
     inline bool isSuccess(UpdateNavMeshStatus value)
@@ -37,9 +33,6 @@ namespace DetourNavigator
     {
     public:
         UpdateNavMeshStatusBuilder() = default;
-
-        explicit UpdateNavMeshStatusBuilder(UpdateNavMeshStatus value)
-            : mResult(value) {}
 
         UpdateNavMeshStatusBuilder removed(bool value)
         {
@@ -65,15 +58,6 @@ namespace DetourNavigator
                 set(UpdateNavMeshStatus::failed);
             else
                 unset(UpdateNavMeshStatus::failed);
-            return *this;
-        }
-
-        UpdateNavMeshStatusBuilder cached(bool value)
-        {
-            if (value)
-                set(UpdateNavMeshStatus::cached);
-            else
-                unset(UpdateNavMeshStatus::cached);
             return *this;
         }
 
@@ -142,12 +126,6 @@ namespace DetourNavigator
         template <class T>
         UpdateNavMeshStatus updateTile(const TilePosition& position, T&& navMeshData)
         {
-            const dtMeshTile* currentTile = getTile(position);
-            if (currentTile != nullptr
-                && asNavMeshTileConstView(*currentTile) == asNavMeshTileConstView(getRawData(navMeshData)))
-            {
-                return UpdateNavMeshStatus::ignored;
-            }
             const auto removed = removeTileImpl(position);
             const auto addStatus = addTileImpl(getRawData(navMeshData), getSize(navMeshData));
             if (dtStatusSucceed(addStatus))
@@ -165,7 +143,7 @@ namespace DetourNavigator
 
         UpdateNavMeshStatus removeTile(const TilePosition& position)
         {
-            const auto removed = removeTileImpl(position);
+            const auto removed = dtStatusSucceed(removeTileImpl(position));
             if (removed)
                 removeUsedTile(position);
             return UpdateNavMeshStatusBuilder().removed(removed).getResult();
@@ -203,21 +181,13 @@ namespace DetourNavigator
             return mImpl->addTile(data, size, doNotTransferOwnership, lastRef, result);
         }
 
-        bool removeTileImpl(const TilePosition& position)
+        dtStatus removeTileImpl(const TilePosition& position)
         {
             const int layer = 0;
             const auto tileRef = mImpl->getTileRefAt(position.x(), position.y(), layer);
-            if (tileRef == 0)
-                return false;
             unsigned char** const data = nullptr;
             int* const dataSize = nullptr;
-            return dtStatusSucceed(mImpl->removeTile(tileRef, data, dataSize));
-        }
-
-        const dtMeshTile* getTile(const TilePosition& position) const
-        {
-            const int layer = 0;
-            return mImpl->getTileAt(position.x(), position.y(), layer);
+            return mImpl->removeTile(tileRef, data, dataSize);
         }
     };
 

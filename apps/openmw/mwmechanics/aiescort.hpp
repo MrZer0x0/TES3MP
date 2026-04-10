@@ -1,7 +1,7 @@
 #ifndef GAME_MWMECHANICS_AIESCORT_H
 #define GAME_MWMECHANICS_AIESCORT_H
 
-#include "typedaipackage.hpp"
+#include "aipackage.hpp"
 
 #include <string>
 
@@ -16,7 +16,7 @@ namespace AiSequence
 namespace MWMechanics
 {
     /// \brief AI Package to have an NPC lead the player to a specific point
-    class AiEscort final : public TypedAiPackage<AiEscort>
+    class AiEscort : public AiPackage
     {
         public:
             /// Implementation of AiEscort
@@ -30,35 +30,33 @@ namespace MWMechanics
 
             AiEscort(const ESM::AiSequence::AiEscort* escort);
 
-            bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration) override;
+            virtual AiEscort *clone() const;
 
-            static constexpr AiPackageTypeId getTypeId() { return AiPackageTypeId::Escort; }
+            virtual bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration);
 
-            static constexpr Options makeDefaultOptions()
-            {
-                AiPackage::Options options;
-                options.mUseVariableSpeed = true;
-                options.mSideWithTarget = true;
-                return options;
-            }
+            virtual int getTypeId() const;
 
-            void writeState(ESM::AiSequence::AiSequence &sequence) const override;
+            virtual bool useVariableSpeed() const { return true;}
 
-            void fastForward(const MWWorld::Ptr& actor, AiState& state) override;
+            virtual bool sideWithTarget() const { return true; }
 
-            osg::Vec3f getDestination() const override { return osg::Vec3f(mX, mY, mZ); }
+            void writeState(ESM::AiSequence::AiSequence &sequence) const;
+
+            void fastForward(const MWWorld::Ptr& actor, AiState& state);
+
+            virtual osg::Vec3f getDestination() const { return osg::Vec3f(mX, mY, mZ); }
 
         private:
-            const std::string mCellId;
-            const float mX;
-            const float mY;
-            const float mZ;
-            float mMaxDist = 450;
-            const float mDuration; // In hours
+            std::string mCellId;
+            float mX;
+            float mY;
+            float mZ;
+            float mMaxDist;
+            float mDuration; // In hours
             float mRemainingDuration; // In hours
 
-            const int mCellX;
-            const int mCellY;
+            int mCellX;
+            int mCellY;
     };
 }
 #endif

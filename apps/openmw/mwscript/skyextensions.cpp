@@ -21,7 +21,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     bool enabled = MWBase::Environment::get().getWorld()->toggleSky();
 
@@ -33,7 +33,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     MWBase::Environment::get().getWorld()->setMoonColour (false);
                 }
@@ -43,7 +43,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     MWBase::Environment::get().getWorld()->setMoonColour (true);
                 }
@@ -53,7 +53,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->getMasserPhase());
                 }
@@ -63,7 +63,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->getSecundaPhase());
                 }
@@ -73,7 +73,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->getCurrentWeather());
                 }
@@ -83,7 +83,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     std::string region = runtime.getStringLiteral (runtime[0].mInteger);
                     runtime.pop();
@@ -99,7 +99,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime, unsigned int arg0) override
+                virtual void execute (Interpreter::Runtime& runtime, unsigned int arg0)
                 {
                     std::string region = runtime.getStringLiteral (runtime[0].mInteger);
                     runtime.pop();

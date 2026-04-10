@@ -14,7 +14,7 @@ namespace ContentSelectorView
         Q_OBJECT
 
     public:
-        explicit ComboBox (QWidget *parent = nullptr);
+        explicit ComboBox (QWidget *parent = 0);
 
         void setPlaceholderText(const QString &text);
 
@@ -22,7 +22,7 @@ namespace ContentSelectorView
         QString mPlaceholderText;
 
     protected:
-        void paintEvent(QPaintEvent *) override;
+        void paintEvent(QPaintEvent *);
         QRegExpValidator *mValidator;
     };
 }

@@ -17,7 +17,7 @@ namespace Shader
     class ShaderVisitor : public osg::NodeVisitor
     {
     public:
-        ShaderVisitor(ShaderManager& shaderManager, Resource::ImageManager& imageManager, const std::string& defaultShaderPrefix);
+        ShaderVisitor(ShaderManager& shaderManager, Resource::ImageManager& imageManager, const std::string& defaultVsTemplate, const std::string& defaultFsTemplate);
 
         /// By default, only bump mapped objects will have a shader added to them.
         /// Setting force = true will cause all objects to render using shaders, regardless of having a bump map.
@@ -38,16 +38,10 @@ namespace Shader
 
         void setSpecularMapPattern(const std::string& pattern);
 
-        void setApplyLightingToEnvMaps(bool apply);
+        virtual void apply(osg::Node& node);
 
-        void setConvertAlphaTestToAlphaToCoverage(bool convert);
-
-        void setTranslucentFramebuffer(bool translucent);
-
-        void apply(osg::Node& node) override;
-
-        void apply(osg::Drawable& drawable) override;
-        void apply(osg::Geometry& geometry) override;
+        virtual void apply(osg::Drawable& drawable);
+        virtual void apply(osg::Geometry& geometry);
 
         void applyStateSet(osg::ref_ptr<osg::StateSet> stateset, osg::Node& node);
 
@@ -65,12 +59,6 @@ namespace Shader
         bool mAutoUseSpecularMaps;
         std::string mSpecularMapPattern;
 
-        bool mApplyLightingToEnvMaps;
-
-        bool mConvertAlphaTestToAlphaToCoverage;
-
-        bool mTranslucentFramebuffer;
-
         ShaderManager& mShaderManager;
         Resource::ImageManager& mImageManager;
 
@@ -87,13 +75,6 @@ namespace Shader
             int mColorMode;
             
             bool mMaterialOverridden;
-            bool mAlphaTestOverridden;
-            bool mAlphaBlendOverridden;
-
-            GLenum mAlphaFunc;
-            float mAlphaRef;
-            bool mAlphaBlend;
-
             bool mNormalHeight; // true if normal map has height info in alpha channel
 
             // -1 == no tangents required
@@ -104,22 +85,11 @@ namespace Shader
         };
         std::vector<ShaderRequirements> mRequirements;
 
-        std::string mDefaultShaderPrefix;
+        std::string mDefaultVsTemplate;
+        std::string mDefaultFsTemplate;
 
         void createProgram(const ShaderRequirements& reqs);
-        void ensureFFP(osg::Node& node);
         bool adjustGeometry(osg::Geometry& sourceGeometry, const ShaderRequirements& reqs);
-    };
-
-    class ReinstateRemovedStateVisitor : public osg::NodeVisitor
-    {
-    public:
-        ReinstateRemovedStateVisitor(bool allowedToModifyStateSets);
-
-        void apply(osg::Node& node) override;
-
-    private:
-        bool mAllowedToModifyStateSets;
     };
 
 }

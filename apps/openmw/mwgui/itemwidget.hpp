@@ -41,7 +41,7 @@ namespace MWGui
         void setFrame (const std::string& frame, const MyGUI::IntCoord& coord);
 
     protected:
-        void initialiseOverride() override;
+        void initialiseOverride() final;
 
         MyGUI::ImageBox* mItem;
         MyGUI::ImageBox* mItemShadow;

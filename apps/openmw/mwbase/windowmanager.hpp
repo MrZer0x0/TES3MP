@@ -11,8 +11,6 @@
 
 #include "../mwgui/mode.hpp"
 
-#include <components/sdlutil/events.hpp>
-
 namespace Loading
 {
     class Listener;
@@ -32,6 +30,7 @@ namespace MyGUI
 
 namespace ESM
 {
+    struct Class;
     class ESMReader;
     class ESMWriter;
     struct CellId;
@@ -56,6 +55,7 @@ namespace MWGui
     class Layout;
 
     class Console;
+    class QuickLoot;
     class SpellWindow;
     class TradeWindow;
     class TravelWindow;
@@ -69,6 +69,7 @@ namespace MWGui
     class DialogueWindow;
     class WindowModal;
     class JailScreen;
+    class QuickKeysMenu;
 
     enum ShowInDialogueMode {
         ShowInDialogueMode_IfPossible,
@@ -87,7 +88,7 @@ namespace SFO
 namespace MWBase
 {
     /// \brief Interface for widnow manager (implemented in MWGui)
-    class WindowManager : public SDLUtil::WindowListener
+    class WindowManager
     {
             WindowManager (const WindowManager&);
             ///< not implemented
@@ -127,6 +128,8 @@ namespace MWBase
 
             virtual bool isConsoleMode() const = 0;
 
+            virtual void notifyMouseWheel(int rel) = 0;
+
             virtual void toggleVisible (MWGui::GuiWindow wnd) = 0;
 
             virtual void forceHide(MWGui::GuiWindow wnd) = 0;
@@ -145,6 +148,8 @@ namespace MWBase
             virtual MWGui::CountDialog* getCountDialog() = 0;
             virtual MWGui::ConfirmationDialog* getConfirmationDialog() = 0;
             virtual MWGui::TradeWindow* getTradeWindow() = 0;
+            virtual MWGui::QuickKeysMenu* getQuickKeysMenu() = 0;
+            virtual MWGui::QuickLoot* getQuickLoot() = 0;
 
             /*
                 Start of tes3mp addition
@@ -174,6 +179,12 @@ namespace MWBase
 
             virtual void setConsoleSelectedObject(const MWWorld::Ptr& object) = 0;
 
+            /// Set value for the given ID.
+            virtual void setValue (const std::string& id, const MWMechanics::AttributeValue& value) = 0;
+            virtual void setValue (int parSkill, const MWMechanics::SkillValue& value) = 0;
+            virtual void setValue (const std::string& id, const MWMechanics::DynamicStat<float>& value) = 0;
+            virtual void setValue (const std::string& id, const std::string& value) = 0;
+            virtual void setValue (const std::string& id, int value) = 0;
             /*
                 Start of tes3mp addition
 
@@ -201,6 +212,15 @@ namespace MWBase
             /// @param time time left to start drowning
             /// @param maxTime how long we can be underwater (in total) until drowning starts
             virtual void setDrowningTimeLeft (float time, float maxTime) = 0;
+
+            virtual void setPlayerClass (const ESM::Class &class_) = 0;
+            ///< set current class of player
+
+            virtual void configureSkills (const SkillList& major, const SkillList& minor) = 0;
+            ///< configure skill groups, each set contains the skill ID for that group.
+
+            virtual void updateSkillArea() = 0;
+            ///< update display of skills, factions, birth sign, reputation and bounty
 
             virtual void changeCell(const MWWorld::CellStore* cell) = 0;
             ///< change the active cell
@@ -237,8 +257,6 @@ namespace MWBase
 
             virtual bool getWorldMouseOver() = 0;
 
-            virtual float getScalingFactor() = 0;
-
             virtual bool toggleFogOfWar() = 0;
 
             virtual bool toggleFullHelp() = 0;
@@ -266,6 +284,9 @@ namespace MWBase
             /// update activated quick key state (if action executing was delayed for some reason)
             virtual void updateActivatedQuickKey () = 0;
 
+            // whether or not to use key focu or mouse focus widget for tooltips 
+            virtual void setKeyTooltip(bool enable) = 0;
+            virtual bool isKeyTooltip() const = 0;
             /*
                 Start of tes3mp addition
 
@@ -306,6 +327,8 @@ namespace MWBase
             virtual void messageBox (const std::string& message, enum MWGui::ShowInDialogueMode showInDialogueMode = MWGui::ShowInDialogueMode_IfPossible) = 0;
             virtual void staticMessageBox(const std::string& message) = 0;
             virtual void removeStaticMessageBox() = 0;
+            virtual void interactiveMessageBox (const std::string& message,
+                                                const std::vector<std::string>& buttons = std::vector<std::string>(), bool block=false) = 0;
             /*
                 Start of tes3mp change (major)
 
@@ -321,9 +344,13 @@ namespace MWBase
             /// returns the index of the pressed button or -1 if no button was pressed (->MessageBoxmanager->InteractiveMessageBox)
             virtual int readPressedButton() = 0;
 
-            virtual void update (float duration) = 0;
+            virtual void onFrame (float frameDuration) = 0;
 
-            virtual void updateConsoleObjectPtr(const MWWorld::Ptr& currentPtr, const MWWorld::Ptr& newPtr) = 0;
+            /// \todo get rid of this stuff. Move it to the respective UI element classes, if needed.
+            virtual std::map<int, MWMechanics::SkillValue > getPlayerSkillValues() = 0;
+            virtual std::map<int, MWMechanics::AttributeValue > getPlayerAttributeValues() = 0;
+            virtual SkillList getPlayerMinorSkills() = 0;
+            virtual SkillList getPlayerMajorSkills() = 0;
 
             /**
              * Fetches a GMST string from the store, if there is no setting with the given
@@ -336,8 +363,9 @@ namespace MWBase
 
             virtual void processChangedSettings(const std::set< std::pair<std::string, std::string> >& changed) = 0;
 
-            virtual void executeInConsole (const std::string& path) = 0;
+            virtual void windowResized(int x, int y) = 0;
 
+            virtual void executeInConsole (const std::string& path) = 0;
             /*
                 Start of tes3mp addition
 
@@ -436,14 +464,6 @@ namespace MWBase
 
             virtual bool injectKeyPress(MyGUI::KeyCode key, unsigned int text, bool repeat) = 0;
             virtual bool injectKeyRelease(MyGUI::KeyCode key) = 0;
-
-            void windowVisibilityChange(bool visible) override = 0;
-            void windowResized(int x, int y) override = 0;
-            void windowClosed() override = 0;
-            virtual bool isWindowVisible() = 0;
-
-            virtual void watchActor(const MWWorld::Ptr& ptr) = 0;
-            virtual MWWorld::Ptr getWatchedActor() const = 0;
     };
 }
 

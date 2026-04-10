@@ -18,76 +18,14 @@
 namespace Resource
 {
 
-static bool collectStatRendering = false;
-static bool collectStatCameraObjects = false;
-static bool collectStatViewerObjects = false;
-static bool collectStatResource = false;
-static bool collectStatGPU = false;
-static bool collectStatEvent = false;
-static bool collectStatFrameRate = false;
-static bool collectStatUpdate = false;
-static bool collectStatEngine = false;
-
-static void setupStatCollection()
-{
-    const char* envList = getenv("OPENMW_OSG_STATS_LIST");
-    if (envList == nullptr)
-        return;
-
-    std::string_view kwList(envList);
-
-    auto kwBegin = kwList.begin();
-
-    while (kwBegin != kwList.end())
-    {
-        auto kwEnd = std::find(kwBegin, kwList.end(), ';');
-
-        const auto kw = kwList.substr(std::distance(kwList.begin(), kwBegin), std::distance(kwBegin, kwEnd));
-
-        if (kw.compare("gpu") == 0)
-            collectStatGPU = true;
-        else if (kw.compare("event") == 0)
-            collectStatEvent = true;
-        else if (kw.compare("frame_rate") == 0)
-            collectStatFrameRate = true;
-        else if (kw.compare("update") == 0)
-            collectStatUpdate = true;
-        else if (kw.compare("engine") == 0)
-            collectStatEngine = true;
-        else if (kw.compare("rendering") == 0)
-            collectStatRendering = true;
-        else if (kw.compare("cameraobjects") == 0)
-            collectStatCameraObjects = true;
-        else if (kw.compare("viewerobjects") == 0)
-            collectStatViewerObjects = true;
-        else if (kw.compare("resource") == 0)
-            collectStatResource = true;
-        else if (kw.compare("times") == 0)
-        {
-            collectStatGPU = true;
-            collectStatEvent = true;
-            collectStatFrameRate = true;
-            collectStatUpdate = true;
-            collectStatEngine = true;
-            collectStatRendering = true;
-        }
-
-        if (kwEnd == kwList.end())
-            break;
-
-        kwBegin = std::next(kwEnd);
-    }
-}
-
-StatsHandler::StatsHandler(bool offlineCollect):
+StatsHandler::StatsHandler():
     _key(osgGA::GUIEventAdapter::KEY_F4),
     _initialized(false),
     _statsType(false),
-    _offlineCollect(offlineCollect),
     _statsWidth(1280.0f),
     _statsHeight(1024.0f),
     _font(""),
-    _characterSize(18.0f)
+    _characterSize(20.0f)
 {
     _camera = new osg::Camera;
     _camera->getOrCreateStateSet()->setGlobalDefaults();
@@ -100,39 +38,14 @@ StatsHandler::StatsHandler(bool offlineCollect):
         _font = osgMyGUI::DataManager::getInstance().getDataPath("DejaVuLGCSansMono.ttf");
 }
 
-Profiler::Profiler(bool offlineCollect):
-    _offlineCollect(offlineCollect)
+Profiler::Profiler()
 {
     if (osgDB::Registry::instance()->getReaderWriterForExtension("ttf"))
         _font = osgMyGUI::DataManager::getInstance().getDataPath("DejaVuLGCSansMono.ttf");
     else
         _font = "";
 
-    _characterSize = 18;
-
     setKeyEventTogglesOnScreenStats(osgGA::GUIEventAdapter::KEY_F3);
-    setupStatCollection();
-}
-
-bool Profiler::handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
-{
-    osgViewer::ViewerBase* viewer = nullptr;
-
-    bool handled = StatsHandler::handle(ea, aa);
-
-    auto* view = dynamic_cast<osgViewer::View*>(&aa);
-    if (view)
-        viewer = view->getViewerBase();
-
-    if (viewer)
-    {
-        // Add/remove openmw stats to the osd as necessary
-        viewer->getViewerStats()->collectStats("engine", _statsType >= StatsHandler::StatsType::VIEWER_STATS);
-
-        if (_offlineCollect)
-            CollectStatistics(viewer);
-    }
-    return handled;
 }
 
 bool StatsHandler::handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
@@ -151,9 +64,6 @@ bool StatsHandler::handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdap
                 osgViewer::ViewerBase* viewer = myview->getViewerBase();
 
                 toggle(viewer);
-
-                if (_offlineCollect)
-                    CollectStatistics(viewer);
 
                 aa.requestRedraw();
                 return true;
@@ -299,7 +209,7 @@ public:
     {
     }
 
-    void drawImplementation(osg::RenderInfo& renderInfo,const osg::Drawable* drawable) const override
+    virtual void drawImplementation(osg::RenderInfo& renderInfo,const osg::Drawable* drawable) const
     {
         if (!mStats) return;
 
@@ -352,6 +262,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase *viewer)
     stateset->setAttribute(new osg::PolygonMode(), osg::StateAttribute::PROTECTED);
 #endif
 
+    osg::Vec3 pos(_statsWidth-420.f, _statsHeight-500.0f,0.0f);
     osg::Vec4 backgroundColor(0.0, 0.0, 0.0f, 0.3);
     osg::Vec4 staticTextColor(1.0, 1.0, 0.0f, 1.0);
     osg::Vec4 dynamicTextColor(1.0, 1.0, 1.0f, 1.0);
@@ -366,10 +277,7 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase *viewer)
         _switch->addChild(group, false);
 
         static const std::vector<std::string> statNames({
-            "FrameNumber",
-            "",
             "Compiling",
-            "UnrefQueue",
             "WorkQueue",
             "WorkThread",
             "",
@@ -383,37 +291,27 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase *viewer)
             "Nif",
             "Keyframe",
             "",
-            "Groundcover Chunk",
-            "Object Chunk",
             "Terrain Chunk",
             "Terrain Texture",
             "Land",
             "Composite",
             "",
+            "UnrefQueue",
+            "",
             "NavMesh UpdateJobs",
             "NavMesh CacheSize",
             "NavMesh UsedTiles",
             "NavMesh CachedTiles",
-            "NavMesh CacheHitRate",
-            "",
-            "Mechanics Actors",
-            "Mechanics Objects",
-            "",
-            "Physics Actors",
-            "Physics Objects",
-            "Physics HeightFields",
         });
 
         static const auto longest = std::max_element(statNames.begin(), statNames.end(),
             [] (const std::string& lhs, const std::string& rhs) { return lhs.size() < rhs.size(); });
+        const int numLines = statNames.size();
         const float statNamesWidth = 13 * _characterSize + 2 * backgroundMargin;
-        const float statTextWidth = 7 * _characterSize + 2 * backgroundMargin;
-        const float statHeight = statNames.size() * _characterSize + 2 * backgroundMargin;
-        osg::Vec3 pos(_statsWidth - statNamesWidth - backgroundSpacing - statTextWidth, statHeight, 0.0f);
 
         group->addChild(createBackgroundRectangle(pos + osg::Vec3(-backgroundMargin, _characterSize + backgroundMargin, 0),
                                                         statNamesWidth,
-                                                        statHeight,
+                                                        numLines * _characterSize + 2 * backgroundMargin,
                                                         backgroundColor));
 
         osg::ref_ptr<osgText::Text> staticText = new osgText::Text;
@@ -437,8 +335,8 @@ void StatsHandler::setUpScene(osgViewer::ViewerBase *viewer)
         pos.x() += statNamesWidth + backgroundSpacing;
 
         group->addChild(createBackgroundRectangle(pos + osg::Vec3(-backgroundMargin, _characterSize + backgroundMargin, 0),
-                                                        statTextWidth,
-                                                        statHeight,
+                                                        7 * _characterSize + 2 * backgroundMargin,
+                                                        numLines * _characterSize + 2 * backgroundMargin,
                                                         backgroundColor));
 
         osg::ref_ptr<osgText::Text> statsText = new osgText::Text;
@@ -459,22 +357,6 @@ void StatsHandler::getUsage(osg::ApplicationUsage &usage) const
     usage.addKeyboardMouseBinding(_key, "On screen resource usage stats.");
 }
 
-void CollectStatistics(osgViewer::ViewerBase* viewer)
-{
-    osgViewer::Viewer::Cameras cameras;
-    viewer->getCameras(cameras);
-    for (auto* camera : cameras)
-    {
-        if (collectStatGPU)           camera->getStats()->collectStats("gpu", true);
-        if (collectStatRendering)     camera->getStats()->collectStats("rendering", true);
-        if (collectStatCameraObjects) camera->getStats()->collectStats("scene", true);
-    }
-    if (collectStatEvent)         viewer->getViewerStats()->collectStats("event", true);
-    if (collectStatFrameRate)     viewer->getViewerStats()->collectStats("frame_rate", true);
-    if (collectStatUpdate)        viewer->getViewerStats()->collectStats("update", true);
-    if (collectStatResource)      viewer->getViewerStats()->collectStats("resource", true);
-    if (collectStatViewerObjects) viewer->getViewerStats()->collectStats("scene", true);
-    if (collectStatEngine)        viewer->getViewerStats()->collectStats("engine", true);
-}
+
 
 }

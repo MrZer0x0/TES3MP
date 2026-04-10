@@ -2,38 +2,30 @@
 
 #include <osg/Node>
 #include <osg/NodeVisitor>
-#include <osgUtil/CullVisitor>
 
 namespace SceneUtil
 {
 
     void StateSetUpdater::operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
-        bool isCullVisitor = nv->getVisitorType() == osg::NodeVisitor::CULL_VISITOR;
         if (!mStateSets[0])
         {
-            for (int i=0; i<2; ++i)
+            // first time setup
+            osg::StateSet* src = node->getOrCreateStateSet();
+            for (int i=0; i<2; ++i) // Using SHALLOW_COPY for StateAttributes, if users want to modify it is their responsibility to set a non-shared one first
+                                    // This can be done conveniently in user implementations of the setDefaults() method
             {
-                if (!isCullVisitor)
-                    mStateSets[i] = new osg::StateSet(*node->getOrCreateStateSet(), osg::CopyOp::SHALLOW_COPY); // Using SHALLOW_COPY for StateAttributes, if users want to modify it is their responsibility to set a non-shared one first in setDefaults
-                else
-                    mStateSets[i] = new osg::StateSet;
+                mStateSets[i] = new osg::StateSet(*src, osg::CopyOp::SHALLOW_COPY);
                 setDefaults(mStateSets[i]);
             }
         }
 
-        osg::ref_ptr<osg::StateSet> stateset = mStateSets[nv->getTraversalNumber()%2];
+        osg::StateSet* stateset = mStateSets[nv->getTraversalNumber()%2];
+        node->setStateSet(stateset);
+
         apply(stateset, nv);
 
-        if (!isCullVisitor)
-            node->setStateSet(stateset);
-        else
-            static_cast<osgUtil::CullVisitor*>(nv)->pushStateSet(stateset);
-
         traverse(node, nv);
-
-        if (isCullVisitor)
-            static_cast<osgUtil::CullVisitor*>(nv)->popStateSet();
     }
 
     void StateSetUpdater::reset()
@@ -73,7 +65,7 @@ namespace SceneUtil
         : StateSetUpdater(copy, copyop)
     {
         for (unsigned int i=0; i<copy.mCtrls.size(); ++i)
-            mCtrls.emplace_back(osg::clone(copy.mCtrls[i].get(), copyop));
+            mCtrls.push_back(osg::clone(copy.mCtrls[i].get(), copyop));
     }
 
     unsigned int CompositeStateSetUpdater::getNumControllers()
@@ -88,7 +80,7 @@ namespace SceneUtil
 
     void CompositeStateSetUpdater::addController(StateSetUpdater *ctrl)
     {
-        mCtrls.emplace_back(ctrl);
+        mCtrls.push_back(ctrl);
     }
 
 }

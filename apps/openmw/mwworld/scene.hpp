@@ -1,18 +1,12 @@
 #ifndef GAME_MWWORLD_SCENE_H
 #define GAME_MWWORLD_SCENE_H
 
-#include <osg/Vec4i>
-#include <osg/Vec2i>
-
 #include "ptr.hpp"
 #include "globals.hpp"
 
 #include <set>
-#include <vector>
 #include <memory>
 #include <unordered_map>
-
-#include <components/misc/constants.hpp>
 
 namespace osg
 {
@@ -37,6 +31,7 @@ namespace Loading
 namespace DetourNavigator
 {
     struct Navigator;
+    class Water;
 }
 
 namespace MWRender
@@ -77,6 +72,8 @@ namespace MWWorld
             MWRender::RenderingManager& mRendering;
             DetourNavigator::Navigator& mNavigator;
             std::unique_ptr<CellPreloader> mPreloader;
+            float mPreloadTimer;
+            int mHalfGridSize;
             float mCellLoadingThreshold;
             float mPreloadDistance;
             bool mPreloadEnabled;
@@ -86,27 +83,19 @@ namespace MWWorld
             bool mPreloadFastTravel;
             float mPredictionTime;
 
-            static const int mHalfGridSize = Constants::CellGridRadius;
-
             osg::Vec3f mLastPlayerPos;
 
-            std::vector<ESM::RefNum> mPagedRefs;
-
             void insertCell (CellStore &cell, Loading::Listener* loadingListener, bool test = false);
-            osg::Vec2i mCurrentGridCenter;
 
             // Load and unload cells as necessary to create a cell grid with "X" and "Y" in the center
-            void changeCellGrid (const osg::Vec3f &pos, int playerCellX, int playerCellY, bool changeEvent = true);
+            void changeCellGrid (int playerCellX, int playerCellY, bool changeEvent = true);
 
-            typedef std::pair<osg::Vec3f, osg::Vec4i> PositionCellGrid;
+            void getGridCenter(int& cellX, int& cellY);
 
             void preloadCells(float dt);
-            void preloadTeleportDoorDestinations(const osg::Vec3f& playerPos, const osg::Vec3f& predictedPos, std::vector<PositionCellGrid>& exteriorPositions);
+            void preloadTeleportDoorDestinations(const osg::Vec3f& playerPos, const osg::Vec3f& predictedPos, std::vector<osg::Vec3f>& exteriorPositions);
             void preloadExteriorGrid(const osg::Vec3f& playerPos, const osg::Vec3f& predictedPos);
-            void preloadFastTravelDestinations(const osg::Vec3f& playerPos, const osg::Vec3f& predictedPos, std::vector<PositionCellGrid>& exteriorPositions);
-
-            osg::Vec4i gridCenterToBounds(const osg::Vec2i &centerCell) const;
-            osg::Vec2i getNewGridCenter(const osg::Vec3f &pos, const osg::Vec2i *currentGridCenter = nullptr) const;
+            void preloadFastTravelDestinations(const osg::Vec3f& playerPos, const osg::Vec3f& predictedPos, std::vector<osg::Vec3f>& exteriorPositions);
 
         public:
 
@@ -116,8 +105,7 @@ namespace MWWorld
             ~Scene();
 
             void preloadCell(MWWorld::CellStore* cell, bool preloadSurrounding=false);
-            void preloadTerrain(const osg::Vec3f& pos, bool sync=false);
-            void reloadTerrain();
+            void preloadTerrain(const osg::Vec3f& pos);
 
             void unloadCell (CellStoreCollection::iterator iter, bool test = false);
 
@@ -152,14 +140,11 @@ namespace MWWorld
             void addObjectToScene (const Ptr& ptr);
             ///< Add an object that already exists in the world model to the scene.
 
-            void removeObjectFromScene (const Ptr& ptr, bool keepActive = false);
+            void removeObjectFromScene (const Ptr& ptr);
             ///< Remove an object from the scene, but not from the world model.
-
-            void removeFromPagedRefs(const Ptr &ptr);
 
             void updateObjectRotation(const Ptr& ptr, RotationOrder order);
             void updateObjectScale(const Ptr& ptr);
-            void updateObjectPosition(const Ptr &ptr, const osg::Vec3f &pos, bool movePhysics);
 
             bool isCellActive(const CellStore &cell);
 

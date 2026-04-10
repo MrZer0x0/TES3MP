@@ -40,15 +40,14 @@ void Repair::repair(const MWWorld::Ptr &itemToRepair)
 
     // reduce number of uses left
     int uses = mTool.getClass().getItemHealth(mTool);
-    uses -= std::min(uses, 1);
-    mTool.getCellRef().setCharge(uses);
+    mTool.getCellRef().setCharge(uses-1);
 
     MWMechanics::CreatureStats& stats = player.getClass().getCreatureStats(player);
 
     float fatigueTerm = stats.getFatigueTerm();
-    float pcStrength = stats.getAttribute(ESM::Attribute::Strength).getModified();
-    float pcLuck = stats.getAttribute(ESM::Attribute::Luck).getModified();
-    float armorerSkill = player.getClass().getSkill(player, ESM::Skill::Armorer);
+    int pcStrength = stats.getAttribute(ESM::Attribute::Strength).getModified();
+    int pcLuck = stats.getAttribute(ESM::Attribute::Luck).getModified();
+    int armorerSkill = player.getClass().getSkill(player, ESM::Skill::Armorer);
 
     float fRepairAmountMult = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>()
             .find("fRepairAmountMult")->mValue.getFloat();
@@ -66,6 +65,7 @@ void Repair::repair(const MWWorld::Ptr &itemToRepair)
         // repair by 'y' points
         int charge = itemToRepair.getClass().getItemHealth(itemToRepair);
         charge = std::min(charge + y, itemToRepair.getClass().getItemMaxHealth(itemToRepair));
+        itemToRepair.getCellRef().setCharge(charge);
 
         /*
             Start of tes3mp change (minor)

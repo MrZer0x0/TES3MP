@@ -1,7 +1,7 @@
 #ifndef GAME_MWMECHANICS_AIPURSUE_H
 #define GAME_MWMECHANICS_AIPURSUE_H
 
-#include "typedaipackage.hpp"
+#include "aipackage.hpp"
 
 namespace ESM
 {
@@ -17,7 +17,7 @@ namespace MWMechanics
     /** Used for arresting players. Causes the actor to run to the pursued actor and activate them, to arrest them.
         Note that while very similar to AiActivate, it will ONLY activate when evry close to target (Not also when the
         path is completed). **/
-    class AiPursue final : public TypedAiPackage<AiPursue>
+    class AiPursue : public AiPackage
     {
         public:
             ///Constructor
@@ -26,21 +26,16 @@ namespace MWMechanics
 
             AiPursue(const ESM::AiSequence::AiPursue* pursue);
 
-            bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration) override;
+            virtual AiPursue *clone() const;
+            virtual bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration);
+            virtual int getTypeId() const;
 
-            static constexpr AiPackageTypeId getTypeId() { return AiPackageTypeId::Pursue; }
+            MWWorld::Ptr getTarget() const;
 
-            static constexpr Options makeDefaultOptions()
-            {
-                AiPackage::Options options;
-                options.mCanCancel = false;
-                options.mShouldCancelPreviousAi = false;
-                return options;
-            }
+            virtual void writeState (ESM::AiSequence::AiSequence& sequence) const;
 
-            MWWorld::Ptr getTarget() const override;
-
-            void writeState (ESM::AiSequence::AiSequence& sequence) const override;
+            virtual bool canCancel() const { return false; }
+            virtual bool shouldCancelPreviousAi() const { return false; }
     };
 }
 #endif

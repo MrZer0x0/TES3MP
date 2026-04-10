@@ -3,18 +3,11 @@
 #include <boost/filesystem/fstream.hpp>
 
 #include <components/files/configurationmanager.hpp>
-#include <components/files/escape.hpp>
 #include <components/esm/esmreader.hpp>
 #include <components/esm/esmwriter.hpp>
 #include <components/loadinglistener/loadinglistener.hpp>
 
 #include "apps/openmw/mwworld/esmstore.hpp"
-#include "apps/openmw/mwmechanics/spelllist.hpp"
-
-namespace MWMechanics
-{
-    SpellList::SpellList(const std::string& id, int type) : mId(id), mType(type) {}
-}
 
 static Loading::Listener dummyListener;
 
@@ -23,7 +16,7 @@ struct ContentFileTest : public ::testing::Test
 {
   protected:
 
-    void SetUp() override
+    virtual void SetUp()
     {
         readContentFiles();
 
@@ -32,13 +25,13 @@ struct ContentFileTest : public ::testing::Test
         readerList.resize(mContentFiles.size());
 
         int index=0;
-        for (const auto & mContentFile : mContentFiles)
+        for (std::vector<boost::filesystem::path>::const_iterator it = mContentFiles.begin(); it != mContentFiles.end(); ++it)
         {
             ESM::ESMReader lEsm;
             lEsm.setEncoder(nullptr);
             lEsm.setIndex(index);
             lEsm.setGlobalReaderList(&readerList);
-            lEsm.open(mContentFile.string());
+            lEsm.open(it->string());
             readerList[index] = lEsm;
             mEsmStore.load(readerList[index], &dummyListener);
 
@@ -48,7 +41,7 @@ struct ContentFileTest : public ::testing::Test
         mEsmStore.setUp();
     }
 
-    void TearDown() override
+    virtual void TearDown()
     {
     }
 
@@ -59,10 +52,10 @@ struct ContentFileTest : public ::testing::Test
 
         boost::program_options::options_description desc("Allowed options");
         desc.add_options()
-        ("data", boost::program_options::value<Files::EscapePathContainer>()->default_value(Files::EscapePathContainer(), "data")->multitoken()->composing())
-        ("content", boost::program_options::value<Files::EscapeStringVector>()->default_value(Files::EscapeStringVector(), "")
-            ->multitoken()->composing(), "content file(s): esm/esp, or omwgame/omwaddon")
-        ("data-local", boost::program_options::value<Files::EscapePath>()->default_value(Files::EscapePath(), ""));
+        ("data", boost::program_options::value<Files::PathContainer>()->default_value(Files::PathContainer(), "data")->multitoken()->composing())
+        ("content", boost::program_options::value<std::vector<std::string> >()->default_value(std::vector<std::string>(), "")
+            ->multitoken(), "content file(s): esm/esp, or omwgame/omwaddon")
+        ("data-local", boost::program_options::value<std::string>()->default_value(""));
 
         boost::program_options::notify(variables);
 
@@ -70,12 +63,12 @@ struct ContentFileTest : public ::testing::Test
 
         Files::PathContainer dataDirs, dataLocal;
         if (!variables["data"].empty()) {
-            dataDirs = Files::EscapePath::toPathContainer(variables["data"].as<Files::EscapePathContainer>());
+            dataDirs = Files::PathContainer(variables["data"].as<Files::PathContainer>());
         }
 
-        Files::PathContainer::value_type local(variables["data-local"].as<Files::EscapePath>().mPath);
+        std::string local = variables["data-local"].as<std::string>();
         if (!local.empty()) {
-            dataLocal.push_back(local);
+            dataLocal.push_back(Files::PathContainer::value_type(local));
         }
 
         mConfigurationManager.processPaths (dataDirs);
@@ -86,9 +79,9 @@ struct ContentFileTest : public ::testing::Test
 
         Files::Collections collections (dataDirs, true);
 
-        std::vector<std::string> contentFiles = variables["content"].as<Files::EscapeStringVector>().toStdStringVector();
-        for (auto & contentFile : contentFiles)
-            mContentFiles.push_back(collections.getPath(contentFile));
+        std::vector<std::string> contentFiles = variables["content"].as<std::vector<std::string> >();
+        for (std::vector<std::string>::iterator it = contentFiles.begin(); it != contentFiles.end(); ++it)
+            mContentFiles.push_back(collections.getPath(*it));
     }
 
 protected:
@@ -112,12 +105,14 @@ TEST_F(ContentFileTest, dialogue_merging_test)
     stream.open(file);
 
     const MWWorld::Store<ESM::Dialogue>& dialStore = mEsmStore.get<ESM::Dialogue>();
-    for (const auto & dial : dialStore)
+    for (MWWorld::Store<ESM::Dialogue>::iterator it = dialStore.begin(); it != dialStore.end(); ++it)
     {
+        const ESM::Dialogue& dial = *it;
         stream << "Dialogue: " << dial.mId << std::endl;
 
-        for (const auto & info : dial.mInfo)
+        for (ESM::Dialogue::InfoContainer::const_iterator infoIt = dial.mInfo.begin(); infoIt != dial.mInfo.end(); ++infoIt)
         {
+            const ESM::DialInfo& info = *infoIt;
             stream << info.mId << std::endl;
         }
         stream << std::endl;
@@ -228,7 +223,7 @@ template <typename T>
 Files::IStreamPtr getEsmFile(T record, bool deleted)
 {
     ESM::ESMWriter writer;
-    auto* stream = new std::stringstream;
+    std::stringstream* stream = new std::stringstream;
     writer.setFormat(0);
     writer.save(*stream);
     writer.startRecord(T::sRecordId);

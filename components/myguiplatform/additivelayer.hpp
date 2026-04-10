@@ -20,9 +20,9 @@ namespace osgMyGUI
         MYGUI_RTTI_DERIVED( AdditiveLayer )
 
         AdditiveLayer();
-        ~AdditiveLayer() override;
+        ~AdditiveLayer();
 
-        void renderToTarget(MyGUI::IRenderTarget* _target, bool _update) override;
+        void renderToTarget(MyGUI::IRenderTarget* _target, bool _update) final;
 
     private:
         osg::ref_ptr<osg::StateSet> mStateSet;

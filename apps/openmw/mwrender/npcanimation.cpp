@@ -19,9 +19,10 @@
 #include <components/sceneutil/attach.hpp>
 #include <components/sceneutil/visitor.hpp>
 #include <components/sceneutil/skeleton.hpp>
-#include <components/sceneutil/keyframe.hpp>
 
 #include <components/settings/settings.hpp>
+
+#include <components/nifosg/nifloader.hpp> // TextKeyMapHolder
 
 #include <components/vfs/manager.hpp>
 
@@ -144,7 +145,7 @@ public:
     void setBlinkStart(float value);
     void setBlinkStop(float value);
 
-    float getValue(osg::NodeVisitor* nv) override;
+    virtual float getValue(osg::NodeVisitor* nv);
 };
 
 // --------------------------------------------------------------------------------
@@ -165,7 +166,7 @@ public:
         mOffset = offset;
     }
 
-    void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
         osg::MatrixTransform* transform = static_cast<osg::MatrixTransform*>(node);
         osg::Matrix matrix = transform->getMatrix();
@@ -348,8 +349,6 @@ NpcAnimation::NpcAnimation(const MWWorld::Ptr& ptr, osg::ref_ptr<osg::Group> par
         mPartPriorities[i] = 0;
     }
 
-    std::fill(mSounds.begin(), mSounds.end(), nullptr);
-
     updateNpcBase();
 }
 
@@ -362,7 +361,6 @@ void NpcAnimation::setViewMode(NpcAnimation::ViewMode viewMode)
     mViewMode = viewMode;
     MWBase::Environment::get().getWorld()->scaleObject(mPtr, mPtr.getCellRef().getScale()); // apply race height after view change
 
-    mAmmunition.reset();
     rebuild();
     setRenderBin();
 }
@@ -377,7 +375,7 @@ public:
         mDepth->setWriteMask(true);
     }
 
-    void drawImplementation(osgUtil::RenderBin* bin, osg::RenderInfo& renderInfo, osgUtil::RenderLeaf*& previous) override
+    virtual void drawImplementation(osgUtil::RenderBin* bin, osg::RenderInfo& renderInfo, osgUtil::RenderLeaf*& previous)
     {
         renderInfo.getState()->applyAttribute(mDepth);
 
@@ -399,7 +397,7 @@ public:
     {
     }
 
-    void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
     {
         osgUtil::CullVisitor* cv = static_cast<osgUtil::CullVisitor*>(nv);
         float fov, aspect, zNear, zFar;
@@ -437,10 +435,12 @@ void NpcAnimation::setRenderBin()
             osgUtil::RenderBin::addRenderBinPrototype("DepthClear", depthClearBin);
             prototypeAdded = true;
         }
-        mObjectRoot->getOrCreateStateSet()->setRenderBinDetails(RenderBin_FirstPerson, "DepthClear", osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
+
+        osg::StateSet* stateset = mObjectRoot->getOrCreateStateSet();
+        stateset->setRenderBinDetails(RenderBin_FirstPerson, "DepthClear", osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
     }
-    else if (osg::StateSet* stateset = mObjectRoot->getStateSet())
-        stateset->setRenderBinToInherit();
+    else
+        Animation::setRenderBin();
 }
 
 void NpcAnimation::rebuild()
@@ -524,7 +524,7 @@ void NpcAnimation::updateNpcBase()
 
     if(!is1stPerson)
     {
-        const std::string base = Settings::Manager::getString("xbaseanim", "Models");
+        const std::string base = "meshes\\xbase_anim.nif";
         if (smodel != base && !isWerewolf)
             addAnimSource(base, smodel);
 
@@ -538,7 +538,7 @@ void NpcAnimation::updateNpcBase()
     }
     else
     {
-        const std::string base = Settings::Manager::getString("xbaseanim1st", "Models");
+        const std::string base = "meshes\\xbase_anim.1st.nif";
         if (smodel != base && !isWerewolf)
             addAnimSource(base, smodel);
 
@@ -747,7 +747,7 @@ osg::Vec3f NpcAnimation::runAnimation(float timepassed)
         mFirstPersonNeckController->setOffset(mFirstPersonOffset);
     }
 
-    WeaponAnimation::configureControllers(mPtr.getRefData().getPosition().rot[0] + getBodyPitchRadians());
+    WeaponAnimation::configureControllers(mPtr.getRefData().getPosition().rot[0]);
 
     return ret;
 }
@@ -758,10 +758,10 @@ void NpcAnimation::removeIndividualPart(ESM::PartReferenceType type)
     mPartslots[type] = -1;
 
     mObjectParts[type].reset();
-    if (mSounds[type] != nullptr && !mSoundsDisabled)
+    if (!mSoundIds[type].empty() && !mSoundsDisabled)
     {
-        MWBase::Environment::get().getSoundManager()->stopSound(mSounds[type]);
-        mSounds[type] = nullptr;
+        MWBase::Environment::get().getSoundManager()->stopSound3D(mPtr, mSoundIds[type]);
+        mSoundIds[type].clear();
     }
 }
 
@@ -840,10 +840,10 @@ bool NpcAnimation::addOrReplaceIndividualPart(ESM::PartReferenceType type, int g
         MWWorld::ConstContainerStoreIterator csi = inv.getSlot(group < 0 ? MWWorld::InventoryStore::Slot_Helmet : group);
         if (csi != inv.end())
         {
-            const auto soundId = csi->getClass().getSound(*csi);
-            if (!soundId.empty())
+            mSoundIds[type] = csi->getClass().getSound(*csi);
+            if (!mSoundIds[type].empty())
             {
-                mSounds[type] = MWBase::Environment::get().getSoundManager()->playSound3D(mPtr, soundId,
+                MWBase::Environment::get().getSoundManager()->playSound3D(mPtr, mSoundIds[type],
                     1.0f, 1.0f, MWSound::Type::Sfx, MWSound::PlayMode::Loop
                 );
             }
@@ -863,7 +863,7 @@ bool NpcAnimation::addOrReplaceIndividualPart(ESM::PartReferenceType type, int g
                 for (unsigned int i=0; i<node->getUserDataContainer()->getNumUserObjects(); ++i)
                 {
                     osg::Object* obj = node->getUserDataContainer()->getUserObject(i);
-                    if (SceneUtil::TextKeyMapHolder* keys = dynamic_cast<SceneUtil::TextKeyMapHolder*>(obj))
+                    if (NifOsg::TextKeyMapHolder* keys = dynamic_cast<NifOsg::TextKeyMapHolder*>(obj))
                     {
                         for (const auto &key : keys->mTextKeys)
                         {
@@ -956,7 +956,7 @@ void NpcAnimation::addControllers()
             osg::MatrixTransform* node = found->second.get();
             mFirstPersonNeckController = new NeckController(mObjectRoot.get());
             node->addUpdateCallback(mFirstPersonNeckController);
-            mActiveControllers.emplace_back(node, mFirstPersonNeckController);
+            mActiveControllers.emplace(node, mFirstPersonNeckController);
         }
     }
     else if (mViewMode == VM_Normal)
@@ -1051,12 +1051,6 @@ void NpcAnimation::attachArrow()
     updateQuiver();
 }
 
-void NpcAnimation::detachArrow()
-{
-    WeaponAnimation::detachArrow(mPtr);
-    updateQuiver();
-}
-
 void NpcAnimation::releaseArrow(float attackStrength)
 {
     WeaponAnimation::releaseArrow(mPtr, attackStrength);
@@ -1077,15 +1071,10 @@ osg::Group* NpcAnimation::getArrowBone()
     int type = weapon->get<ESM::Weapon>()->mBase->mData.mType;
     int ammoType = MWMechanics::getWeaponType(type)->mAmmoType;
 
-    // Try to find and attachment bone in actor's skeleton, otherwise fall back to the ArrowBone in weapon's mesh
-    osg::Group* bone = getBoneByName(MWMechanics::getWeaponType(ammoType)->mAttachBone);
-    if (bone == nullptr)
-    {
-        SceneUtil::FindByNameVisitor findVisitor ("ArrowBone");
-        part->getNode()->accept(findVisitor);
-        bone = findVisitor.mFoundNode;
-    }
-    return bone;
+    SceneUtil::FindByNameVisitor findVisitor (MWMechanics::getWeaponType(ammoType)->mAttachBone);
+    part->getNode()->accept(findVisitor);
+
+    return findVisitor.mFoundNode;
 }
 
 osg::Node* NpcAnimation::getWeaponNode()

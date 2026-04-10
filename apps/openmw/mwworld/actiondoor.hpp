@@ -8,7 +8,7 @@ namespace MWWorld
 {
     class ActionDoor : public Action
     {
-            void executeImp (const MWWorld::Ptr& actor) override;
+            virtual void executeImp (const MWWorld::Ptr& actor);
 
         public:
             ActionDoor (const Ptr& object);

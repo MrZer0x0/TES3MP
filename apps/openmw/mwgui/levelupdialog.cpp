@@ -12,6 +12,7 @@
 #include "../mwbase/soundmanager.hpp"
 
 #include "../mwworld/class.hpp"
+#include "../mwworld/cellstore.hpp"
 
 #include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/npcstats.hpp"
@@ -156,7 +157,7 @@ namespace MWGui
                 mAttributeValues[i]->setEnabled(true);
                 availableAttributes++;
 
-                float mult = pcStats.getLevelupAttributeMultiplier (i);
+                int mult = pcStats.getLevelupAttributeMultiplier (i);
                 mult = std::min(mult, 100-pcStats.getAttribute(i).getBase());
                 text->setCaption(mult <= 1 ? "" : "x" + MyGUI::utility::toString(mult));
             }

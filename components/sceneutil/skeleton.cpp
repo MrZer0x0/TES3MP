@@ -18,7 +18,7 @@ public:
     {
     }
 
-    void apply(osg::Transform &node) override
+    void apply(osg::Transform &node)
     {
         osg::MatrixTransform* bone = node.asMatrixTransform();
         if (!bone)

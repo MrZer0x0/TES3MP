@@ -132,13 +132,6 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->injectKeyRelease(MyGUI::KeyCode::None);
     }
 
-    void SaveGameDialog::onClose()
-    {
-        mSaveList->setIndexSelected(MyGUI::ITEM_NONE);
-
-        WindowModal::onClose();
-    }
-
     void SaveGameDialog::onOpen()
     {
         WindowModal::onOpen();

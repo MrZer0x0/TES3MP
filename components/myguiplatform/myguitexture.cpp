@@ -115,6 +115,16 @@ namespace osgMyGUI
         Log(Debug::Warning) << "Would save image to file " << fname;
     }
 
+    int OSGTexture::getWidth()
+    {
+        return mWidth;
+    }
+
+    int OSGTexture::getHeight()
+    {
+        return mHeight;
+    }
+
     void *OSGTexture::lock(MyGUI::TextureUsage /*access*/)
     {
         if (!mTexture.valid())
@@ -157,14 +167,15 @@ namespace osgMyGUI
         mLockedImage = nullptr;
     }
 
+    bool OSGTexture::isLocked()
+    {
+        return mLockedImage.valid();
+    }
+
     // Render-to-texture not currently implemented.
     MyGUI::IRenderTarget* OSGTexture::getRenderTarget()
     {
         return nullptr;
     }
 
-#if MYGUI_VERSION > MYGUI_DEFINE_VERSION(3, 4, 0)
-    void OSGTexture::setShader(const std::string& _shaderName)
-    { Log(Debug::Warning) << "OSGTexture::setShader is not implemented"; }
-#endif
 }

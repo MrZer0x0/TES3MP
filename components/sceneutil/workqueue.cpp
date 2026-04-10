@@ -2,55 +2,69 @@
 
 #include <components/debug/debuglog.hpp>
 
-#include <numeric>
-
 namespace SceneUtil
 {
 
 void WorkItem::waitTillDone()
 {
-    if (mDone)
+    if (mDone > 0)
         return;
 
-    std::unique_lock<std::mutex> lock(mMutex);
-    while (!mDone)
+    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+    while (mDone == 0)
     {
-        mCondition.wait(lock);
+        mCondition.wait(&mMutex);
     }
 }
 
 void WorkItem::signalDone()
 {
     {
-        std::unique_lock<std::mutex> lock(mMutex);
-        mDone = true;
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
+        mDone.exchange(1);
     }
-    mCondition.notify_all();
+    mCondition.broadcast();
+}
+
+WorkItem::WorkItem()
+{
+}
+
+WorkItem::~WorkItem()
+{
 }
 
 bool WorkItem::isDone() const
 {
-    return mDone;
+    return (mDone > 0);
 }
 
 WorkQueue::WorkQueue(int workerThreads)
     : mIsReleased(false)
 {
     for (int i=0; i<workerThreads; ++i)
-        mThreads.emplace_back(std::make_unique<WorkThread>(*this));
+    {
+        WorkThread* thread = new WorkThread(this);
+        mThreads.push_back(thread);
+        thread->startThread();
+    }
 }
 
 WorkQueue::~WorkQueue()
 {
     {
-        std::unique_lock<std::mutex> lock(mMutex);
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
         while (!mQueue.empty())
             mQueue.pop_back();
         mIsReleased = true;
-        mCondition.notify_all();
+        mCondition.broadcast();
     }
 
-    mThreads.clear();
+    for (unsigned int i=0; i<mThreads.size(); ++i)
+    {
+        mThreads[i]->join();
+        delete mThreads[i];
+    }
 }
 
 void WorkQueue::addWorkItem(osg::ref_ptr<WorkItem> item, bool front)
@@ -61,20 +75,20 @@ void WorkQueue::addWorkItem(osg::ref_ptr<WorkItem> item, bool front)
         return;
     }
 
-    std::unique_lock<std::mutex> lock(mMutex);
+    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
     if (front)
         mQueue.push_front(item);
     else
         mQueue.push_back(item);
-    mCondition.notify_one();
+    mCondition.signal();
 }
 
 osg::ref_ptr<WorkItem> WorkQueue::removeWorkItem()
 {
-    std::unique_lock<std::mutex> lock(mMutex);
+    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
     while (mQueue.empty() && !mIsReleased)
     {
-        mCondition.wait(lock);
+        mCondition.wait(&mMutex);
     }
     if (!mQueue.empty())
     {
@@ -88,26 +102,25 @@ osg::ref_ptr<WorkItem> WorkQueue::removeWorkItem()
 
 unsigned int WorkQueue::getNumItems() const
 {
-    std::unique_lock<std::mutex> lock(mMutex);
+    OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mMutex);
     return mQueue.size();
 }
 
 unsigned int WorkQueue::getNumActiveThreads() const
 {
-    return std::accumulate(mThreads.begin(), mThreads.end(), 0u,
-        [] (auto r, const auto& t) { return r + t->isActive(); });
+    unsigned int count = 0;
+    for (unsigned int i=0; i<mThreads.size(); ++i)
+    {
+        if (mThreads[i]->isActive())
+            ++count;
+    }
+    return count;
 }
 
-WorkThread::WorkThread(WorkQueue& workQueue)
-    : mWorkQueue(&workQueue)
+WorkThread::WorkThread(WorkQueue *workQueue)
+    : mWorkQueue(workQueue)
     , mActive(false)
-    , mThread([this] { run(); })
 {
-}
-
-WorkThread::~WorkThread()
-{
-    mThread.join();
 }
 
 void WorkThread::run()

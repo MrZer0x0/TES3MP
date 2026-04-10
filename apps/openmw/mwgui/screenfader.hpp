@@ -45,7 +45,7 @@ namespace MWGui
         void fadeOut(const float time, float delay=0);
         void fadeTo(const int percent, const float time, float delay=0);
 
-        void clear() override;
+        void clear();
 
         void setFactor (float factor);
         void setRepeat(bool repeat);

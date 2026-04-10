@@ -5,10 +5,9 @@
 #include <osg/Group>
 #include <osg/ComputeBoundsVisitor>
 
-#include <components/sceneutil/positionattitudetransform.hpp>
 #include "chunkmanager.hpp"
 #include "compositemaprenderer.hpp"
-#include "storage.hpp"
+
 namespace Terrain
 {
 
@@ -17,17 +16,11 @@ class MyView : public View
 public:
     osg::ref_ptr<osg::Node> mLoaded;
 
-    void reset() override {}
+    virtual void reset() {}
 };
 
-TerrainGrid::TerrainGrid(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask)
+TerrainGrid::TerrainGrid(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, int nodeMask, int preCompileMask, int borderMask)
     : Terrain::World(parent, compileRoot, resourceSystem, storage, nodeMask, preCompileMask, borderMask)
-    , mNumSplits(4)
-{
-}
-
-TerrainGrid::TerrainGrid(osg::Group* parent, Storage* storage, unsigned int nodeMask)
-    : Terrain::World(parent, storage, nodeMask)
     , mNumSplits(4)
 {
 }
@@ -64,17 +57,12 @@ osg::ref_ptr<osg::Node> TerrainGrid::buildTerrain (osg::Group* parent, float chu
     }
     else
     {
-        osg::ref_ptr<osg::Node> node = mChunkManager->getChunk(chunkSize, chunkCenter, 0, 0, false, osg::Vec3f(), true);
+        osg::ref_ptr<osg::Node> node = mChunkManager->getChunk(chunkSize, chunkCenter, 0, 0);
         if (!node)
             return nullptr;
-
-        const float cellWorldSize = mStorage->getCellWorldSize();
-        osg::ref_ptr<SceneUtil::PositionAttitudeTransform> pat = new SceneUtil::PositionAttitudeTransform;
-        pat->setPosition(osg::Vec3f(chunkCenter.x()*cellWorldSize, chunkCenter.y()*cellWorldSize, 0.f));
-        pat->addChild(node);
         if (parent)
-            parent->addChild(pat);
-        return pat;
+            parent->addChild(node);
+        return node;
     }
 }
 
@@ -113,8 +101,6 @@ void TerrainGrid::unloadCell(int x, int y)
 
 void TerrainGrid::updateWaterCulling()
 {
-    if (!mHeightCullCallback) return;
-
     osg::ComputeBoundsVisitor computeBoundsVisitor;
     mTerrainRoot->accept(computeBoundsVisitor);
     float lowZ = computeBoundsVisitor.getBoundingBox()._min.z();

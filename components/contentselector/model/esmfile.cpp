@@ -51,13 +51,6 @@ void ContentSelectorModel::EsmFile::setDescription(const QString &description)
     mDescription = description;
 }
 
-
-bool ContentSelectorModel::EsmFile::isGroundcoverCandidate() const
-{
-    const QString lowered = mFileName.toLower();
-    return lowered.contains(QLatin1String("groundcover")) || lowered.contains(QLatin1String("grass"));
-}
-
 QByteArray ContentSelectorModel::EsmFile::encodedData() const
 {
     QByteArray encodedData;

@@ -35,59 +35,14 @@
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
-#include "../mwclass/container.hpp"
-
 #include "../mwworld/action.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/inventorystore.hpp"
-#include "../mwworld/manualref.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
-#include "../mwmechanics/levelledlist.hpp"
 
 #include "ref.hpp"
-
-namespace
-{
-    void addToStore(const MWWorld::Ptr& itemPtr, int count, MWWorld::Ptr& ptr, MWWorld::ContainerStore& store, bool resolve = true)
-    {
-        if (itemPtr.getClass().getScript(itemPtr).empty())
-        {
-            store.add (itemPtr, count, ptr, true, resolve);
-        }
-        else
-        {
-            // Adding just one item per time to make sure there isn't a stack of scripted items
-            for (int i = 0; i < count; i++)
-                store.add (itemPtr, 1, ptr, true, resolve);
-        }
-    }
-
-    void addRandomToStore(const MWWorld::Ptr& itemPtr, int count, MWWorld::Ptr& owner, MWWorld::ContainerStore& store, bool topLevel = true)
-    {
-        if(itemPtr.getTypeName() == typeid(ESM::ItemLevList).name())
-        {
-            const ESM::ItemLevList* levItemList = itemPtr.get<ESM::ItemLevList>()->mBase;
-
-            if(topLevel && count > 1 && levItemList->mFlags & ESM::ItemLevList::Each)
-            {
-                for(int i = 0; i < count; i++)
-                    addRandomToStore(itemPtr, 1, owner, store, true);
-            }
-            else
-            {
-                std::string itemId = MWMechanics::getLevelledItem(itemPtr.get<ESM::ItemLevList>()->mBase, false);
-                if (itemId.empty())
-                    return;
-                MWWorld::ManualRef manualRef(MWBase::Environment::get().getWorld()->getStore(), itemId, 1);
-                addRandomToStore(manualRef.getPtr(), count, owner, store, false);
-            }
-        }
-        else
-            addToStore(itemPtr, count, owner, store);
-    }
-}
 
 namespace MWScript
 {
@@ -98,7 +53,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -109,7 +64,7 @@ namespace MWScript
                     runtime.pop();
 
                     if (count<0)
-                        count = static_cast<uint16_t>(count);
+                        throw std::runtime_error ("second argument for AddItem must be non-negative");
 
                     // no-op
                     if (count == 0)
@@ -121,18 +76,18 @@ namespace MWScript
                             || ::Misc::StringUtils::ciEqual(item, "gold_100"))
                         item = "gold_001";
 
-                    // Check if "item" can be placed in a container
-                    MWWorld::ManualRef manualRef(MWBase::Environment::get().getWorld()->getStore(), item, 1);
-                    MWWorld::Ptr itemPtr = manualRef.getPtr();
-                    bool isLevelledList = itemPtr.getClass().getTypeName() == typeid(ESM::ItemLevList).name();
-                    if(!isLevelledList)
-                        MWWorld::ContainerStore::getType(itemPtr);
-
-                    // Explicit calls to non-unique actors affect the base record
-                    if(!R::implicit && ptr.getClass().isActor() && MWBase::Environment::get().getWorld()->getStore().getRefCount(ptr.getCellRef().getRefId()) > 1)
+                    MWWorld::ContainerStore& store = ptr.getClass().getContainerStore (ptr);
+                    // Create a Ptr for the first added item to recover the item name later
+                    MWWorld::Ptr itemPtr = *store.add (item, 1, ptr);
+                    if (itemPtr.getClass().getScript(itemPtr).empty())
                     {
-                        ptr.getClass().modifyBaseInventory(ptr.getCellRef().getRefId(), item, count);
-                        return;
+                        store.add (item, count-1, ptr);
+                    }
+                    else
+                    {
+                        // Adding just one item per time to make sure there isn't a stack of scripted items
+                        for (int i = 1; i < count; i++)
+                            store.add (item, 1, ptr);
                     }
 
                     /*
@@ -234,7 +189,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -258,7 +213,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -281,32 +236,6 @@ namespace MWScript
                             || ::Misc::StringUtils::ciEqual(item, "gold_100"))
                         item = "gold_001";
 
-                    // Explicit calls to non-unique actors affect the base record
-                    if(!R::implicit && ptr.getClass().isActor() && MWBase::Environment::get().getWorld()->getStore().getRefCount(ptr.getCellRef().getRefId()) > 1)
-                    {
-                        ptr.getClass().modifyBaseInventory(ptr.getCellRef().getRefId(), item, -count);
-                        return;
-                    }
-                    // Calls to unresolved containers affect the base record instead
-                    else if(ptr.getClass().getTypeName() == typeid(ESM::Container).name() &&
-                        (!ptr.getRefData().getCustomData() || !ptr.getClass().getContainerStore(ptr).isResolved()))
-                    {
-                        ptr.getClass().modifyBaseInventory(ptr.getCellRef().getRefId(), item, -count);
-                        const ESM::Container* baseRecord = MWBase::Environment::get().getWorld()->getStore().get<ESM::Container>().find(ptr.getCellRef().getRefId());
-                        const auto& ptrs = MWBase::Environment::get().getWorld()->getAll(ptr.getCellRef().getRefId());
-                        for(const auto& container : ptrs)
-                        {
-                            container.get<ESM::Container>()->mBase = baseRecord;
-                            if(container.getRefData().getCustomData())
-                            {
-                                auto& store = container.getClass().getContainerStore(container);
-                                // Note that unlike AddItem, RemoveItem only removes from unresolved containers
-                                if(!store.isResolved())
-                                    store.remove(item, count, ptr, false, false);
-                            }
-                        }
-                        return;
-                    }
                     MWWorld::ContainerStore& store = ptr.getClass().getContainerStore (ptr);
 
                     std::string itemName;
@@ -319,6 +248,7 @@ namespace MWScript
                         }
                     }
 
+                    int numRemoved = store.remove(item, count, ptr);
                     /*
                         Start of tes3mp change (major)
 
@@ -341,6 +271,10 @@ namespace MWScript
                         End of tes3mp change (major)
                     */
 
+                    // Spawn a messagebox (only for items removed from player's inventory)
+                    if ((numRemoved > 0)
+                        && (ptr == MWMechanics::getPlayer()))
+                    {
                         // The two GMST entries below expand to strings informing the player of what, and how many of it has been removed from their inventory
                         std::string msgBox;
 
@@ -389,7 +323,7 @@ namespace MWScript
         {
             public:
 
-                void execute(Interpreter::Runtime &runtime) override
+                virtual void execute(Interpreter::Runtime &runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -426,7 +360,7 @@ namespace MWScript
         {
             public:
 
-                void execute(Interpreter::Runtime &runtime) override
+                virtual void execute(Interpreter::Runtime &runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -499,7 +433,7 @@ namespace MWScript
         {
             public:
 
-                void execute(Interpreter::Runtime &runtime) override
+                virtual void execute(Interpreter::Runtime &runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -525,7 +459,7 @@ namespace MWScript
         {
             public:
 
-                void execute(Interpreter::Runtime &runtime) override
+                virtual void execute(Interpreter::Runtime &runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 
@@ -549,7 +483,7 @@ namespace MWScript
         {
             public:
 
-                void execute(Interpreter::Runtime &runtime) override
+                virtual void execute(Interpreter::Runtime &runtime)
                 {
                     MWWorld::Ptr ptr = R()(runtime);
 

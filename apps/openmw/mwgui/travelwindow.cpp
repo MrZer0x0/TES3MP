@@ -74,19 +74,14 @@ namespace MWGui
         {
             ESM::Position PlayerPos = player.getRefData().getPosition();
             float d = sqrt(pow(pos.pos[0] - PlayerPos.pos[0], 2) + pow(pos.pos[1] - PlayerPos.pos[1], 2) + pow(pos.pos[2] - PlayerPos.pos[2], 2));
-            float fTravelMult = gmst.find("fTravelMult")->mValue.getFloat();
-            if (fTravelMult != 0)
-                price = static_cast<int>(d / fTravelMult);
-            else
-                price = static_cast<int>(d);
+            price = static_cast<int>(d / gmst.find("fTravelMult")->mValue.getFloat());
         }
 
-        price = std::max(1, price);
         price = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, price, true);
 
         // Add price for the travelling followers
         std::set<MWWorld::Ptr> followers;
-        MWWorld::ActionTeleport::getFollowers(player, followers);
+        MWWorld::ActionTeleport::getFollowersToTeleport(player, followers);
 
         // Apply followers cost, unlike vanilla the first follower doesn't travel for free
         price *= 1 + static_cast<int>(followers.size());
@@ -177,6 +172,7 @@ namespace MWGui
 
         // add gold to NPC trading gold pool
         MWMechanics::CreatureStats& npcStats = mPtr.getClass().getCreatureStats(mPtr);
+        npcStats.setGoldPool(npcStats.getGoldPool() + price);
 
         /*
             Start of tes3mp change (major)
@@ -204,6 +200,8 @@ namespace MWGui
             ESM::Position playerPos = player.getRefData().getPosition();
             float d = (osg::Vec3f(pos.pos[0], pos.pos[1], 0) - osg::Vec3f(playerPos.pos[0], playerPos.pos[1], 0)).length();
             int hours = static_cast<int>(d /MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fTravelTimeMult")->mValue.getFloat());
+            MWBase::Environment::get().getMechanicsManager ()->rest (hours, true);
+            MWBase::Environment::get().getWorld()->advanceTime(hours);
             MWBase::Environment::get().getMechanicsManager()->rest(hours, true);
 
             /*

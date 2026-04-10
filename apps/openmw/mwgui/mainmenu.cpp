@@ -24,7 +24,7 @@ namespace MWGui
     MainMenu::MainMenu(int w, int h, const VFS::Manager* vfs, const std::string& versionDescription)
         : WindowBase("openmw_mainmenu.layout")
         , mWidth (w), mHeight (h)
-        , mVFS(vfs), mButtonBox(nullptr)
+        , mVFS(vfs), mButtonBox(0)
         , mBackground(nullptr)
         , mVideoBackground(nullptr)
         , mVideo(nullptr)
@@ -231,8 +231,9 @@ namespace MWGui
         std::vector<std::string> buttons;
 
         if (state==MWBase::StateManager::State_Running)
-            buttons.emplace_back("return");
+            buttons.push_back("return");
 
+        buttons.push_back("newgame");
         /*
             Start of tes3mp change (major)
 
@@ -261,12 +262,21 @@ namespace MWGui
             End of tes3mp change (major)
         */
 
-        buttons.emplace_back("options");
+        if (state==MWBase::StateManager::State_Running &&
+            MWBase::Environment::get().getWorld()->getGlobalInt ("chargenstate")==-1 &&
+                MWBase::Environment::get().getWindowManager()->isSavingAllowed())
+            buttons.push_back("savegame");
+
+        if (MWBase::Environment::get().getStateManager()->characterBegin()!=
+            MWBase::Environment::get().getStateManager()->characterEnd())
+            buttons.push_back("loadgame");
+
+        buttons.push_back("options");
 
         if (state==MWBase::StateManager::State_NoGame)
-            buttons.emplace_back("credits");
+            buttons.push_back("credits");
 
-        buttons.emplace_back("exitgame");
+        buttons.push_back("exitgame");
 
         // Create new buttons if needed
         std::vector<std::string> allButtons { "return", "newgame", "savegame", "loadgame", "options", "credits", "exitgame"};

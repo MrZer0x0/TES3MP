@@ -23,8 +23,8 @@ namespace MWGui
     public:
         EditEffectDialog();
 
-        void onOpen() override;
-        bool exit() override;
+        virtual void onOpen();
+        virtual bool exit();
 
         void setConstantEffect(bool constant);
 
@@ -150,21 +150,21 @@ namespace MWGui
     public:
         SpellCreationDialog();
 
-        void onOpen() override;
-        void clear() override { resetReference(); }
+        virtual void onOpen();
+        void clear() { resetReference(); }
 
-        void onFrame(float dt) override { checkReferenceAvailable(); }
+        void onFrame(float dt) { checkReferenceAvailable(); }
 
-        void setPtr(const MWWorld::Ptr& actor) override;
+        void setPtr(const MWWorld::Ptr& actor);
 
     protected:
-        void onReferenceUnavailable() override;
+        virtual void onReferenceUnavailable ();
 
         void onCancelButtonClicked (MyGUI::Widget* sender);
         void onBuyButtonClicked (MyGUI::Widget* sender);
         void onAccept(MyGUI::EditBox* sender);
 
-        void notifyEffectsChanged() override;
+        virtual void notifyEffectsChanged ();
 
         MyGUI::EditBox* mNameEdit;
         MyGUI::TextBox* mMagickaCost;

@@ -4,8 +4,8 @@
 #include "asyncnavmeshupdater.hpp"
 #include "cachedrecastmeshmanager.hpp"
 #include "offmeshconnectionsmanager.hpp"
+#include "sharednavmesh.hpp"
 #include "recastmeshtiles.hpp"
-#include "waitconditiontype.hpp"
 
 #include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
@@ -23,10 +23,10 @@ namespace DetourNavigator
     public:
         NavMeshManager(const Settings& settings);
 
-        bool addObject(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
+        bool addObject(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
                        const AreaType areaType);
 
-        bool updateObject(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
+        bool updateObject(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
                           const AreaType areaType);
 
         bool removeObject(const ObjectId id);
@@ -39,13 +39,13 @@ namespace DetourNavigator
 
         bool reset(const osg::Vec3f& agentHalfExtents);
 
-        void addOffMeshConnection(const ObjectId id, const osg::Vec3f& start, const osg::Vec3f& end, const AreaType areaType);
+        void addOffMeshConnection(const ObjectId id, const osg::Vec3f& start, const osg::Vec3f& end);
 
-        void removeOffMeshConnections(const ObjectId id);
+        void removeOffMeshConnection(const ObjectId id);
 
         void update(osg::Vec3f playerPosition, const osg::Vec3f& agentHalfExtents);
 
-        void wait(Loading::Listener& listener, WaitConditionType waitConditionType);
+        void wait();
 
         SharedNavMeshCacheItem getNavMesh(const osg::Vec3f& agentHalfExtents) const;
 

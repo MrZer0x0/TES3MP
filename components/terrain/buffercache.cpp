@@ -2,6 +2,8 @@
 
 #include <cassert>
 
+#include <OpenThreads/ScopedLock>
+
 #include <osg/PrimitiveSet>
 
 #include "defs.hpp"
@@ -178,7 +180,7 @@ namespace Terrain
 
     osg::ref_ptr<osg::Vec2Array> BufferCache::getUVBuffer(unsigned int numVerts)
     {
-        std::lock_guard<std::mutex> lock(mUvBufferMutex);
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mUvBufferMutex);
         if (mUvBufferMap.find(numVerts) != mUvBufferMap.end())
         {
             return mUvBufferMap[numVerts];
@@ -186,7 +188,7 @@ namespace Terrain
 
         int vertexCount = numVerts * numVerts;
 
-        osg::ref_ptr<osg::Vec2Array> uvs (new osg::Vec2Array(osg::Array::BIND_PER_VERTEX));
+        osg::ref_ptr<osg::Vec2Array> uvs (new osg::Vec2Array);
         uvs->reserve(vertexCount);
 
         for (unsigned int col = 0; col < numVerts; ++col)
@@ -208,7 +210,7 @@ namespace Terrain
     osg::ref_ptr<osg::DrawElements> BufferCache::getIndexBuffer(unsigned int numVerts, unsigned int flags)
     {
         std::pair<int, int> id = std::make_pair(numVerts, flags);
-        std::lock_guard<std::mutex> lock(mIndexBufferMutex);
+        OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mIndexBufferMutex);
 
         if (mIndexBufferMap.find(id) != mIndexBufferMap.end())
         {
@@ -232,11 +234,11 @@ namespace Terrain
     void BufferCache::clearCache()
     {
         {
-            std::lock_guard<std::mutex> lock(mIndexBufferMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mIndexBufferMutex);
             mIndexBufferMap.clear();
         }
         {
-            std::lock_guard<std::mutex> lock(mUvBufferMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mUvBufferMutex);
             mUvBufferMap.clear();
         }
     }
@@ -244,12 +246,12 @@ namespace Terrain
     void BufferCache::releaseGLObjects(osg::State *state)
     {
         {
-            std::lock_guard<std::mutex> lock(mIndexBufferMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mIndexBufferMutex);
             for (auto indexbuffer : mIndexBufferMap)
                 indexbuffer.second->releaseGLObjects(state);
         }
         {
-            std::lock_guard<std::mutex> lock(mUvBufferMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(mUvBufferMutex);
             for (auto uvbuffer : mUvBufferMap)
                 uvbuffer.second->releaseGLObjects(state);
         }

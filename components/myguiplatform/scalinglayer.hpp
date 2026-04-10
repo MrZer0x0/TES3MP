@@ -13,13 +13,13 @@ namespace osgMyGUI
     public:
         MYGUI_RTTI_DERIVED(ScalingLayer)
 
-        void deserialization(MyGUI::xml::ElementPtr _node, MyGUI::Version _version) override;
+        void deserialization(MyGUI::xml::ElementPtr _node, MyGUI::Version _version) final;
 
-        MyGUI::ILayerItem* getLayerItemByPoint(int _left, int _top) const override;
-        MyGUI::IntPoint getPosition(int _left, int _top) const override;
-        void renderToTarget(MyGUI::IRenderTarget* _target, bool _update) override;
+        MyGUI::ILayerItem* getLayerItemByPoint(int _left, int _top) const final;
+        MyGUI::IntPoint getPosition(int _left, int _top) const final;
+        void renderToTarget(MyGUI::IRenderTarget* _target, bool _update) final;
 
-        void resizeView(const MyGUI::IntSize& _viewSize) override;
+        void resizeView(const MyGUI::IntSize& _viewSize) final;
 
     private:
         void screenToLayerCoords(int& _left, int& _top) const;

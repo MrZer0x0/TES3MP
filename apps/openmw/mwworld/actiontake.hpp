@@ -7,7 +7,7 @@ namespace MWWorld
 {
     class ActionTake : public Action
     {
-            void executeImp (const Ptr& actor) override;
+            virtual void executeImp (const Ptr& actor);
 
         public:
 

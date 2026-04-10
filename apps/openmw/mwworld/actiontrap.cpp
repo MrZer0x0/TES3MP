@@ -40,6 +40,8 @@ namespace MWWorld
             MWMechanics::CastSpell cast(mTrapSource, actor);
             cast.mHitPosition = actorPosition;
             cast.cast(mSpellId);
+        }   
+        mTrapSource.getCellRef().setTrap("");
         }
 
         /*

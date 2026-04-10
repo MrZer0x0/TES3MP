@@ -30,41 +30,40 @@ namespace SceneUtil
             mFilter2 = "tri " + mFilter;
         }
 
-        void apply(osg::MatrixTransform& node) override
+        virtual void apply(osg::MatrixTransform& node)
         {
             traverse(node);
         }
-        void apply(osg::Node& node) override
+        virtual void apply(osg::Node& node)
         {
             traverse(node);
         }
-        void apply(osg::Group& node) override
+        virtual void apply(osg::Group& node)
         {
             traverse(node);
         }
 
-        void apply(osg::Drawable& drawable) override
+        virtual void apply(osg::Drawable& drawable)
         {
-            if (!filterMatches(drawable.getName()))
-                return;
-
-            osg::Node* node = &drawable;
-            while (node->getNumParents())
+            std::string lowerName = Misc::StringUtils::lowerCase(drawable.getName());
+            if ((lowerName.size() >= mFilter.size() && lowerName.compare(0, mFilter.size(), mFilter) == 0)
+                    || (lowerName.size() >= mFilter2.size() && lowerName.compare(0, mFilter2.size(), mFilter2) == 0))
             {
-                osg::Group* parent = node->getParent(0);
-                if (!parent || !filterMatches(parent->getName()))
-                    break;
-                node = parent;
+                osg::Node* node = &drawable;
+                while (node && node->getNumParents() && !node->getStateSet())
+                    node = node->getParent(0);
+                if (node)
+                    mToCopy.push_back(node);
             }
-            mToCopy.emplace(node);
         }
 
         void doCopy()
         {
-            for (const osg::ref_ptr<osg::Node>& node : mToCopy)
+            for (std::vector<osg::ref_ptr<osg::Node> >::iterator it = mToCopy.begin(); it != mToCopy.end(); ++it)
             {
+                osg::ref_ptr<osg::Node> node = *it;
                 if (node->getNumParents() > 1)
-                    Log(Debug::Error) << "Error CopyRigVisitor: node has " << node->getNumParents() << " parents";
+                    Log(Debug::Error) << "Error CopyRigVisitor: node has multiple parents";
                 while (node->getNumParents())
                     node->getParent(0)->removeChild(node);
 
@@ -74,16 +73,8 @@ namespace SceneUtil
         }
 
     private:
-
-        bool filterMatches(const std::string& name) const
-        {
-            std::string lowerName = Misc::StringUtils::lowerCase(name);
-            return (lowerName.size() >= mFilter.size() && lowerName.compare(0, mFilter.size(), mFilter) == 0)
-                || (lowerName.size() >= mFilter2.size() && lowerName.compare(0, mFilter2.size(), mFilter2) == 0);
-        }
-
-        using NodeSet = std::set<osg::ref_ptr<osg::Node>>;
-        NodeSet mToCopy;
+        typedef std::vector<osg::ref_ptr<osg::Node> > NodeVector;
+        NodeVector mToCopy;
 
         osg::ref_ptr<osg::Group> mParent;
         std::string mFilter;

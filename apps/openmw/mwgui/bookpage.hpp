@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include <components/settings/settings.hpp>
+#include <components/widgets/widgets.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -48,11 +49,9 @@ namespace MWGui
         bool charFound;
         MyGUI::FloatRect uvRect;
 
-        GlyphInfo(MyGUI::IFont* font, MyGUI::Char ch)
+        GlyphInfo(MyGUI::IFont* font, MyGUI::Char ch, int fontHeight = MWBase::Environment::get().getWindowManager()->getFontHeight())
         {
-            static const int fontHeight = MWBase::Environment::get().getWindowManager()->getFontHeight();
-
-            const MyGUI::GlyphInfo* gi = font->getGlyphInfo(ch);
+            MyGUI::GlyphInfo* gi = font->getGlyphInfo(ch);
             if (gi)
             {
                 const float scale = font->getDefaultHeight() / (float) fontHeight;
@@ -89,6 +88,8 @@ namespace MWGui
         typedef std::pair <Utf8Point, Utf8Point> Utf8Span;
 
         virtual ~BookTypesetter() = default;
+
+        int mFontHeight = MWBase::Environment::get().getWindowManager()->getFontHeight();
 
         enum Alignment {
             AlignLeft   = -1,
@@ -168,6 +169,8 @@ namespace MWGui
         /// Register the widget and associated sub-widget with MyGUI. Should be
         /// called once near the beginning of the program.
         static void registerMyGUIComponents ();
+
+        int mFontHeight = MWBase::Environment::get().getWindowManager()->getFontHeight();
     };
 }
 

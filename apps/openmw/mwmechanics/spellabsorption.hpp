@@ -1,7 +1,10 @@
 #ifndef MWMECHANICS_SPELLABSORPTION_H
 #define MWMECHANICS_SPELLABSORPTION_H
 
-#include <string>
+namespace ESM
+{
+    struct Spell;
+}
 
 namespace MWWorld
 {
@@ -10,9 +13,8 @@ namespace MWWorld
 
 namespace MWMechanics
 {
-    void absorbSpell(const std::string& spellId, const MWWorld::Ptr& caster, const MWWorld::Ptr& target);
-    // Calculate the chance to absorb a spell based on the magnitude of every Spell Absorption effect source on the target.
-    int getAbsorbChance(const MWWorld::Ptr& caster, const MWWorld::Ptr& target);
+    // Try to absorb a spell based on the magnitude of every Spell Absorption effect source on the target.
+    bool absorbSpell(const ESM::Spell* spell, const MWWorld::Ptr& caster, const MWWorld::Ptr& target);
 }
 
 #endif

@@ -12,9 +12,6 @@
 #include "aisequence.hpp"
 #include "drawstate.hpp"
 
-#include <components/esm/attr.hpp>
-#include <components/esm/magiceffects.hpp>
-
 namespace ESM
 {
     struct CreatureStats;
@@ -22,12 +19,11 @@ namespace ESM
 
 namespace MWMechanics
 {
-    struct CorprusStats
+    enum GreetingState
     {
-        static constexpr int sWorseningPeriod = 24;
-
-        int mWorsenings[ESM::Attribute::Length];
-        MWWorld::TimeStamp mNextWorsening;
+        Greet_None,
+        Greet_InProgress,
+        Greet_Done
     };
 
     /// \brief Common creature stats
@@ -37,7 +33,7 @@ namespace MWMechanics
     {
         static int sActorId;
         DrawState_ mDrawState;
-        AttributeValue mAttributes[ESM::Attribute::Length];
+        AttributeValue mAttributes[8];
         DynamicStat<float> mDynamic[3]; // health, magicka, fatigue
         Spells mSpells;
         ActiveSpells mActiveSpells;
@@ -81,23 +77,37 @@ namespace MWMechanics
 
         MWWorld::TimeStamp mTimeOfDeath;
 
-        // The difference between view direction and lower body direction.
-        float mSideMovementAngle;
+        GreetingState mGreetingState;
+        int mGreetingTimer;
+        float mTargetAngleRadians;
+        bool mIsTurningToPlayer;
 
+    public:
+        typedef std::pair<int, std::string> SummonKey; // <ESM::MagicEffect index, spell ID>
     private:
-        std::map<ESM::SummonKey, int> mSummonedCreatures; // <SummonKey, ActorId>
+        std::map<SummonKey, int> mSummonedCreatures; // <SummonKey, ActorId>
 
         // Contains ActorIds of summoned creatures with an expired lifetime that have not been deleted yet.
         // This may be necessary when the creature is in an inactive cell.
         std::vector<int> mSummonGraveyard;
-
-        std::map<std::string, CorprusStats> mCorprusSpells;
 
     protected:
         int mLevel;
 
     public:
         CreatureStats();
+
+        int getGreetingTimer() const;
+        void setGreetingTimer(int timer);
+
+        float getAngleToPlayer() const;
+        void setAngleToPlayer(float angle);
+
+        GreetingState getGreetingState() const;
+        void setGreetingState(GreetingState state);
+
+        bool isTurningToPlayer() const;
+        void setTurningToPlayer(bool turning);
 
         DrawState_ getDrawState() const;
         void setDrawState(DrawState_ state);
@@ -140,7 +150,7 @@ namespace MWMechanics
 
         void setAttribute(int index, const AttributeValue &value);
         // Shortcut to set only the base
-        void setAttribute(int index, float base);
+        void setAttribute(int index, int base);
 
         void setHealth(const DynamicStat<float> &value);
 
@@ -244,7 +254,7 @@ namespace MWMechanics
         void setBlock(bool value);
         bool getBlock() const;
 
-        std::map<ESM::SummonKey, int>& getSummonedCreatureMap(); // <SummonKey, ActorId of summoned creature>
+        std::map<SummonKey, int>& getSummonedCreatureMap(); // <SummonKey, ActorId of summoned creature>
         std::vector<int>& getSummonedCreatureGraveyard(); // ActorIds
 
          /*
@@ -315,15 +325,6 @@ namespace MWMechanics
         /// assigned this function will return false).
 
         static void cleanup();
-
-        std::map<std::string, CorprusStats> & getCorprusSpells();
-
-        void addCorprusSpell(const std::string& sourceId, CorprusStats& stats);
-
-        void removeCorprusSpell(const std::string& sourceId);
-
-        float getSideMovementAngle() const { return mSideMovementAngle; }
-        void setSideMovementAngle(float angle) { mSideMovementAngle = angle; }
     };
 }
 

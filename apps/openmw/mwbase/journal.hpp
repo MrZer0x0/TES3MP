@@ -50,6 +50,9 @@ namespace MWBase
 
             virtual ~Journal() {}
 
+            virtual void addEntry (const std::string& id, int index, const MWWorld::Ptr& actor) = 0;
+            ///< Add a journal entry.
+            /// @param actor Used as context for replacing of escape sequences (%name, etc).
             /*
                 Start of tes3mp addition
 

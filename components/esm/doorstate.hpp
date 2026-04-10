@@ -7,18 +7,18 @@ namespace ESM
 {
     // format 0, saved games only
 
-    struct DoorState final : public ObjectState
+    struct DoorState : public ObjectState
     {
         int mDoorState = 0;
 
-        void load (ESMReader &esm) override;
-        void save (ESMWriter &esm, bool inInventory = false) const override;
+        virtual void load (ESMReader &esm);
+        virtual void save (ESMWriter &esm, bool inInventory = false) const;
 
-        DoorState& asDoorState() override
+        virtual DoorState& asDoorState()
         {
             return *this;
         }
-        const DoorState& asDoorState() const override
+        virtual const DoorState& asDoorState() const
         {
             return *this;
         }

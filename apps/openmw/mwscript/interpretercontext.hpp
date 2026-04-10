@@ -1,30 +1,35 @@
 #ifndef GAME_SCRIPT_INTERPRETERCONTEXT_H
 #define GAME_SCRIPT_INTERPRETERCONTEXT_H
 
-#include <memory>
-#include <stdexcept>
-
 #include <components/interpreter/context.hpp>
 
-#include "globalscripts.hpp"
-
 #include "../mwworld/ptr.hpp"
+
+namespace MWSound
+{
+    class SoundManager;
+}
+
+namespace MWInput
+{
+    struct MWInputManager;
+}
 
 namespace MWScript
 {
     class Locals;
 
-    class MissingImplicitRefError : public std::runtime_error
-    {
-        public:
-            MissingImplicitRefError();
-    };
-
     class InterpreterContext : public Interpreter::Context
     {
             Locals *mLocals;
             mutable MWWorld::Ptr mReference;
-            std::shared_ptr<GlobalScriptDesc> mGlobalScriptDesc;
+
+            std::string mTargetId;
+
+            /// If \a id is empty, a reference the script is run from is returned or in case
+            /// of a non-local script the reference derived from the target ID.
+            MWWorld::Ptr getReferenceImp (const std::string& id = "", bool activeOnly = false,
+                bool doThrow=true);
 
             /// If \a id is empty, a reference the script is run from is returned or in case
             /// of a non-local script the reference derived from the target ID.
@@ -42,11 +47,12 @@ namespace MWScript
                 char type) const;
 
         public:
-            InterpreterContext (std::shared_ptr<GlobalScriptDesc> globalScriptDesc);
 
-            InterpreterContext (MWScript::Locals *locals, const MWWorld::Ptr& reference);
+            InterpreterContext (MWScript::Locals *locals, const MWWorld::Ptr& reference,
+                const std::string& targetId = "");
             ///< The ownership of \a locals is not transferred. 0-pointer allowed.
 
+            virtual int getLocalShort (int index) const;
             /*
                 Start of tes3mp addition
 
@@ -80,86 +86,107 @@ namespace MWScript
 
             int getLocalShort (int index) const override;
 
-            int getLocalLong (int index) const override;
+            virtual int getLocalLong (int index) const;
 
-            float getLocalFloat (int index) const override;
+            virtual float getLocalFloat (int index) const;
 
-            void setLocalShort (int index, int value) override;
+            virtual void setLocalShort (int index, int value);
 
-            void setLocalLong (int index, int value) override;
+            virtual void setLocalLong (int index, int value);
 
-            void setLocalFloat (int index, float value) override;
+            virtual void setLocalFloat (int index, float value);
 
             using Interpreter::Context::messageBox;
 
-            void messageBox (const std::string& message,
-                const std::vector<std::string>& buttons) override;
+            virtual void messageBox (const std::string& message,
+                const std::vector<std::string>& buttons);
 
-            void report (const std::string& message) override;
+            virtual void report (const std::string& message);
             ///< By default, do nothing.
 
-            int getGlobalShort (const std::string& name) const override;
+            virtual bool menuMode();
 
-            int getGlobalLong (const std::string& name) const override;
+            virtual int getGlobalShort (const std::string& name) const;
 
-            float getGlobalFloat (const std::string& name) const override;
+            virtual int getGlobalLong (const std::string& name) const;
 
-            void setGlobalShort (const std::string& name, int value) override;
+            virtual float getGlobalFloat (const std::string& name) const;
 
-            void setGlobalLong (const std::string& name, int value) override;
+            virtual void setGlobalShort (const std::string& name, int value);
 
-            void setGlobalFloat (const std::string& name, float value) override;
+            virtual void setGlobalLong (const std::string& name, int value);
 
-            std::vector<std::string> getGlobals () const override;
+            virtual void setGlobalFloat (const std::string& name, float value);
 
-            char getGlobalType (const std::string& name) const override;
+            virtual std::vector<std::string> getGlobals () const;
 
-            std::string getActionBinding(const std::string& action) const override;
+            virtual char getGlobalType (const std::string& name) const;
 
-            std::string getActorName() const override;
+            virtual std::string getActionBinding(const std::string& action) const;
 
-            std::string getNPCRace() const override;
+            virtual std::string getActorName() const;
 
-            std::string getNPCClass() const override;
+            virtual std::string getNPCRace() const;
 
-            std::string getNPCFaction() const override;
+            virtual std::string getNPCClass() const;
 
-            std::string getNPCRank() const override;
+            virtual std::string getNPCFaction() const;
 
-            std::string getPCName() const override;
+            virtual std::string getNPCRank() const;
 
-            std::string getPCRace() const override;
+            virtual std::string getPCName() const;
 
-            std::string getPCClass() const override;
+            virtual std::string getPCRace() const;
 
-            std::string getPCRank() const override;
+            virtual std::string getPCClass() const;
 
-            std::string getPCNextRank() const override;
+            virtual std::string getPCRank() const;
 
-            int getPCBounty() const override;
+            virtual std::string getPCNextRank() const;
 
-            std::string getCurrentCellName() const override;
+            virtual int getPCBounty() const;
+
+            virtual std::string getCurrentCellName() const;
+
+            virtual bool isScriptRunning (const std::string& name) const;
+
+            virtual void startScript (const std::string& name, const std::string& targetId = "");
+
+            virtual void stopScript (const std::string& name);
+
+            virtual float getDistance (const std::string& name, const std::string& id = "") const;
+            ///< @note if \a id is empty, assumes an implicit reference
 
             void executeActivation(MWWorld::Ptr ptr, MWWorld::Ptr actor);
             ///< Execute the activation action for this ptr. If ptr is mActivated, mark activation as handled.
 
-            int getMemberShort (const std::string& id, const std::string& name, bool global) const override;
+            virtual float getSecondsPassed() const;
 
-            int getMemberLong (const std::string& id, const std::string& name, bool global) const override;
+            virtual bool isDisabled (const std::string& id = "") const;
 
-            float getMemberFloat (const std::string& id, const std::string& name, bool global) const override;
+            virtual void enable (const std::string& id = "");
 
-            void setMemberShort (const std::string& id, const std::string& name, int value, bool global) override;
+            virtual void disable (const std::string& id = "");
 
-            void setMemberLong (const std::string& id, const std::string& name, int value, bool global) override;
+            virtual int getMemberShort (const std::string& id, const std::string& name, bool global) const;
 
-            void setMemberFloat (const std::string& id, const std::string& name, float value, bool global) override;
+            virtual int getMemberLong (const std::string& id, const std::string& name, bool global) const;
+
+            virtual float getMemberFloat (const std::string& id, const std::string& name, bool global) const;
+
+            virtual void setMemberShort (const std::string& id, const std::string& name, int value, bool global);
+
+            virtual void setMemberLong (const std::string& id, const std::string& name, int value, bool global);
+
+            virtual void setMemberFloat (const std::string& id, const std::string& name, float value, bool global);
 
             MWWorld::Ptr getReference(bool required=true);
             ///< Reference, that the script is running from (can be empty)
 
             void updatePtr(const MWWorld::Ptr& base, const MWWorld::Ptr& updated);
             ///< Update the Ptr stored in mReference, if there is one stored there. Should be called after the reference has been moved to a new cell.
+
+            virtual std::string getTargetId() const;
     };
 }
 

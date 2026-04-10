@@ -3,11 +3,8 @@
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
 
-#include <components/misc/stringops.hpp>
-
 void ESM::InventoryState::load (ESMReader &esm)
 {
-    // obsolete
     int index = 0;
     while (esm.isNextSub ("IOBJ"))
     {
@@ -34,22 +31,6 @@ void ESM::InventoryState::load (ESMReader &esm)
 
         ++index;
     }
-
-    int itemsCount = 0;
-    esm.getHNOT(itemsCount, "ICNT");
-    for (int i = 0; i < itemsCount; i++)
-    {
-        ObjectState state;
-
-        state.mRef.loadId(esm, true);
-        state.load (esm);
-
-        if (state.mCount == 0)
-            continue;
-
-        mItems.push_back (state);
-    }
-
     //Next item is Levelled item
     while (esm.isNextSub("LEVM"))
     {
@@ -76,7 +57,7 @@ void ESM::InventoryState::load (ESMReader &esm)
             float rand, multiplier;
             esm.getHT (rand);
             esm.getHNT (multiplier, "MULT");
-            params.emplace_back(rand, multiplier);
+            params.push_back(std::make_pair(rand, multiplier));
         }
         mPermanentMagicEffectMagnitudes[id] = params;
     }
@@ -91,48 +72,18 @@ void ESM::InventoryState::load (ESMReader &esm)
         mEquipmentSlots[equipIndex] = slot;
     }
 
-    if (esm.isNextSub("EQIP"))
-    {
-        esm.getSubHeader();
-        int slotsCount = 0;
-        esm.getT(slotsCount);
-        for (int i = 0; i < slotsCount; i++)
-        {
-            int equipIndex;
-            esm.getT(equipIndex);
-            int slot;
-            esm.getT(slot);
-            mEquipmentSlots[equipIndex] = slot;
-        }
-    }
-
     mSelectedEnchantItem = -1;
     esm.getHNOT(mSelectedEnchantItem, "SELE");
-
-    // Old saves had restocking levelled items in a special map
-    // This turns items from that map into negative quantities
-    for(const auto& entry : mLevelledItemMap)
-    {
-        const std::string& id = entry.first.first;
-        const int count = entry.second;
-        for(auto& item : mItems)
-        {
-            if(item.mCount == count && Misc::StringUtils::ciEqual(id, item.mRef.mRefID))
-                item.mCount = -count;
-        }
-    }
 }
 
 void ESM::InventoryState::save (ESMWriter &esm) const
 {
-    int itemsCount = static_cast<int>(mItems.size());
-    if (itemsCount > 0)
+    for (std::vector<ObjectState>::const_iterator iter (mItems.begin()); iter!=mItems.end(); ++iter)
     {
-        esm.writeHNT ("ICNT", itemsCount);
-        for (const ObjectState& state : mItems)
-        {
-            state.save (esm, true);
-        }
+        int unused = 0;
+        esm.writeHNT ("IOBJ", unused);
+
+        iter->save (esm, true);
     }
 
     for (std::map<std::pair<std::string, std::string>, int>::const_iterator it = mLevelledItemMap.begin(); it != mLevelledItemMap.end(); ++it)
@@ -154,17 +105,12 @@ void ESM::InventoryState::save (ESMWriter &esm) const
         }
     }
 
-    int slotsCount = static_cast<int>(mEquipmentSlots.size());
-    if (slotsCount > 0)
+    for (std::map<int, int>::const_iterator it = mEquipmentSlots.begin(); it != mEquipmentSlots.end(); ++it)
     {
-        esm.startSubRecord("EQIP");
-        esm.writeT(slotsCount);
-        for (std::map<int, int>::const_iterator it = mEquipmentSlots.begin(); it != mEquipmentSlots.end(); ++it)
-        {
-            esm.writeT(it->first);
-            esm.writeT(it->second);
-        }
-        esm.endRecord("EQIP");
+        esm.startSubRecord("EQUI");
+        esm.writeT(it->first);
+        esm.writeT(it->second);
+        esm.endRecord("EQUI");
     }
 
     if (mSelectedEnchantItem != -1)

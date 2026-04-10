@@ -87,12 +87,12 @@ namespace MWWorld
         // The object that this instance is based on.
         const X* mBase;
 
-        void load (const ESM::ObjectState& state) override;
+        virtual void load (const ESM::ObjectState& state);
         ///< Load state into a LiveCellRef, that has already been initialised with base and class.
         ///
         /// \attention Must not be called with an invalid \a state.
 
-        void save (ESM::ObjectState& state) const override;
+        virtual void save (ESM::ObjectState& state) const;
         ///< Save LiveCellRef state into \a state.
 
         static bool checkState (const ESM::ObjectState& state);

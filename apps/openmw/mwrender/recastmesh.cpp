@@ -1,6 +1,7 @@
 #include "recastmesh.hpp"
 
 #include <components/sceneutil/recastmesh.hpp>
+#include <components/debug/debuglog.hpp>
 
 #include <osg/PositionAttitudeTransform>
 

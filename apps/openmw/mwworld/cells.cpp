@@ -5,7 +5,6 @@
 #include <components/esm/esmwriter.hpp>
 #include <components/esm/defs.hpp>
 #include <components/esm/cellstate.hpp>
-#include <components/esm/cellref.hpp>
 #include <components/loadinglistener/loadinglistener.hpp>
 #include <components/settings/settings.hpp>
 
@@ -15,50 +14,6 @@
 #include "esmstore.hpp"
 #include "containerstore.hpp"
 #include "cellstore.hpp"
-
-namespace
-{
-    template<class Visitor, class Key>
-    bool forEachInStore(const std::string& id, Visitor&& visitor, std::map<Key, MWWorld::CellStore>& cellStore)
-    {
-        for(auto& cell : cellStore)
-        {
-            if(cell.second.getState() == MWWorld::CellStore::State_Unloaded)
-                cell.second.preload();
-            if(cell.second.getState() == MWWorld::CellStore::State_Preloaded)
-            {
-                if(cell.second.hasId(id))
-                {
-                    cell.second.load();
-                }
-                else
-                    continue;
-            }
-            bool cont = cell.second.forEach([&] (MWWorld::Ptr ptr)
-            {
-                if(*ptr.getCellRef().getRefIdPtr() == id)
-                {
-                    return visitor(ptr);
-                }
-                return true;
-            });
-            if(!cont)
-                return false;
-        }
-        return true;
-    }
-
-    struct PtrCollector
-    {
-        std::vector<MWWorld::Ptr> mPtrs;
-
-        bool operator()(MWWorld::Ptr ptr)
-        {
-            mPtrs.emplace_back(ptr);
-            return true;
-        }
-    };
-}
 
 MWWorld::CellStore *MWWorld::Cells::getCellStore (const ESM::Cell *cell)
 {
@@ -94,7 +49,7 @@ void MWWorld::Cells::clear()
 {
     mInteriors.clear();
     mExteriors.clear();
-    std::fill(mIdCache.begin(), mIdCache.end(), std::make_pair("", (MWWorld::CellStore*)nullptr));
+    std::fill(mIdCache.begin(), mIdCache.end(), std::make_pair("", (MWWorld::CellStore*)0));
     mIdCacheIndex = 0;
 }
 
@@ -155,11 +110,9 @@ void MWWorld::Cells::writeCell (ESM::ESMWriter& writer, CellStore& cell) const
 
 MWWorld::Cells::Cells (const MWWorld::ESMStore& store, std::vector<ESM::ESMReader>& reader)
 : mStore (store), mReader (reader),
+  mIdCache (Settings::Manager::getInt("pointers cache size", "Cells"), std::pair<std::string, CellStore *> ("", (CellStore*)0)),
   mIdCacheIndex (0)
-{
-    int cacheSize = std::clamp(Settings::Manager::getInt("pointers cache size", "Cells"), 40, 1000);
-    mIdCache = IdCache(cacheSize, std::pair<std::string, CellStore *> ("", (CellStore*)nullptr));
-}
+{}
 
 MWWorld::CellStore *MWWorld::Cells::getExterior (int x, int y)
 {
@@ -207,12 +160,9 @@ MWWorld::CellStore *MWWorld::Cells::getInterior (const std::string& name)
 
     if (result==mInteriors.end())
     {
-        const ESM::Cell* cell = mStore.get<ESM::Cell>().find(lowerName);
+        const ESM::Cell *cell = mStore.get<ESM::Cell>().find(lowerName);
 
-        if (!cell)
-            throw std::runtime_error("Interior cell '" + name + "' not found in ESM store");
-
-        result = mInteriors.insert(std::make_pair(lowerName, CellStore(cell, mStore, mReader))).first;
+        result = mInteriors.insert (std::make_pair (lowerName, CellStore (cell, mStore, mReader))).first;
     }
 
     if (result->second.getState()!=CellStore::State_Loaded)
@@ -287,7 +237,8 @@ MWWorld::Ptr MWWorld::Cells::getPtr (const std::string& name, CellStore& cell,
 MWWorld::Ptr MWWorld::Cells::getPtr (const std::string& name)
 {
     // First check the cache
-    for (IdCache::iterator iter (mIdCache.begin()); iter!=mIdCache.end(); ++iter)
+    for (std::vector<std::pair<std::string, CellStore *> >::iterator iter (mIdCache.begin());
+        iter!=mIdCache.end(); ++iter)
         if (iter->first==name && iter->second)
         {
             Ptr ptr = getPtr (name, *iter->second);
@@ -342,37 +293,6 @@ MWWorld::Ptr MWWorld::Cells::getPtr (const std::string& name)
     return Ptr();
 }
 
-MWWorld::Ptr MWWorld::Cells::getPtr (const std::string& id, const ESM::RefNum& refNum)
-{
-    for (auto& pair : mInteriors)
-    {
-        Ptr ptr = getPtr(pair.second, id, refNum);
-        if (!ptr.isEmpty())
-            return ptr;
-    }
-    for (auto& pair : mExteriors)
-    {
-        Ptr ptr = getPtr(pair.second, id, refNum);
-        if (!ptr.isEmpty())
-            return ptr;
-    }
-    return Ptr();
-}
-
-MWWorld::Ptr MWWorld::Cells::getPtr(CellStore& cellStore, const std::string& id, const ESM::RefNum& refNum)
-{
-    if (cellStore.getState() == CellStore::State_Unloaded)
-        cellStore.preload();
-    if (cellStore.getState() == CellStore::State_Preloaded)
-    {
-        if (cellStore.hasId(id))
-            cellStore.load();
-        else
-            return Ptr();
-    }
-    return cellStore.searchViaRefNum(refNum);
-}
-
 void MWWorld::Cells::getExteriorPtrs(const std::string &name, std::vector<MWWorld::Ptr> &out)
 {
     const MWWorld::Store<ESM::Cell> &cells = mStore.get<ESM::Cell>();
@@ -399,14 +319,6 @@ void MWWorld::Cells::getInteriorPtrs(const std::string &name, std::vector<MWWorl
         if (!ptr.isEmpty())
             out.push_back(ptr);
     }
-}
-
-std::vector<MWWorld::Ptr> MWWorld::Cells::getAll(const std::string& id)
-{
-    PtrCollector visitor;
-    if(forEachInStore(id, visitor, mInteriors))
-        forEachInStore(id, visitor, mExteriors);
-    return visitor.mPtrs;
 }
 
 int MWWorld::Cells::countSavedGameRecords() const
@@ -455,7 +367,7 @@ public:
 
     MWWorld::Cells& mCells;
 
-    MWWorld::CellStore* getCellStore(const ESM::CellId& cellId) override
+    virtual MWWorld::CellStore* getCellStore(const ESM::CellId& cellId)
     {
         try
         {
@@ -476,7 +388,7 @@ bool MWWorld::Cells::readRecord (ESM::ESMReader& reader, uint32_t type,
         ESM::CellState state;
         state.mId.load (reader);
 
-        CellStore *cellStore = nullptr;
+        CellStore *cellStore = 0;
 
         try
         {

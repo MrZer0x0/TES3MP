@@ -3,42 +3,40 @@
 #include "gettilespositions.hpp"
 #include "settingsutils.hpp"
 
-#include <algorithm>
-#include <vector>
-
 namespace DetourNavigator
 {
     TileCachedRecastMeshManager::TileCachedRecastMeshManager(const Settings& settings)
         : mSettings(settings)
     {}
 
-    bool TileCachedRecastMeshManager::addObject(const ObjectId id, const CollisionShape& shape,
+    bool TileCachedRecastMeshManager::addObject(const ObjectId id, const btCollisionShape& shape,
                                                 const btTransform& transform, const AreaType areaType)
     {
-        std::vector<TilePosition> tilesPositions;
+        bool result = false;
+        auto& tilesPositions = mObjectsTilesPositions[id];
         const auto border = getBorderSize(mSettings);
         {
             auto tiles = mTiles.lock();
-            getTilesPositions(shape.getShape(), transform, mSettings, [&] (const TilePosition& tilePosition)
+            getTilesPositions(shape, transform, mSettings, [&] (const TilePosition& tilePosition)
                 {
                     if (addTile(id, shape, transform, areaType, tilePosition, border, tiles.get()))
-                        tilesPositions.push_back(tilePosition);
+                    {
+                        tilesPositions.insert(tilePosition);
+                        result = true;
+                    }
                 });
         }
-        if (tilesPositions.empty())
-            return false;
-        std::sort(tilesPositions.begin(), tilesPositions.end());
-        mObjectsTilesPositions.insert_or_assign(id, std::move(tilesPositions));
-        ++mRevision;
-        return true;
+        if (result)
+            ++mRevision;
+        return result;
     }
 
-    std::optional<RemovedRecastMeshObject> TileCachedRecastMeshManager::removeObject(const ObjectId id)
+    boost::optional<RemovedRecastMeshObject> TileCachedRecastMeshManager::removeObject(const ObjectId id)
     {
         const auto object = mObjectsTilesPositions.find(id);
         if (object == mObjectsTilesPositions.end())
-            return std::nullopt;
-        std::optional<RemovedRecastMeshObject> result;
+            return boost::none;
+        boost::optional<RemovedRecastMeshObject> result;
         {
             auto tiles = mTiles.lock();
             for (const auto& tilePosition : object->second)
@@ -67,7 +65,7 @@ namespace DetourNavigator
             const auto tiles = mTiles.lock();
             for (auto& tile : *tiles)
             {
-                if (tile.second->addWater(cellPosition, cellSize, transform))
+                if (tile.second.addWater(cellPosition, cellSize, transform))
                 {
                     tilesPositions.push_back(tile.first);
                     result = true;
@@ -86,9 +84,9 @@ namespace DetourNavigator
                         tileBounds.mMin -= osg::Vec2f(border, border);
                         tileBounds.mMax += osg::Vec2f(border, border);
                         tile = tiles->insert(std::make_pair(tilePosition,
-                                std::make_shared<CachedRecastMeshManager>(mSettings, tileBounds, mTilesGeneration))).first;
+                                CachedRecastMeshManager(mSettings, tileBounds, mTilesGeneration))).first;
                     }
-                    if (tile->second->addWater(cellPosition, cellSize, transform))
+                    if (tile->second.addWater(cellPosition, cellSize, transform))
                     {
                         tilesPositions.push_back(tilePosition);
                         result = true;
@@ -102,20 +100,20 @@ namespace DetourNavigator
         return result;
     }
 
-    std::optional<RecastMeshManager::Water> TileCachedRecastMeshManager::removeWater(const osg::Vec2i& cellPosition)
+    boost::optional<RecastMeshManager::Water> TileCachedRecastMeshManager::removeWater(const osg::Vec2i& cellPosition)
     {
         const auto object = mWaterTilesPositions.find(cellPosition);
         if (object == mWaterTilesPositions.end())
-            return std::nullopt;
-        std::optional<RecastMeshManager::Water> result;
+            return boost::none;
+        boost::optional<RecastMeshManager::Water> result;
         for (const auto& tilePosition : object->second)
         {
             const auto tiles = mTiles.lock();
             const auto tile = tiles->find(tilePosition);
             if (tile == tiles->end())
                 continue;
-            const auto tileResult = tile->second->removeWater(cellPosition);
-            if (tile->second->isEmpty())
+            const auto tileResult = tile->second.removeWater(cellPosition);
+            if (tile->second.isEmpty())
             {
                 tiles->erase(tile);
                 ++mTilesGeneration;
@@ -130,17 +128,11 @@ namespace DetourNavigator
 
     std::shared_ptr<RecastMesh> TileCachedRecastMeshManager::getMesh(const TilePosition& tilePosition)
     {
-        const auto manager = [&] () -> std::shared_ptr<CachedRecastMeshManager>
-        {
-            const auto tiles = mTiles.lock();
-            const auto it = tiles->find(tilePosition);
-            if (it == tiles->end())
-                return nullptr;
-            return it->second;
-        } ();
-        if (manager == nullptr)
+        const auto tiles = mTiles.lock();
+        const auto it = tiles->find(tilePosition);
+        if (it == tiles->end())
             return nullptr;
-        return manager->getMesh();
+        return it->second.getMesh();
     }
 
     bool TileCachedRecastMeshManager::hasTile(const TilePosition& tilePosition)
@@ -153,18 +145,9 @@ namespace DetourNavigator
         return mRevision;
     }
 
-    void TileCachedRecastMeshManager::reportNavMeshChange(const TilePosition& tilePosition, Version recastMeshVersion, Version navMeshVersion)
-    {
-        const auto tiles = mTiles.lock();
-        const auto it = tiles->find(tilePosition);
-        if (it == tiles->end())
-            return;
-        it->second->reportNavMeshChange(recastMeshVersion, navMeshVersion);
-    }
-
-    bool TileCachedRecastMeshManager::addTile(const ObjectId id, const CollisionShape& shape,
+    bool TileCachedRecastMeshManager::addTile(const ObjectId id, const btCollisionShape& shape,
         const btTransform& transform, const AreaType areaType, const TilePosition& tilePosition, float border,
-        TilesMap& tiles)
+        std::map<TilePosition, CachedRecastMeshManager>& tiles)
     {
         auto tile = tiles.find(tilePosition);
         if (tile == tiles.end())
@@ -173,26 +156,26 @@ namespace DetourNavigator
             tileBounds.mMin -= osg::Vec2f(border, border);
             tileBounds.mMax += osg::Vec2f(border, border);
             tile = tiles.insert(std::make_pair(
-                tilePosition, std::make_shared<CachedRecastMeshManager>(mSettings, tileBounds, mTilesGeneration))).first;
+                tilePosition, CachedRecastMeshManager(mSettings, tileBounds, mTilesGeneration))).first;
         }
-        return tile->second->addObject(id, shape, transform, areaType);
+        return tile->second.addObject(id, shape, transform, areaType);
     }
 
     bool TileCachedRecastMeshManager::updateTile(const ObjectId id, const btTransform& transform,
-        const AreaType areaType, const TilePosition& tilePosition, TilesMap& tiles)
+        const AreaType areaType, const TilePosition& tilePosition, std::map<TilePosition, CachedRecastMeshManager>& tiles)
     {
         const auto tile = tiles.find(tilePosition);
-        return tile != tiles.end() && tile->second->updateObject(id, transform, areaType);
+        return tile != tiles.end() && tile->second.updateObject(id, transform, areaType);
     }
 
-    std::optional<RemovedRecastMeshObject> TileCachedRecastMeshManager::removeTile(const ObjectId id,
-        const TilePosition& tilePosition, TilesMap& tiles)
+    boost::optional<RemovedRecastMeshObject> TileCachedRecastMeshManager::removeTile(const ObjectId id,
+        const TilePosition& tilePosition, std::map<TilePosition, CachedRecastMeshManager>& tiles)
     {
         const auto tile = tiles.find(tilePosition);
         if (tile == tiles.end())
-            return std::optional<RemovedRecastMeshObject>();
-        const auto tileResult = tile->second->removeObject(id);
-        if (tile->second->isEmpty())
+            return boost::optional<RemovedRecastMeshObject>();
+        const auto tileResult = tile->second.removeObject(id);
+        if (tile->second.isEmpty())
         {
             tiles.erase(tile);
             ++mTilesGeneration;

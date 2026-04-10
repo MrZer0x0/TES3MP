@@ -32,82 +32,85 @@ namespace Nif
 {
 
 // Common ancestor for several data classes
-struct NiGeometryData : public Record
+class ShapeData : public Record
 {
-    std::vector<osg::Vec3f> vertices, normals, tangents, bitangents;
+public:
+    std::vector<osg::Vec3f> vertices, normals;
     std::vector<osg::Vec4f> colors;
     std::vector< std::vector<osg::Vec2f> > uvlist;
     osg::Vec3f center;
     float radius;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiTriShapeData : public NiGeometryData
+class NiTriShapeData : public ShapeData
 {
+public:
     // Triangles, three vertex indices per triangle
     std::vector<unsigned short> triangles;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiTriStripsData : public NiGeometryData
+class NiTriStripsData : public ShapeData
 {
+public:
     // Triangle strips, series of vertex indices.
     std::vector<std::vector<unsigned short>> strips;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiLinesData : public NiGeometryData
+class NiAutoNormalParticlesData : public ShapeData
 {
-    // Lines, series of indices that correspond to connected vertices.
-    std::vector<unsigned short> lines;
+public:
+    int numParticles;
 
-    void read(NIFStream *nif) override;
+    float particleRadius;
+
+    int activeCount;
+
+    std::vector<float> sizes;
+
+    void read(NIFStream *nif);
 };
 
-struct NiParticlesData : public NiGeometryData
+class NiRotatingParticlesData : public NiAutoNormalParticlesData
 {
-    int numParticles{0};
-
-    int activeCount{0};
-
-    std::vector<float> particleRadii, sizes, rotationAngles;
+public:
     std::vector<osg::Quat> rotations;
-    std::vector<osg::Vec3f> rotationAxes;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiRotatingParticlesData : public NiParticlesData
+class NiPosData : public Record
 {
-    void read(NIFStream *nif) override;
-};
-
-struct NiPosData : public Record
-{
+public:
     Vector3KeyMapPtr mKeyList;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiUVData : public Record
+class NiUVData : public Record
 {
+public:
     FloatKeyMapPtr mKeyList[4];
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiFloatData : public Record
+class NiFloatData : public Record
 {
+public:
     FloatKeyMapPtr mKeyList;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiPixelData : public Record
+class NiPixelData : public Record
 {
+public:
     enum Format
     {
         NIPXFMT_RGB8,
@@ -119,14 +122,12 @@ struct NiPixelData : public Record
         NIPXFMT_DXT5,
         NIPXFMT_DXT5_ALT
     };
-    Format fmt{NIPXFMT_RGB8};
+    Format fmt;
 
-    unsigned int colorMask[4]{0};
-    unsigned int bpp{0}, pixelTiling{0};
-    bool sRGB{false};
+    unsigned int rmask, gmask, bmask, amask, bpp;
 
     NiPalettePtr palette;
-    unsigned int numberOfMipmaps{0};
+    unsigned int numberOfMipmaps;
 
     struct Mipmap
     {
@@ -137,41 +138,44 @@ struct NiPixelData : public Record
 
     std::vector<unsigned char> data;
 
-    void read(NIFStream *nif) override;
-    void post(NIFFile *nif) override;
+    void read(NIFStream *nif);
+    void post(NIFFile *nif);
 };
 
-struct NiColorData : public Record
+class NiColorData : public Record
 {
+public:
     Vector4KeyMapPtr mKeyMap;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiVisData : public Record
+class NiVisData : public Record
 {
+public:
     struct VisData {
         float time;
         bool isSet;
     };
     std::vector<VisData> mVis;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiSkinInstance : public Record
+class NiSkinInstance : public Record
 {
+public:
     NiSkinDataPtr data;
-    NiSkinPartitionPtr partitions;
     NodePtr root;
     NodeList bones;
 
-    void read(NIFStream *nif) override;
-    void post(NIFFile *nif) override;
+    void read(NIFStream *nif);
+    void post(NIFFile *nif);
 };
 
-struct NiSkinData : public Record
+class NiSkinData : public Record
 {
+public:
     struct VertWeight
     {
         unsigned short vertex;
@@ -188,27 +192,8 @@ struct NiSkinData : public Record
 
     Transformation trafo;
     std::vector<BoneInfo> bones;
-    NiSkinPartitionPtr partitions;
 
-    void read(NIFStream *nif) override;
-    void post(NIFFile *nif) override;
-};
-
-struct NiSkinPartition : public Record
-{
-    struct Partition
-    {
-        std::vector<unsigned short> bones;
-        std::vector<unsigned short> vertexMap;
-        std::vector<float> weights;
-        std::vector<std::vector<unsigned short>> strips;
-        std::vector<unsigned short> triangles;
-        std::vector<char> boneIndices;
-        void read(NIFStream *nif);
-    };
-    std::vector<Partition> data;
-
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
 struct NiMorphData : public Record
@@ -219,7 +204,7 @@ struct NiMorphData : public Record
     };
     std::vector<MorphData> mMorphs;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
 
@@ -235,27 +220,16 @@ struct NiKeyframeData : public Record
     Vector3KeyMapPtr mTranslations;
     FloatKeyMapPtr mScales;
 
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
-struct NiPalette : public Record
+class NiPalette : public Record
 {
+public:
     // 32-bit RGBA colors that correspond to 8-bit indices
     std::vector<unsigned int> colors;
 
-    void read(NIFStream *nif) override;
-};
-
-struct NiStringPalette : public Record
-{
-    std::string palette;
-    void read(NIFStream *nif) override;
-};
-
-struct NiBoolData : public Record
-{
-    ByteKeyMapPtr mKeyList;
-    void read(NIFStream *nif) override;
+    void read(NIFStream *nif);
 };
 
 } // Namespace

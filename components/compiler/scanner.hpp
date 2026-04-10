@@ -28,7 +28,7 @@ namespace Compiler
             blank();
         }
 
-        explicit MultiChar(const char ch)
+        MultiChar(const char ch)
         {
             blank();
             mData[0] = ch;
@@ -36,7 +36,7 @@ namespace Compiler
             mLength = getCharLength(ch);
         }
 
-        static int getCharLength(const char ch)
+        int getCharLength(const char ch)
         {
             unsigned char c = ch;
             if (c<=127) return 0;
@@ -103,7 +103,7 @@ namespace Compiler
         {
             blank();
 
-            char ch = static_cast<char>(in.peek());
+            char ch = in.peek();
 
             if (!in.good())
                 return false;
@@ -130,7 +130,7 @@ namespace Compiler
         {
             std::streampos p_orig = in.tellg();
 
-            char ch = static_cast<char>(in.peek());
+            char ch = in.peek();
 
             if (!in.good())
                 return false;
@@ -140,12 +140,15 @@ namespace Compiler
 
             for (int i = 0; i <= length; i++)
             {
-                in.get (ch);
+                if (length >= i)
+                {
+                    in.get (ch);
 
-                if (!in.good())
-                    return false;
+                    if (!in.good())
+                        return false;
 
-                mData[i] = ch;
+                    mData[i] = ch;
+                }
             }
 
             mLength = length;
@@ -156,7 +159,7 @@ namespace Compiler
 
         void blank()
         {
-            std::fill(std::begin(mData), std::end(mData), '\0');
+            std::fill(mData, mData + sizeof(mData), 0);
             mLength = -1;
         }
 
@@ -167,8 +170,8 @@ namespace Compiler
         }
 
     private:
-        char mData[4]{};
-        int mLength{};
+        char mData[4];
+        int mLength;
     };
 
     class Scanner
@@ -205,7 +208,13 @@ namespace Compiler
                 K_return,
                 K_messagebox,
                 K_set, K_to,
-                K_getsquareroot
+                K_getsquareroot,
+                K_menumode,
+                K_random,
+                K_startscript, K_stopscript, K_scriptrunning,
+                K_getdistance,
+                K_getsecondspassed,
+                K_enable, K_disable, K_getdisabled
             };
 
             enum special
@@ -248,7 +257,7 @@ namespace Compiler
         public:
 
             Scanner (ErrorHandler& errorHandler, std::istream& inputStream,
-                const Extensions *extensions = nullptr);
+                const Extensions *extensions = 0);
             ///< constructor
 
             void scan (Parser& parser);

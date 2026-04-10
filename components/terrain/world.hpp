@@ -40,46 +40,36 @@ namespace Terrain
     class ChunkManager;
     class CompositeMapRenderer;
 
-    class HeightCullCallback : public osg::NodeCallback
+class HeightCullCallback : public osg::NodeCallback
+{
+public:
+    HeightCullCallback() : mLowZ(-std::numeric_limits<float>::max()), mHighZ(std::numeric_limits<float>::max()), mMask(~0) {}
+
+    void setLowZ(float z)
     {
-    public:
-        void setLowZ(float z)
-        {
-            mLowZ = z;
-        }
-        float getLowZ() const
-        {
-            return mLowZ;
-        }
+        mLowZ = z;
+    }
+    float getLowZ() const { return mLowZ; }
 
-        void setHighZ(float highZ)
-        {
-            mHighZ = highZ;
-        }
-        float getHighZ() const
-        {
-            return mHighZ;
-        }
+    void setHighZ(float highZ)
+    {
+        mHighZ = highZ;
+    }
+    float getHighZ() const { return mHighZ; }
 
-        void setCullMask(unsigned int mask)
-        {
-            mMask = mask;
-        }
-        unsigned int getCullMask() const
-        {
-            return mMask;
-        }
+    void setCullMask(unsigned int mask) { mMask = mask; }
+    unsigned int getCullMask() const { return mMask; }
 
-        void operator()(osg::Node* node, osg::NodeVisitor* nv) override
-        {
-            if (mLowZ <= mHighZ)
-                traverse(node, nv);
-        }
-    private:
-        float mLowZ{-std::numeric_limits<float>::max()};
-        float mHighZ{std::numeric_limits<float>::max()};
-        unsigned int mMask{~0u};
-    };
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    {
+        if (mLowZ <= mHighZ)
+            traverse(node, nv);
+    }
+private:
+    float mLowZ;
+    float mHighZ;
+    unsigned int mMask;
+};
 
     /**
      * @brief A View is a collection of rendering objects that are visible from a given camera/intersection.
@@ -105,8 +95,7 @@ namespace Terrain
         /// @param storage Storage instance to get terrain data from (heights, normals, colors, textures..)
         /// @param nodeMask mask for the terrain root
         /// @param preCompileMask mask for pre compiling textures
-        World(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask);
-        World(osg::Group* parent, Storage* storage, unsigned int nodeMask);
+        World(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, int nodeMask, int preCompileMask, int borderMask);
         virtual ~World();
 
         /// Set a WorkQueue to delete objects in the background thread.
@@ -140,7 +129,6 @@ namespace Terrain
         virtual void enable(bool enabled) {}
 
         virtual void setBordersVisible(bool visible);
-        virtual bool getBordersVisible() { return mBorderVisible; }
 
         /// Create a View to use with preload feature. The caller is responsible for deleting the view.
         /// @note Thread safe.
@@ -148,13 +136,11 @@ namespace Terrain
 
         /// @note Thread safe, as long as you do not attempt to load into the same view from multiple threads.
 
-        virtual void preload(View* view, const osg::Vec3f& viewPoint, const osg::Vec4i &cellgrid, std::atomic<bool>& abort, std::atomic<int>& progress, int& progressRange) {}
+        virtual void preload(View* view, const osg::Vec3f& viewPoint, std::atomic<bool>& abort) {}
 
         /// Store a preloaded view into the cache with the intent that the next rendering traversal can use it.
         /// @note Not thread safe.
-        virtual bool storeView(const View* view, double referenceTime) {return true;}
-
-        virtual void rebuildViews() {}
+        virtual void storeView(const View* view, double referenceTime) {}
 
         virtual void reportStats(unsigned int frameNumber, osg::Stats* stats) {}
 
@@ -163,8 +149,6 @@ namespace Terrain
         Storage* getStorage() { return mStorage; }
 
         osg::Callback* getHeightCullCallback(float highz, unsigned int mask);
-
-        void setActiveGrid(const osg::Vec4i &grid) { mActiveGrid = grid; }
 
     protected:
         Storage* mStorage;
@@ -186,8 +170,6 @@ namespace Terrain
 
         std::set<std::pair<int,int>> mLoadedCells;
         osg::ref_ptr<HeightCullCallback> mHeightCullCallback;
-
-        osg::Vec4i mActiveGrid;
     };
 }
 

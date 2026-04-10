@@ -75,7 +75,7 @@ namespace Misc
                 return Locked<T>(mMutex, mValue);
             }
 
-            Locked<const T> lockConst() const
+            Locked<const T> lockConst()
             {
                 return Locked<const T>(mMutex, mValue);
             }
@@ -88,7 +88,7 @@ namespace Misc
             }
 
         private:
-            mutable std::mutex mMutex;
+            std::mutex mMutex;
             T mValue;
     };
 }

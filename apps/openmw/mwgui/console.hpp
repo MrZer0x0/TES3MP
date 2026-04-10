@@ -6,8 +6,12 @@
 #include <vector>
 
 #include <components/compiler/errorhandler.hpp>
+#include <components/compiler/lineparser.hpp>
+#include <components/compiler/scanner.hpp>
+#include <components/compiler/locals.hpp>
 #include <components/compiler/output.hpp>
 #include <components/compiler/extensions.hpp>
+#include <components/interpreter/interpreter.hpp>
 
 #include "../mwscript/compilercontext.hpp"
 #include "../mwscript/interpretercontext.hpp"
@@ -47,9 +51,9 @@ namespace MWGui
 
             Console(int w, int h, bool consoleOnlyScripts);
 
-            void onOpen() override;
+            virtual void onOpen();
 
-            void onResChange(int width, int height) override;
+            void onResChange(int width, int height);
 
             // Print a message to the console, in specified color.
             void print(const std::string &msg, const std::string& color = "#FFFFFF");
@@ -66,15 +70,13 @@ namespace MWGui
 
             void executeFile (const std::string& path);
 
-            void updateSelectedObjectPtr(const MWWorld::Ptr& currentPtr, const MWWorld::Ptr& newPtr);
+            void clear();
 
-            void clear() override;
-
-            void resetReference () override;
+            virtual void resetReference ();
 
         protected:
 
-            void onReferenceUnavailable() override;
+            virtual void onReferenceUnavailable();
 
         private:
 
@@ -94,10 +96,10 @@ namespace MWGui
             bool compile (const std::string& cmd, Compiler::Output& output);
 
             /// Report error to the user.
-            void report (const std::string& message, const Compiler::TokenLoc& loc, Type type) override;
+            virtual void report (const std::string& message, const Compiler::TokenLoc& loc, Type type);
 
             /// Report a file related error
-            void report (const std::string& message, Type type) override;
+            virtual void report (const std::string& message, Type type);
 
             /// Write all valid identifiers and keywords into mNames and sort them.
             /// \note If mNames is not empty, this function is a no-op.

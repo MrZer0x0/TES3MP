@@ -29,9 +29,9 @@ namespace MWGui
     public:
         AlchemyWindow();
 
-        void onOpen() override;
+        virtual void onOpen();
 
-        void onResChange(int, int) override { center(); }
+        void onResChange(int, int) { center(); }
 
     private:
 

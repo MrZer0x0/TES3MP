@@ -12,9 +12,9 @@ class MerchantRepair : public WindowBase
 public:
     MerchantRepair();
 
-    void onOpen() override;
+    virtual void onOpen();
 
-    void setPtr(const MWWorld::Ptr& actor) override;
+    void setPtr(const MWWorld::Ptr& actor);
 
 private:
     MyGUI::ScrollView* mList;

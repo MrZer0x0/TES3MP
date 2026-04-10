@@ -4,8 +4,6 @@
 #include <vector>
 #include <string>
 
-#include "defs.hpp"
-
 namespace ESM
 {
     class ESMReader;
@@ -19,6 +17,14 @@ namespace ESM
 
         static int sCurrentFormat;
 
+        struct TimeStamp
+        {
+            float mGameHour;
+            int mDay;
+            int mMonth;
+            int mYear;
+        };
+
         std::vector<std::string> mContentFiles;
         std::string mPlayerName;
         int mPlayerLevel;
@@ -30,7 +36,7 @@ namespace ESM
         std::string mPlayerClassName;
 
         std::string mPlayerCell;
-        EpochTimeStamp mInGameTime;
+        TimeStamp mInGameTime;
         double mTimePlayed;
         std::string mDescription;
         std::vector<char> mScreenshot; // raw jpg-encoded data

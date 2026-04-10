@@ -42,6 +42,7 @@
 #include "../mwworld/failedaction.hpp"
 #include "../mwworld/customdata.hpp"
 #include "../mwworld/containerstore.hpp"
+#include "../mwphysics/physicssystem.hpp"
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/localscripts.hpp"
 
@@ -67,32 +68,33 @@ namespace
 namespace MWClass
 {
 
-    class CreatureCustomData : public MWWorld::TypedCustomData<CreatureCustomData>
+    class CreatureCustomData : public MWWorld::CustomData
     {
     public:
         MWMechanics::CreatureStats mCreatureStats;
-        std::unique_ptr<MWWorld::ContainerStore> mContainerStore; // may be InventoryStore for some creatures
+        MWWorld::ContainerStore* mContainerStore; // may be InventoryStore for some creatures
         MWMechanics::Movement mMovement;
 
-        CreatureCustomData() = default;
-        CreatureCustomData(const CreatureCustomData& other);
-        CreatureCustomData(CreatureCustomData&& other) = default;
+        virtual MWWorld::CustomData *clone() const;
 
-        CreatureCustomData& asCreatureCustomData() override
+        virtual CreatureCustomData& asCreatureCustomData()
         {
             return *this;
         }
-        const CreatureCustomData& asCreatureCustomData() const override
+        virtual const CreatureCustomData& asCreatureCustomData() const
         {
             return *this;
         }
+
+        CreatureCustomData() : mContainerStore(0) {}
+        virtual ~CreatureCustomData() { delete mContainerStore; }
     };
 
-    CreatureCustomData::CreatureCustomData(const CreatureCustomData& other)
-        : mCreatureStats(other.mCreatureStats),
-          mContainerStore(other.mContainerStore->clone()),
-          mMovement(other.mMovement)
+    MWWorld::CustomData *CreatureCustomData::clone() const
     {
+        CreatureCustomData* cloned = new CreatureCustomData (*this);
+        cloned->mContainerStore = mContainerStore->clone();
+        return cloned;
     }
 
     const Creature::GMST& Creature::getGmst()
@@ -156,23 +158,28 @@ namespace MWClass
                 data->mCreatureStats.setDeathAnimationFinished(isPersistent(ptr));
 
             // spells
-            bool spellsInitialised = data->mCreatureStats.getSpells().setSpells(ref->mBase->mId);
-            if (!spellsInitialised)
-                data->mCreatureStats.getSpells().addAllToInstance(ref->mBase->mSpells.mList);
+            for (std::vector<std::string>::const_iterator iter (ref->mBase->mSpells.mList.begin());
+                iter!=ref->mBase->mSpells.mList.end(); ++iter)
+            {
+                if (const ESM::Spell* spell = MWBase::Environment::get().getWorld()->getStore().get<ESM::Spell>().search(*iter))
+                    data->mCreatureStats.getSpells().add (spell);
+                else /// \todo add option to make this a fatal error message pop-up, but default to warning for vanilla compatibility
+                    Log(Debug::Warning) << "Warning: ignoring nonexistent spell '" << *iter << "' on creature '" << ref->mBase->mId << "'";
+            }
 
             // inventory
             bool hasInventory = hasInventoryStore(ptr);
             if (hasInventory)
-                data->mContainerStore = std::make_unique<MWWorld::InventoryStore>();
+                data->mContainerStore = new MWWorld::InventoryStore();
             else
-                data->mContainerStore = std::make_unique<MWWorld::ContainerStore>();
+                data->mContainerStore = new MWWorld::ContainerStore();
 
             data->mCreatureStats.setGoldPool(ref->mBase->mData.mGold);
 
             data->mCreatureStats.setNeedRecalcDynamicStats(false);
 
             // store
-            ptr.getRefData().setCustomData(std::move(data));
+            ptr.getRefData().setCustomData(data.release());
 
             getContainerStore(ptr).fill(ref->mBase->mInventory, ptr.getCellRef().getRefId());
 
@@ -286,6 +293,8 @@ namespace MWClass
 
         MWWorld::Ptr victim = result.first;
 
+        if (!victim.getClass().isActor())
+            return; // Can't hit non-actors
         /*
             Start of tes3mp change (major)
 
@@ -309,6 +318,8 @@ namespace MWClass
 
         float hitchance = MWMechanics::getHitChance(ptr, victim, ref->mBase->mData.mCombat);
 
+        if(Misc::Rng::roll0to99() >= hitchance)
+        {
         /*
             Start of tes3mp addition
 
@@ -397,6 +408,7 @@ namespace MWClass
             }
 
             // Apply "On hit" enchanted weapons
+            MWMechanics::applyOnStrikeEnchantment(ptr, victim, weapon, hitPosition);
 
             /*
                 Start of tes3mp change (minor)
@@ -446,6 +458,10 @@ namespace MWClass
         if (!attacker.isEmpty() && attacker.getClass().isActor())
         {
             MWMechanics::CreatureStats& statsAttacker = attacker.getClass().getCreatureStats(attacker);
+            // First handle the attacked actor
+            if ((stats.getHitAttemptActorId() == -1)
+                && (statsAttacker.getAiSequence().isInCombat(ptr)
+                    || attacker == MWMechanics::getPlayer()))
 
             /*
                 Start of tes3mp change (minor)
@@ -468,6 +484,8 @@ namespace MWClass
             // Next handle the attacking actor
             if ((statsAttacker.getHitAttemptActorId() == -1)
                 && (statsAttacker.getAiSequence().isInCombat(ptr)
+                    || attacker == MWMechanics::getPlayer()))
+                statsAttacker.setHitAttemptActorId(stats.getActorId());
                     || attacker == MWMechanics::getPlayer()
                     || mwmp::PlayerList::isDedicatedPlayer(attacker))
                 && !MechanicsHelper::isTeamMember(ptr, attacker))
@@ -510,6 +528,11 @@ namespace MWClass
                 // Check for knockdown
                 float agilityTerm = stats.getAttribute(ESM::Attribute::Agility).getModified() * getGmst().fKnockDownMult->mValue.getFloat();
                 float knockdownTerm = stats.getAttribute(ESM::Attribute::Agility).getModified()
+                        * getGmst().iKnockDownOddsMult->mValue.getInteger() * 0.01f + getGmst().iKnockDownOddsBase->mValue.getInteger();
+                if (ishealth && agilityTerm <= damage && knockdownTerm <= Misc::Rng::roll0to99())
+                    stats.setKnockedDown(true);
+                else
+                    stats.setHitRecovery(true); // Is this supposed to always occur?
                     * getGmst().iKnockDownOddsMult->mValue.getInteger() * 0.01f + getGmst().iKnockDownOddsBase->mValue.getInteger();
 
                 /*
@@ -687,17 +710,24 @@ namespace MWClass
         registerClass (typeid (ESM::Creature).name(), instance);
     }
 
-    float Creature::getMaxSpeed(const MWWorld::Ptr &ptr) const
+    float Creature::getSpeed(const MWWorld::Ptr &ptr) const
     {
-        const MWMechanics::CreatureStats& stats = getCreatureStats(ptr);
-
+        MWMechanics::CreatureStats& stats = getCreatureStats(ptr);
         if (stats.isParalyzed() || stats.getKnockedDown() || stats.isDead())
             return 0.f;
 
         const GMST& gmst = getGmst();
 
+        float walkSpeed = gmst.fMinWalkSpeedCreature->mValue.getFloat() + 0.01f * stats.getAttribute(ESM::Attribute::Speed).getModified()
+                * (gmst.fMaxWalkSpeedCreature->mValue.getFloat() - gmst.fMinWalkSpeedCreature->mValue.getFloat());
+
         const MWBase::World *world = MWBase::Environment::get().getWorld();
         const MWMechanics::MagicEffects &mageffects = stats.getMagicEffects();
+
+        bool running = stats.getStance(MWMechanics::CreatureStats::Stance_Run);
+
+        // The Run speed difference for creatures comes from the animation speed difference (see runStateToWalkState in character.cpp)
+        float runSpeed = walkSpeed;
 
         float moveSpeed;
 
@@ -715,9 +745,23 @@ namespace MWClass
             moveSpeed = flySpeed;
         }
         else if(world->isSwimming(ptr))
-            moveSpeed = getSwimSpeed(ptr);
+        {
+            float swimSpeed = walkSpeed;
+            if(running)
+                swimSpeed = runSpeed;
+            swimSpeed *= 1.0f + 0.01f * mageffects.get(ESM::MagicEffect::SwiftSwim).getMagnitude();
+            swimSpeed *= gmst.fSwimRunBase->mValue.getFloat() + 0.01f*getSkill(ptr, ESM::Skill::Athletics) *
+                                                    gmst.fSwimRunAthleticsMult->mValue.getFloat();
+            moveSpeed = swimSpeed;
+        }
+        else if(running)
+            moveSpeed = runSpeed;
         else
-            moveSpeed = getWalkSpeed(ptr);
+            moveSpeed = walkSpeed;
+        if(getMovementSettings(ptr).mPosition[0] != 0 && getMovementSettings(ptr).mPosition[1] == 0)
+            moveSpeed *= 0.75f;
+
+        moveSpeed *= ptr.getClass().getMovementSettings(ptr).mSpeedFactor;
 
         return moveSpeed;
     }
@@ -766,7 +810,7 @@ namespace MWClass
     float Creature::getCapacity (const MWWorld::Ptr& ptr) const
     {
         const MWMechanics::CreatureStats& stats = getCreatureStats (ptr);
-        return stats.getAttribute(ESM::Attribute::Strength).getModified() * 5;
+        return static_cast<float>(stats.getAttribute(ESM::Attribute::Strength).getModified() * 5);
     }
 
     int Creature::getServices(const MWWorld::ConstPtr &actor) const
@@ -906,7 +950,7 @@ namespace MWClass
         throw std::runtime_error(std::string("Unexpected soundgen type: ")+name);
     }
 
-    float Creature::getSkill(const MWWorld::Ptr &ptr, int skill) const
+    int Creature::getSkill(const MWWorld::Ptr &ptr, int skill) const
     {
         MWWorld::LiveCellRef<ESM::Creature> *ref =
             ptr.get<ESM::Creature>();
@@ -945,11 +989,11 @@ namespace MWClass
                 std::unique_ptr<CreatureCustomData> data (new CreatureCustomData);
 
                 if (hasInventoryStore(ptr))
-                    data->mContainerStore = std::make_unique<MWWorld::InventoryStore>();
+                    data->mContainerStore = new MWWorld::InventoryStore();
                 else
-                    data->mContainerStore = std::make_unique<MWWorld::ContainerStore>();
+                    data->mContainerStore = new MWWorld::ContainerStore();
 
-                ptr.getRefData().setCustomData (std::move(data));
+                ptr.getRefData().setCustomData (data.release());
             }
         }
         else
@@ -958,9 +1002,6 @@ namespace MWClass
         CreatureCustomData& customData = ptr.getRefData().getCustomData()->asCreatureCustomData();
         const ESM::CreatureState& creatureState = state.asCreatureState();
         customData.mContainerStore->readState (creatureState.mInventory);
-        bool spellsInitialised = customData.mCreatureStats.getSpells().setSpells(ptr.get<ESM::Creature>()->mBase->mId);
-        if(spellsInitialised)
-            customData.mCreatureStats.getSpells().clear();
         customData.mCreatureStats.readState (creatureState.mCreatureStats);
     }
 
@@ -968,12 +1009,6 @@ namespace MWClass
         const
     {
         if (!ptr.getRefData().getCustomData())
-        {
-            state.mHasCustomState = false;
-            return;
-        }
-
-        if (ptr.getRefData().getCount() <= 0)
         {
             state.mHasCustomState = false;
             return;
@@ -1029,6 +1064,14 @@ namespace MWClass
         }
     }
 
+    void Creature::restock(const MWWorld::Ptr& ptr) const
+    {
+        MWWorld::LiveCellRef<ESM::Creature> *ref = ptr.get<ESM::Creature>();
+        const ESM::InventoryList& list = ref->mBase->mInventory;
+        MWWorld::ContainerStore& store = getContainerStore(ptr);
+        store.restock(list, ptr, ptr.getCellRef().getRefId());
+    }
+
     int Creature::getBaseFightRating(const MWWorld::ConstPtr &ptr) const
     {
         const MWWorld::LiveCellRef<ESM::Creature> *ref = ptr.get<ESM::Creature>();
@@ -1039,42 +1082,5 @@ namespace MWClass
     {
         const MWWorld::LiveCellRef<ESM::Creature> *ref = ptr.get<ESM::Creature>();
         scale *= ref->mBase->mScale;
-    }
-
-    void Creature::setBaseAISetting(const std::string& id, MWMechanics::CreatureStats::AiSetting setting, int value) const
-    {
-        MWMechanics::setBaseAISetting<ESM::Creature>(id, setting, value);
-    }
-
-    void Creature::modifyBaseInventory(const std::string& actorId, const std::string& itemId, int amount) const
-    {
-        MWMechanics::modifyBaseInventory<ESM::Creature>(actorId, itemId, amount);
-    }
-
-    float Creature::getWalkSpeed(const MWWorld::Ptr& ptr) const
-    {
-        const MWMechanics::CreatureStats& stats = getCreatureStats(ptr);
-        const GMST& gmst = getGmst();
-
-        return gmst.fMinWalkSpeedCreature->mValue.getFloat()
-                + 0.01f * stats.getAttribute(ESM::Attribute::Speed).getModified()
-                * (gmst.fMaxWalkSpeedCreature->mValue.getFloat() - gmst.fMinWalkSpeedCreature->mValue.getFloat());
-    }
-
-    float Creature::getRunSpeed(const MWWorld::Ptr& ptr) const
-    {
-        return getWalkSpeed(ptr);
-    }
-
-    float Creature::getSwimSpeed(const MWWorld::Ptr& ptr) const
-    {
-        const MWMechanics::CreatureStats& stats = getCreatureStats(ptr);
-        const GMST& gmst = getGmst();
-        const MWMechanics::MagicEffects& mageffects = stats.getMagicEffects();
-
-        return getWalkSpeed(ptr)
-            * (1.0f + 0.01f * mageffects.get(ESM::MagicEffect::SwiftSwim).getMagnitude())
-            * (gmst.fSwimRunBase->mValue.getFloat()
-               + 0.01f * getSkill(ptr, ESM::Skill::Athletics) * gmst.fSwimRunAthleticsMult->mValue.getFloat());
     }
 }

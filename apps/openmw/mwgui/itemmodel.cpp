@@ -2,6 +2,7 @@
 
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
+#include "../mwworld/esmstore.hpp"
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
@@ -51,6 +52,11 @@ namespace MWGui
 
         MWWorld::ContainerStore store;
         return store.stacks(left.mBase, right.mBase);
+    }
+
+    bool operator != (const ItemStack& left, const ItemStack& right)
+    {
+        return !(left == right);
     }
 
     ItemModel::ItemModel()

@@ -119,7 +119,7 @@ namespace MWGui
         mBorrowedToUs.clear();
     }
 
-    const std::vector<ItemStack> TradeItemModel::getItemsBorrowedToUs() const
+    std::vector<ItemStack> TradeItemModel::getItemsBorrowedToUs()
     {
         return mBorrowedToUs;
     }

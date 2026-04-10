@@ -4,13 +4,13 @@
 
 #include <osg/Texture2D>
 #include <osg/ClusterCullingCallback>
-#include <osg/Material>
 
 #include <osgUtil/IncrementalCompileOperation>
 
 #include <components/resource/objectcache.hpp>
 #include <components/resource/scenemanager.hpp>
 
+#include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/lightmanager.hpp>
 
 #include "terraindrawable.hpp"
@@ -22,67 +22,31 @@
 namespace Terrain
 {
 
-namespace
-{
-    struct UpdateTextureFilteringFunctor
-    {
-        explicit UpdateTextureFilteringFunctor(Resource::SceneManager* sceneMgr)
-            : mSceneManager(sceneMgr)
-        {
-        }
-
-        void operator()(const ChunkId&, osg::Object* obj)
-        {
-            TerrainDrawable* drawable = static_cast<TerrainDrawable*>(obj);
-            CompositeMap* composite = drawable->getCompositeMap();
-            if (composite && composite->mTexture)
-                mSceneManager->applyFilterSettings(composite->mTexture);
-        }
-
-        Resource::SceneManager* mSceneManager;
-    };
-}
-
 ChunkManager::ChunkManager(Storage *storage, Resource::SceneManager *sceneMgr, TextureManager* textureManager, CompositeMapRenderer* renderer)
     : GenericResourceManager<ChunkId>(nullptr)
     , mStorage(storage)
     , mSceneManager(sceneMgr)
     , mTextureManager(textureManager)
     , mCompositeMapRenderer(renderer)
-    , mNodeMask(0)
     , mCompositeMapSize(512)
     , mCompositeMapLevel(1.f)
     , mMaxCompGeometrySize(1.f)
 {
-    mMultiPassRoot = new osg::StateSet;
-    mMultiPassRoot->setRenderingHint(osg::StateSet::OPAQUE_BIN);
-    osg::ref_ptr<osg::Material> material (new osg::Material);
-    material->setColorMode(osg::Material::AMBIENT_AND_DIFFUSE);
-    mMultiPassRoot->setAttributeAndModes(material, osg::StateAttribute::ON);
+
 }
 
-osg::ref_ptr<osg::Node> ChunkManager::getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+osg::ref_ptr<osg::Node> ChunkManager::getChunk(float size, const osg::Vec2f &center, unsigned char lod, unsigned int lodFlags)
 {
-    const ChunkId id = { center, lod, lodFlags };
+    ChunkId id = std::make_tuple(center, lod, lodFlags);
     osg::ref_ptr<osg::Object> obj = mCache->getRefFromObjectCache(id);
     if (obj)
         return obj->asNode();
-
-    const TerrainDrawable* templateGeometry = nullptr;
-    const TerrainChunkTemplateId templateId = { center, lod };
-    std::optional<std::pair<ChunkId, osg::ref_ptr<osg::Object> > > existing = mCache->lowerBound(templateId);
-    if (existing && TerrainChunkTemplateId{ existing->first.mCenter, existing->first.mLod } == templateId)
-        templateGeometry = static_cast<const TerrainDrawable*>(existing->second.get());
-
-    osg::ref_ptr<osg::Node> node = createChunk(size, center, lod, lodFlags, compile, templateGeometry);
-    mCache->addEntryToObjectCache(id, node.get());
-    return node;
-}
-
-void ChunkManager::updateTextureFiltering()
-{
-    UpdateTextureFilteringFunctor functor(mSceneManager);
-    mCache->call(functor);
+    else
+    {
+        osg::ref_ptr<osg::Node> node = createChunk(size, center, lod, lodFlags);
+        mCache->addEntryToObjectCache(id, node.get());
+        return node;
+    }
 }
 
 void ChunkManager::reportStats(unsigned int frameNumber, osg::Stats *stats) const
@@ -109,7 +73,8 @@ osg::ref_ptr<osg::Texture2D> ChunkManager::createCompositeMapRTT()
     texture->setTextureWidth(mCompositeMapSize);
     texture->setTextureHeight(mCompositeMapSize);
     texture->setInternalFormat(GL_RGB);
-    mSceneManager->applyFilterSettings(texture);
+    texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+    texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
     texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
     texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
 
@@ -142,7 +107,7 @@ void ChunkManager::createCompositeMapGeometry(float chunkSize, const osg::Vec2f&
 
             geom->setStateSet(*it);
 
-            compositeMap.mDrawables.emplace_back(geom);
+            compositeMap.mDrawables.push_back(geom);
         }
     }
 }
@@ -196,44 +161,28 @@ std::vector<osg::ref_ptr<osg::StateSet> > ChunkManager::createPasses(float chunk
     return ::Terrain::createPasses(useShaders, &mSceneManager->getShaderManager(), layers, blendmapTextures, blendmapScale, blendmapScale);
 }
 
-osg::ref_ptr<osg::Node> ChunkManager::createChunk(float chunkSize, const osg::Vec2f &chunkCenter, unsigned char lod, unsigned int lodFlags, bool compile, const TerrainDrawable* templateGeometry)
+osg::ref_ptr<osg::Node> ChunkManager::createChunk(float chunkSize, const osg::Vec2f &chunkCenter, unsigned char lod, unsigned int lodFlags)
 {
+    osg::Vec2f worldCenter = chunkCenter*mStorage->getCellWorldSize();
+    osg::ref_ptr<SceneUtil::PositionAttitudeTransform> transform (new SceneUtil::PositionAttitudeTransform);
+    transform->setPosition(osg::Vec3f(worldCenter.x(), worldCenter.y(), 0.f));
+
+    osg::ref_ptr<osg::Vec3Array> positions (new osg::Vec3Array);
+    osg::ref_ptr<osg::Vec3Array> normals (new osg::Vec3Array);
+    osg::ref_ptr<osg::Vec4ubArray> colors (new osg::Vec4ubArray);
+    colors->setNormalize(true);
+
+    osg::ref_ptr<osg::VertexBufferObject> vbo (new osg::VertexBufferObject);
+    positions->setVertexBufferObject(vbo);
+    normals->setVertexBufferObject(vbo);
+    colors->setVertexBufferObject(vbo);
+
+    mStorage->fillVertexBuffers(lod, chunkSize, chunkCenter, positions, normals, colors);
+
     osg::ref_ptr<TerrainDrawable> geometry (new TerrainDrawable);
-
-    if (!templateGeometry)
-    {
-        osg::ref_ptr<osg::Vec3Array> positions (new osg::Vec3Array);
-        osg::ref_ptr<osg::Vec3Array> normals (new osg::Vec3Array);
-        osg::ref_ptr<osg::Vec4ubArray> colors (new osg::Vec4ubArray);
-        colors->setNormalize(true);
-
-        osg::ref_ptr<osg::VertexBufferObject> vbo (new osg::VertexBufferObject);
-        positions->setVertexBufferObject(vbo);
-        normals->setVertexBufferObject(vbo);
-        colors->setVertexBufferObject(vbo);
-
-        mStorage->fillVertexBuffers(lod, chunkSize, chunkCenter, positions, normals, colors);
-
-        geometry->setVertexArray(positions);
-        geometry->setNormalArray(normals, osg::Array::BIND_PER_VERTEX);
-        geometry->setColorArray(colors, osg::Array::BIND_PER_VERTEX);
-    }
-    else
-    {
-        osg::ref_ptr<osg::Array> positions = static_cast<osg::Array*>(templateGeometry->getVertexArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
-        osg::ref_ptr<osg::Array> normals = static_cast<osg::Array*>(templateGeometry->getNormalArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
-        osg::ref_ptr<osg::Array> colors = static_cast<osg::Array*>(templateGeometry->getColorArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
-
-        osg::ref_ptr<osg::VertexBufferObject> vbo (new osg::VertexBufferObject);
-        positions->setVertexBufferObject(vbo);
-        normals->setVertexBufferObject(vbo);
-        colors->setVertexBufferObject(vbo);
-
-        geometry->setVertexArray(positions);
-        geometry->setNormalArray(normals, osg::Array::BIND_PER_VERTEX);
-        geometry->setColorArray(colors, osg::Array::BIND_PER_VERTEX);
-    }
-
+    geometry->setVertexArray(positions);
+    geometry->setNormalArray(normals, osg::Array::BIND_PER_VERTEX);
+    geometry->setColorArray(colors, osg::Array::BIND_PER_VERTEX);
     geometry->setUseDisplayList(false);
     geometry->setUseVertexBufferObjects(true);
 
@@ -247,22 +196,12 @@ osg::ref_ptr<osg::Node> ChunkManager::createChunk(float chunkSize, const osg::Ve
     bool useCompositeMap = chunkSize >= mCompositeMapLevel;
     unsigned int numUvSets = useCompositeMap ? 1 : 2;
 
-    geometry->setTexCoordArrayList(osg::Geometry::ArrayList(numUvSets, mBufferCache.getUVBuffer(numVerts)));
+    for (unsigned int i=0; i<numUvSets; ++i)
+        geometry->setTexCoordArray(i, mBufferCache.getUVBuffer(numVerts));
 
     geometry->createClusterCullingCallback();
 
-    geometry->setStateSet(mMultiPassRoot);
-
-    if (templateGeometry)
-    {
-        if (templateGeometry->getCompositeMap())
-        {
-            geometry->setCompositeMap(templateGeometry->getCompositeMap());
-            geometry->setCompositeMapRenderer(mCompositeMapRenderer);
-        }
-        geometry->setPasses(templateGeometry->getPasses());
-    }
-    else if (useCompositeMap)
+    if (useCompositeMap)
     {
         osg::ref_ptr<CompositeMap> compositeMap = new CompositeMap;
         compositeMap->mTexture = createCompositeMapRTT();
@@ -285,15 +224,16 @@ osg::ref_ptr<osg::Node> ChunkManager::createChunk(float chunkSize, const osg::Ve
         geometry->setPasses(createPasses(chunkSize, chunkCenter, false));
     }
 
+    transform->addChild(geometry);
+    transform->getBound();
+
     geometry->setupWaterBoundingBox(-1, chunkSize * mStorage->getCellWorldSize() / numVerts);
 
-    if (!templateGeometry && compile && mSceneManager->getIncrementalCompileOperation())
+    if (mSceneManager->getIncrementalCompileOperation())
     {
         mSceneManager->getIncrementalCompileOperation()->add(geometry);
     }
-    geometry->setNodeMask(mNodeMask);
-
-    return geometry;
+    return transform;
 }
 
 }

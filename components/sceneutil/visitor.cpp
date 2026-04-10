@@ -60,20 +60,7 @@ namespace SceneUtil
     void NodeMapVisitor::apply(osg::MatrixTransform& trans)
     {
         // Take transformation for first found node in file
-        std::string originalNodeName = Misc::StringUtils::lowerCase(trans.getName());
-
-        if (trans.libraryName() == std::string("osgAnimation"))
-        {
-            // Convert underscores to whitespaces as a workaround for Collada (OpenMW's animation system uses whitespace-separated names)
-            std::string underscore = "_";
-            std::size_t foundUnderscore = originalNodeName.find(underscore);
-
-            if (foundUnderscore != std::string::npos)
-                std::replace(originalNodeName.begin(), originalNodeName.end(), '_', ' ');
-        }
-
-        const std::string nodeName = originalNodeName;
-
+        const std::string nodeName = Misc::StringUtils::lowerCase(trans.getName());
         mMap.emplace(nodeName, &trans);
 
         traverse(trans);
@@ -114,7 +101,7 @@ namespace SceneUtil
             node.setStateSet(nullptr);
 
         if (node.getNodeMask() == 0x1 && node.getNumParents() == 1)
-            mToRemove.emplace_back(&node, node.getParent(0));
+            mToRemove.push_back(std::make_pair(&node, node.getParent(0)));
         else
             traverse(node);
     }
@@ -133,12 +120,12 @@ namespace SceneUtil
             osg::Group* parentParent = static_cast<osg::Group*>(*(parent - 1));
             if (parentGroup->getNumChildren() == 1 && parentGroup->getDataVariance() == osg::Object::STATIC)
             {
-                mToRemove.emplace_back(parentGroup, parentParent);
+                mToRemove.push_back(std::make_pair(parentGroup, parentParent));
                 return;
             }
         }
 
-        mToRemove.emplace_back(&node, parentGroup);
+        mToRemove.push_back(std::make_pair(&node, parentGroup));
     }
 
     void RemoveTriBipVisitor::apply(osg::Drawable& drw)
@@ -163,7 +150,7 @@ namespace SceneUtil
         {
             osg::Group* parent = static_cast<osg::Group*>(*(getNodePath().end()-2));
             // Not safe to remove in apply(), since the visitor is still iterating the child list
-            mToRemove.emplace_back(&node, parent);
+            mToRemove.push_back(std::make_pair(&node, parent));
         }
     }
 }

@@ -18,22 +18,18 @@ namespace Resource
     class Profiler : public osgViewer::StatsHandler
     {
     public:
-        Profiler(bool offlineCollect);
-        bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-
-    private:
-        bool _offlineCollect;
+        Profiler();
     };
 
     class StatsHandler : public osgGA::GUIEventHandler
     {
     public:
-        StatsHandler(bool offlineCollect);
+        StatsHandler();
 
         void setKey(int key) { _key = key; }
         int getKey() const { return _key; }
 
-        bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+        bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
 
         void setWindowSize(int w, int h);
 
@@ -43,7 +39,7 @@ namespace Resource
         void setUpScene(osgViewer::ViewerBase* viewer);
 
         /** Get the keyboard and mouse usage of this manipulator.*/
-        void getUsage(osg::ApplicationUsage& usage) const override;
+        virtual void getUsage(osg::ApplicationUsage& usage) const;
 
     private:
         osg::ref_ptr<osg::Switch> _switch;
@@ -51,7 +47,6 @@ namespace Resource
         osg::ref_ptr<osg::Camera>  _camera;
         bool _initialized;
         bool _statsType;
-        bool _offlineCollect;
 
         float                               _statsWidth;
         float                               _statsHeight;
@@ -62,8 +57,6 @@ namespace Resource
         int _resourceStatsChildNum;
 
     };
-
-    void CollectStatistics(osgViewer::ViewerBase* viewer);
 
 }
 

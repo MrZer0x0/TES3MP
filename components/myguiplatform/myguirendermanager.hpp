@@ -5,8 +5,6 @@
 
 #include <osg/ref_ptr>
 
-#include "myguicompat.h"
-
 namespace Resource
 {
     class ImageManager;
@@ -69,61 +67,49 @@ public:
     { return static_cast<RenderManager*>(MyGUI::RenderManager::getInstancePtr()); }
 
     /** @see RenderManager::getViewSize */
-    const MyGUI::IntSize& getViewSize() const override { return mViewSize; }
+    virtual const MyGUI::IntSize& getViewSize() const { return mViewSize; }
 
     /** @see RenderManager::getVertexFormat */
-    MyGUI::VertexColourType getVertexFormat() OPENMW_MYGUI_CONST_GETTER_3_4_1 override
-    { return mVertexFormat; }
+    virtual MyGUI::VertexColourType getVertexFormat() { return mVertexFormat; }
 
     /** @see RenderManager::isFormatSupported */
-    bool isFormatSupported(MyGUI::PixelFormat format, MyGUI::TextureUsage usage) override;
+    virtual bool isFormatSupported(MyGUI::PixelFormat format, MyGUI::TextureUsage usage);
 
     /** @see RenderManager::createVertexBuffer */
-    MyGUI::IVertexBuffer* createVertexBuffer() override;
+    virtual MyGUI::IVertexBuffer* createVertexBuffer();
     /** @see RenderManager::destroyVertexBuffer */
-    void destroyVertexBuffer(MyGUI::IVertexBuffer *buffer) override;
+    virtual void destroyVertexBuffer(MyGUI::IVertexBuffer *buffer);
 
     /** @see RenderManager::createTexture */
-    MyGUI::ITexture* createTexture(const std::string &name) override;
+    virtual MyGUI::ITexture* createTexture(const std::string &name);
     /** @see RenderManager::destroyTexture */
-    void destroyTexture(MyGUI::ITexture* _texture) override;
+    virtual void destroyTexture(MyGUI::ITexture* _texture);
     /** @see RenderManager::getTexture */
-    MyGUI::ITexture* getTexture(const std::string &name) override;
+    virtual MyGUI::ITexture* getTexture(const std::string &name);
 
     // Called by the update traversal
     void update();
 
     // Called by the cull traversal
     /** @see IRenderTarget::begin */
-    void begin() override;
+    virtual void begin();
     /** @see IRenderTarget::end */
-    void end() override;
+    virtual void end();
     /** @see IRenderTarget::doRender */
-    void doRender(MyGUI::IVertexBuffer *buffer, MyGUI::ITexture *texture, size_t count) override;
+    virtual void doRender(MyGUI::IVertexBuffer *buffer, MyGUI::ITexture *texture, size_t count);
 
     /** specify a StateSet to inject for rendering. The StateSet will be used by future doRender calls until you reset it to nullptr again. */
     void setInjectState(osg::StateSet* stateSet);
 
     /** @see IRenderTarget::getInfo */
-    const MyGUI::RenderTargetInfo& getInfo() OPENMW_MYGUI_CONST_GETTER_3_4_1 override { return mInfo; }
+    virtual const MyGUI::RenderTargetInfo& getInfo() { return mInfo; }
 
     bool checkTexture(MyGUI::ITexture* _texture);
-
-    // setViewSize() is a part of MyGUI::RenderManager interface since 3.4.0 release
-#if MYGUI_VERSION < MYGUI_DEFINE_VERSION(3, 4, 0)
-    void setViewSize(int width, int height);
-#else
-    void setViewSize(int width, int height) override;
-#endif
-
-    // registerShader() is a part of MyGUI::RenderManager interface since 3.4.1 release
-#if MYGUI_VERSION > MYGUI_DEFINE_VERSION(3, 4, 0)
-    void registerShader(const std::string& _shaderName, const std::string& _vertexProgramFile, const std::string& _fragmentProgramFile) override;
-#endif
 
 /*internal:*/
 
     void collectDrawCalls();
+    void setViewSize(int width, int height);
 };
 
 }

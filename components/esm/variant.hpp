@@ -3,8 +3,6 @@
 
 #include <string>
 #include <iosfwd>
-#include <variant>
-#include <tuple>
 
 namespace ESM
 {
@@ -22,10 +20,12 @@ namespace ESM
         VT_String
     };
 
+    class VariantDataBase;
+
     class Variant
     {
             VarType mType;
-            std::variant<std::monostate, int, float, std::string> mData;
+            VariantDataBase *mData;
 
         public:
 
@@ -37,17 +37,19 @@ namespace ESM
                 Format_Local // local script variables in save game files
             };
 
-            Variant() : mType (VT_None), mData (std::monostate{}) {}
+            Variant();
 
-            explicit Variant(const std::string& value) : mType(VT_String), mData(value) {}
+            Variant (const std::string& value);
+            Variant (int value);
+            Variant (float value);
 
-            explicit Variant(std::string&& value) : mType(VT_String), mData(std::move(value)) {}
+            ~Variant();
 
-            explicit Variant(int value) : mType(VT_Long), mData(value) {}
+            Variant& operator= (const Variant& variant);
 
-            explicit Variant(float value) : mType(VT_Float), mData(value) {}
+            Variant (const Variant& variant);
 
-            VarType getType() const { return mType; }
+            VarType getType() const;
 
             std::string getString() const;
             ///< Will throw an exception, if value can not be represented as a string.
@@ -71,27 +73,19 @@ namespace ESM
             void setString (const std::string& value);
             ///< Will throw an exception, if type is not compatible with string.
 
-            void setString (std::string&& value);
-            ///< Will throw an exception, if type is not compatible with string.
-
             void setInteger (int value);
             ///< Will throw an exception, if type is not compatible with integer.
 
             void setFloat (float value);
             ///< Will throw an exception, if type is not compatible with float.
 
-            friend bool operator==(const Variant& left, const Variant& right)
-            {
-                return std::tie(left.mType, left.mData) == std::tie(right.mType, right.mData);
-            }
-
-            friend bool operator!=(const Variant& left, const Variant& right)
-            {
-                return !(left == right);
-            }
+            bool isEqual (const Variant& value) const;
     };
 
     std::ostream& operator<<(std::ostream& stream, const Variant& value);
+
+    bool operator== (const Variant& left, const Variant& right);
+    bool operator!= (const Variant& left, const Variant& right);
 }
 
 #endif

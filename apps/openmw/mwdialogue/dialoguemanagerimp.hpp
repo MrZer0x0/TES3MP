@@ -5,7 +5,6 @@
 
 #include <map>
 #include <set>
-#include <unordered_map>
 
 #include <components/compiler/streamerrorhandler.hpp>
 #include <components/translation/translation.hpp>
@@ -31,7 +30,6 @@ namespace MWDialogue
             ModFactionReactionMap mChangedFactionReaction;
 
             std::set<std::string, Misc::StringUtils::CiComp> mActorKnownTopics;
-            std::unordered_map<std::string, int> mActorKnownTopicsFlag;
 
             Translation::Storage& mTranslationDataStorage;
             MWScript::CompilerContext mCompilerContext;
@@ -66,19 +64,20 @@ namespace MWDialogue
 
             DialogueManager (const Compiler::Extensions& extensions, Translation::Storage& translationDataStorage);
 
-            void clear() override;
+            virtual void clear();
 
-            bool isInChoice() const override;
+            virtual bool isInChoice() const;
 
-            bool startDialogue (const MWWorld::Ptr& actor, ResponseCallback* callback) override;
+            virtual bool startDialogue (const MWWorld::Ptr& actor, ResponseCallback* callback);
 
-            std::list<std::string> getAvailableTopics() override;
-            int getTopicFlag(const std::string& topicId) override;
+            std::list<std::string> getAvailableTopics();
 
-            bool inJournal (const std::string& topicId, const std::string& infoId) override;
+            virtual void addTopic (const std::string& topic);
 
-            void addTopic (const std::string& topic) override;
+            virtual void addChoice (const std::string& text,int choice);
+            const std::vector<std::pair<std::string, int> >& getChoices();
 
+            virtual bool isGoodbye();
             /*
                 Start of tes3mp addition
 
@@ -90,43 +89,39 @@ namespace MWDialogue
                 End of tes3mp addition
             */
 
-            void addChoice (const std::string& text,int choice) override;
-            const std::vector<std::pair<std::string, int> >& getChoices() override;
+            virtual void goodbye();
 
-            bool isGoodbye() override;
+            virtual bool checkServiceRefused (ResponseCallback* callback);
 
-            void goodbye() override;
-
-            bool checkServiceRefused (ResponseCallback* callback, ServiceType service = ServiceType::Any) override;
-
-            void say(const MWWorld::Ptr &actor, const std::string &topic) override;
+            virtual void say(const MWWorld::Ptr &actor, const std::string &topic);
 
             //calbacks for the GUI
-            void keywordSelected (const std::string& keyword, ResponseCallback* callback) override;
-            void goodbyeSelected() override;
-            void questionAnswered (int answer, ResponseCallback* callback) override;
+            virtual void keywordSelected (const std::string& keyword, ResponseCallback* callback);
+            virtual void goodbyeSelected();
+            virtual void questionAnswered (int answer, ResponseCallback* callback);
 
-            void persuade (int type, ResponseCallback* callback) override;
-            int getTemporaryDispositionChange () const override;
+            virtual void persuade (int type, ResponseCallback* callback);
+            virtual int getTemporaryDispositionChange () const;
 
             /// @note Controlled by an option, gets discarded when dialogue ends by default
-            void applyBarterDispositionChange (int delta) override;
+            virtual void applyBarterDispositionChange (int delta);
 
-            int countSavedGameRecords() const override;
+            virtual int countSavedGameRecords() const;
 
-            void write (ESM::ESMWriter& writer, Loading::Listener& progress) const override;
+            virtual void write (ESM::ESMWriter& writer, Loading::Listener& progress) const;
 
-            void readRecord (ESM::ESMReader& reader, uint32_t type) override;
+            virtual void readRecord (ESM::ESMReader& reader, uint32_t type);
 
             /// Changes faction1's opinion of faction2 by \a diff.
-            void modFactionReaction (const std::string& faction1, const std::string& faction2, int diff) override;
+            virtual void modFactionReaction (const std::string& faction1, const std::string& faction2, int diff);
 
-            void setFactionReaction (const std::string& faction1, const std::string& faction2, int absolute) override;
+            virtual void setFactionReaction (const std::string& faction1, const std::string& faction2, int absolute);
 
             /// @return faction1's opinion of faction2
-            int getFactionReaction (const std::string& faction1, const std::string& faction2) const override;
+            virtual int getFactionReaction (const std::string& faction1, const std::string& faction2) const;
 
             /// Removes the last added topic response for the given actor from the journal
+            virtual void clearInfoActor (const MWWorld::Ptr& actor) const;
             void clearInfoActor(const MWWorld::Ptr & actor) const override;
 
             /*

@@ -5,6 +5,8 @@
 
 namespace MWGui
 {
+    class WindowManager;
+
     class WindowPinnableBase: public WindowBase
     {
     public:

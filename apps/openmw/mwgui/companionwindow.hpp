@@ -22,13 +22,13 @@ namespace MWGui
     public:
         CompanionWindow(DragAndDrop* dragAndDrop, MessageBoxManager* manager);
 
-        bool exit() override;
+        virtual bool exit();
 
-        void resetReference() override;
+        virtual void resetReference();
 
-        void setPtr(const MWWorld::Ptr& npc) override;
-        void onFrame (float dt) override;
-        void clear() override { resetReference(); }
+        void setPtr(const MWWorld::Ptr& npc);
+        void onFrame (float dt);
+        void clear() { resetReference(); }
 
     private:
         ItemView* mItemView;
@@ -43,7 +43,8 @@ namespace MWGui
         MyGUI::TextBox* mProfitLabel;
         Widgets::MWDynamicStat* mEncumbranceBar;
         MessageBoxManager* mMessageBoxManager;
-
+        
+        void onHeaderClicked(int sort);
         void onItemSelected(int index);
         void onNameFilterChanged(MyGUI::EditBox* _sender);
         void onBackgroundSelected();
@@ -55,7 +56,7 @@ namespace MWGui
 
         void onCloseButtonClicked(MyGUI::Widget* _sender);
 
-        void onReferenceUnavailable() override;
+        virtual void onReferenceUnavailable();
     };
 
 }

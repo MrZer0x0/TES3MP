@@ -35,7 +35,6 @@ namespace MWGui
 
     void Layout::shutdown()
     {
-        setVisible(false);
         MyGUI::Gui::getInstance().destroyWidget(mMainWidget);
         mListWindowRoot.clear();
     }

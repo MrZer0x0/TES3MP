@@ -11,7 +11,7 @@ namespace MWWorld
     {
             std::string mId;
 
-            void executeImp (const Ptr& actor) override;
+            virtual void executeImp (const Ptr& actor);
 
         public:
 
@@ -24,7 +24,7 @@ namespace MWWorld
             int mSkillIndex;
             int mUsageType;
 
-            void executeImp (const Ptr& actor) override;
+            virtual void executeImp (const Ptr& actor);
 
         public:
 

@@ -17,7 +17,7 @@ namespace MWWorld
             bool mTeleportFollowers;
 
             /// Teleports this actor and also teleports anyone following that actor.
-            void executeImp (const Ptr& actor) override;
+            virtual void executeImp (const Ptr& actor);
 
             /// Teleports only the given actor (internal use).
             void teleport(const Ptr &actor);
@@ -28,9 +28,8 @@ namespace MWWorld
             /// @param teleportFollowers Whether to teleport any following actors of the target actor as well.
             ActionTeleport (const std::string& cellName, const ESM::Position& position, bool teleportFollowers);
 
-            /// @param includeHostiles If true, include hostile followers (which won't actually be teleported) in the output,
-            ///                        e.g. so that the teleport action can calm them.
-            static void getFollowers(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out, bool includeHostiles = false);
+            /// Outputs every actor follower who is in teleport range and wasn't ordered to not enter interiors
+            static void getFollowersToTeleport(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out);
     };
 }
 

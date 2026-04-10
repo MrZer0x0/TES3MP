@@ -5,6 +5,11 @@
 
 namespace MWGui
 {
+    class WindowManager;
+}
+
+namespace MWGui
+{
     class TextInputDialog : public WindowModal
     {
     public:
@@ -15,9 +20,9 @@ namespace MWGui
 
         void setNextButtonShow(bool shown);
         void setTextLabel(const std::string &label);
-        void onOpen() override;
+        virtual void onOpen();
 
-        bool exit() override { return false; }
+        bool exit() { return false; }
 
         /** Event : Dialog finished, OK button clicked.\n
             signature : void method()\n

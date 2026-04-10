@@ -21,7 +21,7 @@ struct Attribute
         Endurance = 5,
         Personality = 6,
         Luck = 7,
-        Length = 8
+        Length
     };
 
     AttributeID mId;

@@ -1,6 +1,8 @@
 #ifndef OPENMW_WEAPON_PRIORITY_H
 #define OPENMW_WEAPON_PRIORITY_H
 
+#include <components/esm/loadweap.hpp>
+
 #include "../mwworld/ptr.hpp"
 
 namespace MWMechanics

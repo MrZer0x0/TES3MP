@@ -25,7 +25,8 @@ namespace Compiler
                 SetState, SetLocalVarState, SetGlobalVarState, SetPotentialMemberVarState,
                 SetMemberVarState, SetMemberVarState2,
                 MessageState, MessageCommaState, MessageButtonState, MessageButtonCommaState,
-                EndState, PotentialExplicitState, ExplicitState, MemberState
+                EndState, PotentialEndState /* may have a stray string argument */,
+                PotentialExplicitState, ExplicitState, MemberState
             };
 
             Locals& mLocals;
@@ -51,28 +52,28 @@ namespace Compiler
             ///< \param allowExpression Allow lines consisting of a naked expression
             /// (result is send to the messagebox interface)
 
-            bool parseInt (int value, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseInt (int value, const TokenLoc& loc, Scanner& scanner);
             ///< Handle an int token.
             /// \return fetch another token?
 
-            bool parseFloat (float value, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseFloat (float value, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a float token.
             /// \return fetch another token?
 
-            bool parseName (const std::string& name, const TokenLoc& loc,
-                Scanner& scanner) override;
+            virtual bool parseName (const std::string& name, const TokenLoc& loc,
+                Scanner& scanner);
             ///< Handle a name token.
             /// \return fetch another token?
 
-            bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a keyword token.
             /// \return fetch another token?
 
-            bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a special character token.
             /// \return fetch another token?
 
-            void reset() override;
+            void reset();
             ///< Reset parser to clean state.
     };
 
@@ -82,11 +83,11 @@ namespace Compiler
             std::string mArguments;
 
         protected:
-            void visitedPlaceholder(Placeholder placeholder, char padding, int width, int precision, Notation notation) override;
-            void visitedCharacter(char c) override {}
+            virtual void visitedPlaceholder(Placeholder placeholder, char padding, int width, int precision, Notation notation);
+            virtual void visitedCharacter(char c) {}
 
         public:
-            void process(const std::string& message) override
+            virtual void process(const std::string& message)
             {
                 mArguments.clear();
                 ::Misc::MessageFormatParser::process(message);

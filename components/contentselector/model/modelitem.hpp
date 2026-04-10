@@ -11,7 +11,7 @@ namespace ContentSelectorModel
         Q_OBJECT
 
     public:
-        ModelItem(ModelItem *parent = nullptr);
+        ModelItem(ModelItem *parent = 0);
         //ModelItem(const ModelItem *parent = 0);
 
         ~ModelItem();
@@ -26,7 +26,7 @@ namespace ContentSelectorModel
         void appendChild(ModelItem *child);
         void removeChild(int row);
 
-        bool hasFormat(const QString &mimetype) const override;
+        bool hasFormat(const QString &mimetype) const;
 
         //virtual bool acceptChild(ModelItem *child);
 

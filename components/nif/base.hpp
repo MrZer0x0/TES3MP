@@ -11,59 +11,51 @@
 namespace Nif
 {
 // An extra data record. All the extra data connected to an object form a linked list.
-struct Extra : public Record
+class Extra : public Record
 {
-    std::string name;
+public:
     ExtraPtr next; // Next extra data record in the list
 
-    void read(NIFStream *nif) override
+    void read(NIFStream *nif)
     {
-        if (nif->getVersion() >= NIFStream::generateVersion(10,0,1,0))
-            name = nif->getString();
-        else if (nif->getVersion() <= NIFStream::generateVersion(4,2,2,0))
-        {
-            next.read(nif);
-            nif->getUInt(); // Size of the record
-        }
+        next.read(nif);
+        nif->getUInt(); // Size of the record
     }
 
-    void post(NIFFile *nif) override { next.post(nif); }
+    void post(NIFFile *nif) { next.post(nif); }
 };
 
-struct Controller : public Record
+class Controller : public Record
 {
+public:
     ControllerPtr next;
     int flags;
     float frequency, phase;
     float timeStart, timeStop;
     NamedPtr target;
 
-    void read(NIFStream *nif) override;
-    void post(NIFFile *nif) override;
+    void read(NIFStream *nif);
+    void post(NIFFile *nif);
 };
 
 /// Has name, extra-data and controller
-struct Named : public Record
+class Named : public Record
 {
+public:
     std::string name;
     ExtraPtr extra;
-    ExtraList extralist;
     ControllerPtr controller;
 
-    void read(NIFStream *nif) override
+    void read(NIFStream *nif)
     {
         name = nif->getString();
-        if (nif->getVersion() < NIFStream::generateVersion(10,0,1,0))
-            extra.read(nif);
-        else
-            extralist.read(nif);
+        extra.read(nif);
         controller.read(nif);
     }
 
-    void post(NIFFile *nif) override
+    void post(NIFFile *nif)
     {
         extra.post(nif);
-        extralist.post(nif);
         controller.post(nif);
     }
 };

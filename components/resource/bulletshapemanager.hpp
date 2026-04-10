@@ -40,11 +40,11 @@ namespace Resource
         osg::ref_ptr<BulletShapeInstance> getInstance(const std::string& name);
 
         /// @see ResourceManager::updateCache
-        void updateCache(double referenceTime) override;
+        virtual void updateCache(double referenceTime);
 
-        void clearCache() override;
+        virtual void clearCache();
 
-        void reportStats(unsigned int frameNumber, osg::Stats *stats) const override;
+        void reportStats(unsigned int frameNumber, osg::Stats *stats) const;
 
     private:
         osg::ref_ptr<BulletShapeInstance> createInstance(const std::string& name);

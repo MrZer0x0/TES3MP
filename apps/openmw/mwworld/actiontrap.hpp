@@ -12,7 +12,7 @@ namespace MWWorld
             std::string mSpellId;
             MWWorld::Ptr mTrapSource;
 
-            void executeImp (const Ptr& actor) override;
+            virtual void executeImp (const Ptr& actor);
 
         public:
 

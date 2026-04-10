@@ -7,7 +7,7 @@ namespace MWWorld
 {
     class ActionSoulgem : public Action
     {
-            void executeImp (const MWWorld::Ptr& actor) override;
+            virtual void executeImp (const MWWorld::Ptr& actor);
 
         public:
             /// @param soulgem to use

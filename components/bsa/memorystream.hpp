@@ -37,8 +37,8 @@ Class used internally by MemoryInputStream.
 class MemoryInputStreamBuf : public std::streambuf {
 
 public:
-    explicit MemoryInputStreamBuf(size_t bufferSize);
-    virtual char* getRawData();
+    MemoryInputStreamBuf(size_t bufferSize);
+    char* getRawData();
 private:
     //correct call to delete [] on C++ 11
     std::vector<char> mBufferPtr;
@@ -54,8 +54,8 @@ private:
  */
 class MemoryInputStream : virtual MemoryInputStreamBuf, std::istream {
 public:
-    explicit MemoryInputStream(size_t bufferSize);
-    char* getRawData() override;
+    MemoryInputStream(size_t bufferSize);
+    char* getRawData();
 };
 
 }

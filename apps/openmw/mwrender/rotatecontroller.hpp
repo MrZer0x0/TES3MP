@@ -20,7 +20,7 @@ public:
 
     void setRotate(const osg::Quat& rotate);
 
-    void operator()(osg::Node* node, osg::NodeVisitor* nv) override;
+    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv);
 
 protected:
     osg::Quat getWorldOrientation(osg::Node* node);

@@ -5,18 +5,21 @@
 
 namespace MWGui
 {
+    class WindowManager;
+}
+
+namespace MWGui
+{
     class SettingsWindow : public WindowBase
     {
         public:
             SettingsWindow();
 
-            void onOpen() override;
+            virtual void onOpen();
 
             void updateControlsBox();
 
-            void updateLightSettings();
-
-            void onResChange(int, int) override { center(); }
+            void onResChange(int, int) { center(); }
 
     protected:
             MyGUI::TabControl* mSettingsTab;
@@ -32,16 +35,15 @@ namespace MWGui
             MyGUI::ComboBox* mWaterTextureSize;
             MyGUI::ComboBox* mWaterReflectionDetail;
 
-            MyGUI::ComboBox* mMaxLights;
-            MyGUI::ComboBox* mLightingMethodButton;
-            MyGUI::Button* mLightsResetButton;
-
             // controls
             MyGUI::ScrollView* mControlsBox;
             MyGUI::Button* mResetControlsButton;
             MyGUI::Button* mKeyboardSwitch;
             MyGUI::Button* mControllerSwitch;
             bool mKeyboardMode; //if true, setting up the keyboard. Otherwise, it's controller
+
+            // morroui 
+            MyGUI::ScrollView* mMUIControls;
 
             void onTabChanged(MyGUI::TabControl* _sender, size_t index);
             void onOkButtonClicked(MyGUI::Widget* _sender);
@@ -56,10 +58,6 @@ namespace MWGui
             void onWaterTextureSizeChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onWaterReflectionDetailChanged(MyGUI::ComboBox* _sender, size_t pos);
 
-            void onLightingMethodButtonChanged(MyGUI::ComboBox* _sender, size_t pos);
-            void onLightsResetButtonClicked(MyGUI::Widget* _sender);
-            void onMaxLightsChanged(MyGUI::ComboBox* _sender, size_t pos);
-
             void onRebindAction(MyGUI::Widget* _sender);
             void onInputTabMouseWheel(MyGUI::Widget* _sender, int _rel);
             void onResetDefaultBindings(MyGUI::Widget* _sender);
@@ -71,10 +69,10 @@ namespace MWGui
 
             void apply();
 
-            void configureWidgets(MyGUI::Widget* widget, bool init);
+            void configureWidgets(MyGUI::Widget* widget);
             void updateSliderLabel(MyGUI::ScrollBar* scroller, const std::string& value);
 
-            void layoutControlsBox();
+            void layoutControlsBox(MyGUI::ScrollView* target);
         
         private:
             void resetScrollbars();

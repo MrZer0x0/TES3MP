@@ -1,9 +1,10 @@
 #ifndef OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGS_H
 #define OPENMW_COMPONENTS_DETOURNAVIGATOR_SETTINGS_H
 
-#include <chrono>
-#include <optional>
+#include <boost/optional.hpp>
+
 #include <string>
+#include <chrono>
 
 namespace DetourNavigator
 {
@@ -31,17 +32,17 @@ namespace DetourNavigator
         int mRegionMergeSize = 0;
         int mRegionMinSize = 0;
         int mTileSize = 0;
-        int mWaitUntilMinDistanceToPlayer = 0;
         std::size_t mAsyncNavMeshUpdaterThreads = 0;
         std::size_t mMaxNavMeshTilesCacheSize = 0;
         std::size_t mMaxPolygonPathSize = 0;
         std::size_t mMaxSmoothPathSize = 0;
+        std::size_t mTrianglesPerChunk = 0;
         std::string mRecastMeshPathPrefix;
         std::string mNavMeshPathPrefix;
         std::chrono::milliseconds mMinUpdateInterval;
     };
 
-    std::optional<Settings> makeSettingsFromSettingsManager();
+    boost::optional<Settings> makeSettingsFromSettingsManager();
 }
 
 #endif

@@ -3,6 +3,7 @@
 
 #include "../mwbase/journal.hpp"
 
+#include "journalentry.hpp"
 #include "quest.hpp"
 
 namespace MWDialogue
@@ -26,8 +27,13 @@ namespace MWDialogue
 
             Journal();
 
-            void clear() override;
+            virtual void clear();
 
+            virtual void addEntry (const std::string& id, int index, const MWWorld::Ptr& actor);
+            ///< Add a journal entry.
+            /// @param actor Used as context for replacing of escape sequences (%name, etc).
+
+            virtual void setJournalIndex (const std::string& id, int index);
             /*
                 Start of tes3mp addition
 
@@ -54,43 +60,43 @@ namespace MWDialogue
             void setJournalIndex (const std::string& id, int index) override;
             ///< Set the journal index without adding an entry.
 
-            int getJournalIndex (const std::string& id) const override;
+            virtual int getJournalIndex (const std::string& id) const;
             ///< Get the journal index.
 
-            void addTopic (const std::string& topicId, const std::string& infoId, const MWWorld::Ptr& actor) override;
+            virtual void addTopic (const std::string& topicId, const std::string& infoId, const MWWorld::Ptr& actor);
             /// \note topicId must be lowercase
 
-            void removeLastAddedTopicResponse (const std::string& topicId, const std::string& actorName) override;
+            virtual void removeLastAddedTopicResponse (const std::string& topicId, const std::string& actorName);
             ///< Removes the last topic response added for the given topicId and actor name.
             /// \note topicId must be lowercase
 
-            TEntryIter begin() const override;
+            virtual TEntryIter begin() const;
             ///< Iterator pointing to the begin of the main journal.
             ///
             /// \note Iterators to main journal entries will never become invalid.
 
-            TEntryIter end() const override;
+            virtual TEntryIter end() const;
             ///< Iterator pointing past the end of the main journal.
 
-            TQuestIter questBegin() const override;
+            virtual TQuestIter questBegin() const;
             ///< Iterator pointing to the first quest (sorted by topic ID)
 
-            TQuestIter questEnd() const override;
+            virtual TQuestIter questEnd() const;
             ///< Iterator pointing past the last quest.
 
-            TTopicIter topicBegin() const override;
+            virtual TTopicIter topicBegin() const;
             ///< Iterator pointing to the first topic (sorted by topic ID)
             ///
             /// \note The topic ID is identical with the user-visible topic string.
 
-            TTopicIter topicEnd() const override;
+            virtual TTopicIter topicEnd() const;
             ///< Iterator pointing past the last topic.
 
-            int countSavedGameRecords() const override;
+            virtual int countSavedGameRecords() const;
 
-            void write (ESM::ESMWriter& writer, Loading::Listener& progress) const override;
+            virtual void write (ESM::ESMWriter& writer, Loading::Listener& progress) const;
 
-            void readRecord (ESM::ESMReader& reader, uint32_t type) override;
+            virtual void readRecord (ESM::ESMReader& reader, uint32_t type);
     };
 }
 

@@ -8,7 +8,7 @@ namespace Gui
     void AutoSizedWidget::notifySizeChange (MyGUI::Widget* w)
     {
         MyGUI::Widget * parent = w->getParent();
-        if (parent != nullptr)
+        if (parent != 0)
         {
             if (mExpandDirection.isLeft())
             {
@@ -17,7 +17,7 @@ namespace Gui
             }
             w->setSize(getRequestedSize ());
 
-            while (parent != nullptr)
+            while (parent != 0)
             {
                 Box * b = dynamic_cast<Box*>(parent);
                 if (b)
@@ -32,7 +32,7 @@ namespace Gui
 
     MyGUI::IntSize AutoSizedTextBox::getRequestedSize()
     {
-        return getCaption().empty() ? MyGUI::IntSize{0, 0} : getTextSize();
+        return getTextSize();
     }
 
     void AutoSizedTextBox::setCaption(const MyGUI::UString& _value)
@@ -280,7 +280,7 @@ namespace Gui
     void HBox::initialiseOverride()
     {
         Base::initialiseOverride();
-        MyGUI::Widget* client = nullptr;
+        MyGUI::Widget* client = 0;
         assignWidget(client, "Client");
         setWidgetClient(client);
     }
@@ -435,7 +435,7 @@ namespace Gui
     void VBox::initialiseOverride()
     {
         Base::initialiseOverride();
-        MyGUI::Widget* client = nullptr;
+        MyGUI::Widget* client = 0;
         assignWidget(client, "Client");
         setWidgetClient(client);
     }

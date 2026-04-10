@@ -116,7 +116,7 @@ namespace MWMechanics
             blockerTerm *= gmst.find("fBlockStillBonus")->mValue.getFloat();
         blockerTerm *= blockerStats.getFatigueTerm();
 
-        float attackerSkill = 0;
+        int attackerSkill = 0;
         if (weapon.isEmpty())
             attackerSkill = attacker.getClass().getSkill(attacker, ESM::Skill::HandToHand);
         else
@@ -130,6 +130,8 @@ namespace MWMechanics
         int iBlockMinChance = gmst.find("iBlockMinChance")->mValue.getInteger();
         x = std::min(iBlockMaxChance, std::max(iBlockMinChance, x));
 
+        if (Misc::Rng::roll0to99() < x)
+        {
         /*
             Start of tes3mp change (major)
 
@@ -158,6 +160,7 @@ namespace MWMechanics
 
             // Reduce shield durability by incoming damage
             int shieldhealth = shield->getClass().getItemHealth(*shield);
+
             shieldhealth -= std::min(shieldhealth, int(damage));
             shield->getCellRef().setCharge(shieldhealth);
             if (shieldhealth == 0)
@@ -270,6 +273,8 @@ namespace MWMechanics
 
             int skillValue = attacker.getClass().getSkill(attacker, weapon.getClass().getEquipmentSkill(weapon));
 
+            if (Misc::Rng::roll0to99() >= getHitChance(attacker, victim, skillValue))
+            {
             /*
                 Start of tes3mp addition
 
@@ -412,10 +417,6 @@ namespace MWMechanics
 
     void applyElementalShields(const MWWorld::Ptr &attacker, const MWWorld::Ptr &victim)
     {
-        // Don't let elemental shields harm the player in god mode.
-        bool godmode = attacker == getPlayer() && MWBase::Environment::get().getWorld()->getGodModeState();
-        if (godmode)
-            return;
         for (int i=0; i<3; ++i)
         {
             float magnitude = victim.getClass().getCreatureStats(victim).getMagicEffects().get(ESM::MagicEffect::FireShield+i).getMagnitude();
@@ -456,8 +457,6 @@ namespace MWMechanics
             MWMechanics::DynamicStat<float> health = attackerStats.getHealth();
             health.setCurrent(health.getCurrent() - x);
             attackerStats.setHealth(health);
-
-            MWBase::Environment::get().getSoundManager()->playSound3D(attacker, "Health Damage", 1.0f, 1.0f);
         }
     }
 

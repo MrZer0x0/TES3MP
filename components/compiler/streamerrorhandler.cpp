@@ -61,7 +61,7 @@ namespace Compiler
         mContext = context;
     }
 
-    StreamErrorHandler::StreamErrorHandler() = default;
+    StreamErrorHandler::StreamErrorHandler()  {}
 
     ContextOverride::ContextOverride(StreamErrorHandler& handler, const std::string& context) : mHandler(handler), mContext(handler.mContext)
     {

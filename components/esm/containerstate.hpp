@@ -8,18 +8,18 @@ namespace ESM
 {
     // format 0, saved games only
 
-    struct ContainerState final : public ObjectState
+    struct ContainerState : public ObjectState
     {
         InventoryState mInventory;
 
-        void load (ESMReader &esm) override;
-        void save (ESMWriter &esm, bool inInventory = false) const override;
+        virtual void load (ESMReader &esm);
+        virtual void save (ESMWriter &esm, bool inInventory = false) const;
 
-        ContainerState& asContainerState() override
+        virtual ContainerState& asContainerState()
         {
             return *this;
         }
-        const ContainerState& asContainerState() const override
+        virtual const ContainerState& asContainerState() const
         {
             return *this;
         }

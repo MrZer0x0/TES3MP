@@ -147,7 +147,7 @@ namespace MWGui
 
         for (const ESM::BirthSign& sign : signs)
         {
-            birthSigns.emplace_back(sign.mId, &sign);
+            birthSigns.push_back(std::make_pair(sign.mId, &sign));
         }
         std::sort(birthSigns.begin(), birthSigns.end(), sortBirthSigns);
 

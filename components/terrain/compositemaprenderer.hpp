@@ -3,8 +3,9 @@
 
 #include <osg/Drawable>
 
+#include <OpenThreads/Mutex>
+
 #include <set>
-#include <mutex>
 
 namespace osg
 {
@@ -41,7 +42,7 @@ namespace Terrain
         CompositeMapRenderer();
         ~CompositeMapRenderer();
 
-        void drawImplementation(osg::RenderInfo& renderInfo) const override;
+        virtual void drawImplementation(osg::RenderInfo& renderInfo) const;
 
         void compile(CompositeMap& compositeMap, osg::RenderInfo& renderInfo, double* timeLeft) const;
 
@@ -75,7 +76,7 @@ namespace Terrain
         mutable CompileSet mCompileSet;
         mutable CompileSet mImmediateCompileSet;
 
-        mutable std::mutex mMutex;
+        mutable OpenThreads::Mutex mMutex;
 
         osg::ref_ptr<osg::FrameBufferObject> mFBO;
     };

@@ -1,6 +1,7 @@
 #ifndef GAME_MWMECHANICS_AIACTIVATE_H
 #define GAME_MWMECHANICS_AIACTIVATE_H
 
+#include "aipackage.hpp"
 #include "typedaipackage.hpp"
 
 /*
@@ -29,11 +30,12 @@ namespace MWMechanics
 {
     /// \brief Causes actor to walk to activatable object and activate it
     /** Will activate when close to object **/
-    class AiActivate final : public TypedAiPackage<AiActivate>
+    class AiActivate : public AiPackage
     {
         public:
             /// Constructor
             /** \param objectId Reference to object to activate **/
+            AiActivate(const std::string &objectId);
             explicit AiActivate(const std::string &objectId);
 
             /*
@@ -47,15 +49,16 @@ namespace MWMechanics
                 End of tes3mp addition
             */
 
-            explicit AiActivate(const ESM::AiSequence::AiActivate* activate);
+            AiActivate(const ESM::AiSequence::AiActivate* activate);
 
-            bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration) override;
+            virtual AiActivate *clone() const;
+            virtual bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration);
+            virtual int getTypeId() const;
 
-            static constexpr AiPackageTypeId getTypeId() { return AiPackageTypeId::Activate; }
-
-            void writeState(ESM::AiSequence::AiSequence& sequence) const override;
+            virtual void writeState(ESM::AiSequence::AiSequence& sequence) const;
 
         private:
+            std::string mObjectId;
             const std::string mObjectId;
 
             /*

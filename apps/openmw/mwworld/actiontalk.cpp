@@ -11,6 +11,8 @@ namespace MWWorld
 
     void ActionTalk::executeImp (const Ptr& actor)
     {
+        if (actor == MWMechanics::getPlayer())
+            MWBase::Environment::get().getWindowManager()->pushGuiMode(MWGui::GM_Dialogue, getTarget());
         /*
             Start of tes3mp change (major)
 

@@ -9,10 +9,10 @@ namespace MWClass
     {
         public:
 
-            std::string getName (const MWWorld::ConstPtr& ptr) const override;
+            virtual std::string getName (const MWWorld::ConstPtr& ptr) const;
             ///< \return name or ID; can return an empty string.
 
-            bool hasToolTip (const MWWorld::ConstPtr& ptr) const override;
+            virtual bool hasToolTip (const MWWorld::ConstPtr& ptr) const;
             ///< @return true if this object has a tooltip when focused (default implementation: true)
 
             static void registerSelf();

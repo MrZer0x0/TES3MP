@@ -3,8 +3,6 @@
 #include <MyGUI_RenderManager.h>
 #include <algorithm>
 
-#include "myguicompat.h"
-
 namespace osgMyGUI
 {
 
@@ -24,22 +22,22 @@ namespace osgMyGUI
         {
         }
 
-        void begin() override
+        virtual void begin()
         {
             mTarget->begin();
         }
 
-        void end() override
+        virtual void end()
         {
             mTarget->end();
         }
 
-        void doRender(MyGUI::IVertexBuffer* _buffer, MyGUI::ITexture* _texture, size_t _count) override
+        virtual void doRender(MyGUI::IVertexBuffer* _buffer, MyGUI::ITexture* _texture, size_t _count)
         {
             mTarget->doRender(_buffer, _texture, _count);
         }
 
-        const MyGUI::RenderTargetInfo& getInfo() OPENMW_MYGUI_CONST_GETTER_3_4_1 override
+        virtual const MyGUI::RenderTargetInfo& getInfo()
         {
             mInfo = mTarget->getInfo();
             mInfo.hOffset = mHOffset;
@@ -53,7 +51,7 @@ namespace osgMyGUI
         MyGUI::IRenderTarget* mTarget;
         MyGUI::IntSize mViewSize;
         float mHOffset, mVOffset;
-        mutable MyGUI::RenderTargetInfo mInfo;
+        MyGUI::RenderTargetInfo mInfo;
     };
 
     MyGUI::ILayerItem *ScalingLayer::getLayerItemByPoint(int _left, int _top) const
@@ -74,8 +72,8 @@ namespace osgMyGUI
         _left -= globalViewSize.width/2;
         _top -= globalViewSize.height/2;
 
-        _left = static_cast<int>(_left/scale);
-        _top = static_cast<int>(_top/scale);
+        _left /= scale;
+        _top /= scale;
 
         _left += mViewSize.width/2;
         _top += mViewSize.height/2;
@@ -84,8 +82,8 @@ namespace osgMyGUI
     float ScalingLayer::getScaleFactor() const
     {
         MyGUI::IntSize viewSize = MyGUI::RenderManager::getInstance().getViewSize();
-        float w = static_cast<float>(viewSize.width);
-        float h = static_cast<float>(viewSize.height);
+        float w = viewSize.width;
+        float h = viewSize.height;
 
         float heightScale = (h / mViewSize.height);
         float widthScale = (w / mViewSize.width);
@@ -103,8 +101,8 @@ namespace osgMyGUI
         MyGUI::IntSize globalViewSize = MyGUI::RenderManager::getInstance().getViewSize();
         MyGUI::IntSize viewSize = globalViewSize;
         float scale = getScaleFactor();
-        viewSize.width = static_cast<int>(viewSize.width / scale);
-        viewSize.height = static_cast<int>(viewSize.height / scale);
+        viewSize.width /= scale;
+        viewSize.height /= scale;
 
         float hoffset = (globalViewSize.width - mViewSize.width*getScaleFactor())/2.f / static_cast<float>(globalViewSize.width);
         float voffset = (globalViewSize.height - mViewSize.height*getScaleFactor())/2.f / static_cast<float>(globalViewSize.height);

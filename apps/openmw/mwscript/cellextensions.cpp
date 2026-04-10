@@ -13,6 +13,7 @@
 #include "../mwworld/actionteleport.hpp"
 #include "../mwworld/cellstore.hpp"
 #include "../mwbase/environment.hpp"
+#include "../mwworld/player.hpp"
 #include "../mwbase/statemanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
@@ -29,7 +30,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.push (MWBase::Environment::get().getWorld()->hasCellChanged() ? 1 : 0);
                 }
@@ -39,7 +40,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     if (MWBase::Environment::get().getStateManager()->getState() != MWBase::StateManager::State_NoGame)
                     {
@@ -62,7 +63,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     if (MWBase::Environment::get().getStateManager()->getState() != MWBase::StateManager::State_NoGame)
                     {
@@ -85,7 +86,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     std::string cell = runtime.getStringLiteral (runtime[0].mInteger);
                     runtime.pop();
@@ -113,7 +114,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     Interpreter::Type_Integer x = runtime[0].mInteger;
                     runtime.pop();
@@ -139,7 +140,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     if (!MWMechanics::getPlayer().isInCell())
                     {
@@ -158,7 +159,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     std::string name = runtime.getStringLiteral (runtime[0].mInteger);
                     runtime.pop();
@@ -184,7 +185,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     if (!MWMechanics::getPlayer().isInCell())
                     {
@@ -205,7 +206,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     Interpreter::Type_Float level = runtime[0].mFloat;
 
@@ -228,7 +229,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     Interpreter::Type_Float level = runtime[0].mFloat;
 

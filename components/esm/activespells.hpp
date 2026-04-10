@@ -21,8 +21,6 @@ namespace ESM
         float mMagnitude;
         int mArg; // skill or attribute
         float mDuration;
-        float mTimeLeft;
-        int mEffectIndex;
     };
 
     // format 0, saved games only
@@ -31,6 +29,7 @@ namespace ESM
         struct ActiveSpellParams
         {
             std::vector<ActiveEffect> mEffects;
+            ESM::TimeStamp mTimeStamp;
             std::string mDisplayName;
             int mCasterActorId;
         };

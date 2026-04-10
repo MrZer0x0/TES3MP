@@ -34,17 +34,19 @@ namespace MWWorld
 
         mAnimationState = refData.mAnimationState;
 
-        mCustomData = refData.mCustomData ? refData.mCustomData->clone() : nullptr;
+        mCustomData = refData.mCustomData ? refData.mCustomData->clone() : 0;
     }
 
     void RefData::cleanup()
     {
-        mBaseNode = nullptr;
-        mCustomData = nullptr;
+        mBaseNode = 0;
+
+        delete mCustomData;
+        mCustomData = 0;
     }
 
     RefData::RefData()
-    : mBaseNode(nullptr), mDeletedByContentFile(false), mEnabled (true), mCount (1), mCustomData (nullptr), mChanged(false), mFlags(0)
+    : mBaseNode(0), mDeletedByContentFile(false), mEnabled (true), mCount (1), mCustomData (0), mChanged(false), mFlags(0)
     {
         for (int i=0; i<3; ++i)
         {
@@ -54,20 +56,20 @@ namespace MWWorld
     }
 
     RefData::RefData (const ESM::CellRef& cellRef)
-    : mBaseNode(nullptr), mDeletedByContentFile(false), mEnabled (true),
+    : mBaseNode(0), mDeletedByContentFile(false), mEnabled (true),
       mCount (1), mPosition (cellRef.mPos),
-      mCustomData (nullptr),
+      mCustomData (0),
       mChanged(false), mFlags(0) // Loading from ESM/ESP files -> assume unchanged
     {
     }
 
     RefData::RefData (const ESM::ObjectState& objectState, bool deletedByContentFile)
-    : mBaseNode(nullptr), mDeletedByContentFile(deletedByContentFile),
+    : mBaseNode(0), mDeletedByContentFile(deletedByContentFile),
       mEnabled (objectState.mEnabled != 0),
       mCount (objectState.mCount),
       mPosition (objectState.mPosition),
       mAnimationState(objectState.mAnimationState),
-      mCustomData (nullptr),
+      mCustomData (0),
       mChanged(true), mFlags(objectState.mFlags) // Loading from a savegame -> assume changed
     {
         // "Note that the ActivationFlag_UseEnabled is saved to the reference,
@@ -77,7 +79,7 @@ namespace MWWorld
     }
 
     RefData::RefData (const RefData& refData)
-    : mBaseNode(nullptr), mCustomData (nullptr)
+    : mBaseNode(0), mCustomData (0)
     {
         try
         {
@@ -144,10 +146,8 @@ namespace MWWorld
         return mBaseNode;
     }
 
-    int RefData::getCount(bool absolute) const
+    int RefData::getCount() const
     {
-        if(absolute)
-            return std::abs(mCount);
         return mCount;
     }
 
@@ -221,20 +221,21 @@ namespace MWWorld
         return mPosition;
     }
 
-    void RefData::setCustomData(std::unique_ptr<CustomData>&& value) noexcept
+    void RefData::setCustomData (CustomData *data)
     {
         mChanged = true; // We do not currently track CustomData, so assume anything with a CustomData is changed
-        mCustomData = std::move(value);
+        delete mCustomData;
+        mCustomData = data;
     }
 
     CustomData *RefData::getCustomData()
     {
-        return mCustomData.get();
+        return mCustomData;
     }
 
     const CustomData *RefData::getCustomData() const
     {
-        return mCustomData.get();
+        return mCustomData;
     }
 
     bool RefData::hasChanged() const

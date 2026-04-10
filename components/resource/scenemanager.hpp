@@ -4,15 +4,12 @@
 #include <string>
 #include <map>
 #include <memory>
-#include <mutex>
 
 #include <osg/ref_ptr>
 #include <osg/Node>
 #include <osg/Texture>
 
 #include "resourcemanager.hpp"
-
-#include <components/sceneutil/lightmanager.hpp>
 
 namespace Resource
 {
@@ -39,31 +36,6 @@ namespace Shader
 
 namespace Resource
 {
-    class TemplateRef : public osg::Object
-    {
-    public:
-        TemplateRef(const Object* object) : mObject(object) {}
-        TemplateRef() {}
-        TemplateRef(const TemplateRef& copy, const osg::CopyOp&) : mObject(copy.mObject) {}
-
-        META_Object(Resource, TemplateRef)
-
-    private:
-        osg::ref_ptr<const Object> mObject;
-    };
-
-    class TemplateMultiRef : public osg::Object
-    {
-    public:
-        TemplateMultiRef() {}
-        TemplateMultiRef(const TemplateMultiRef& copy, const osg::CopyOp&) : mObjects(copy.mObjects) {}
-        void addRef(const osg::Node* node);
-
-        META_Object(Resource, TemplateMultiRef)
-
-    private:
-        std::vector<osg::ref_ptr<const Object>> mObjects;
-    };
 
     class MultiObjectCache;
 
@@ -77,13 +49,8 @@ namespace Resource
 
         Shader::ShaderManager& getShaderManager();
 
-        /// Re-create shaders for this node, need to call this if alpha testing, texture stages or vertex color mode have changed.
-        void recreateShaders(osg::ref_ptr<osg::Node> node, const std::string& shaderPrefix = "objects", bool translucentFramebuffer = false, bool forceShadersForNode = false);
-
-        /// Applying shaders to a node may replace some fixed-function state.
-        /// This restores it.
-        /// When editing such state, it should be reinstated before the edits, and shaders should be recreated afterwards.
-        void reinstateRemovedState(osg::ref_ptr<osg::Node> node);
+        /// Re-create shaders for this node, need to call this if texture stages or vertex color mode have changed.
+        void recreateShaders(osg::ref_ptr<osg::Node> node);
 
         /// @see ShaderVisitor::setForceShaders
         void setForceShaders(bool force);
@@ -105,16 +72,6 @@ namespace Resource
 
         void setSpecularMapPattern(const std::string& pattern);
 
-        void setApplyLightingToEnvMaps(bool apply);
-
-        void setSupportedLightingMethods(const SceneUtil::LightManager::SupportedMethods& supported);
-        bool isSupportedLightingMethod(SceneUtil::LightingMethod method) const;
-
-        void setLightingMethod(SceneUtil::LightingMethod method);
-        SceneUtil::LightingMethod getLightingMethod() const;
-        
-        void setConvertAlphaTestToAlphaToCoverage(bool convert);
-
         void setShaderPath(const std::string& path);
 
         /// Check if a given scene is loaded and if so, update its usage timestamp to prevent it from being unloaded
@@ -124,7 +81,7 @@ namespace Resource
         /// @note If the given filename does not exist or fails to load, an error marker mesh will be used instead.
         ///  If even the error marker mesh can not be found, an exception is thrown.
         /// @note Thread safe.
-        osg::ref_ptr<const osg::Node> getTemplate(const std::string& name, bool compile=true);
+        osg::ref_ptr<const osg::Node> getTemplate(const std::string& name);
 
         /// Create an instance of the given scene template and cache it for later use, so that future calls to getInstance() can simply
         /// return this cached object instead of creating a new one.
@@ -135,7 +92,7 @@ namespace Resource
         osg::ref_ptr<osg::Node> createInstance(const std::string& name);
 
         osg::ref_ptr<osg::Node> createInstance(const osg::Node* base);
-        void shareState(osg::ref_ptr<osg::Node> node);
+
         /// Get an instance of the given scene template
         /// @see getTemplate
         /// @note Thread safe.
@@ -188,7 +145,7 @@ namespace Resource
 
     private:
 
-        Shader::ShaderVisitor* createShaderVisitor(const std::string& shaderPrefix = "objects", bool translucentFramebuffer = false);
+        Shader::ShaderVisitor* createShaderVisitor();
 
         std::unique_ptr<Shader::ShaderManager> mShaderManager;
         bool mForceShaders;
@@ -198,15 +155,11 @@ namespace Resource
         std::string mNormalHeightMapPattern;
         bool mAutoUseSpecularMaps;
         std::string mSpecularMapPattern;
-        bool mApplyLightingToEnvMaps;
-        SceneUtil::LightingMethod mLightingMethod;
-        SceneUtil::LightManager::SupportedMethods mSupportedLightingMethods;
-        bool mConvertAlphaTestToAlphaToCoverage;
 
         osg::ref_ptr<MultiObjectCache> mInstanceCache;
 
         osg::ref_ptr<Resource::SharedStateManager> mSharedStateManager;
-        mutable std::mutex mSharedStateMutex;
+        mutable OpenThreads::Mutex mSharedStateMutex;
 
         Resource::ImageManager* mImageManager;
         Resource::NifFileManager* mNifFileManager;
@@ -224,7 +177,6 @@ namespace Resource
         void operator = (const SceneManager&);
     };
 
-    std::string getFileExtension(const std::string& file);
 }
 
 #endif

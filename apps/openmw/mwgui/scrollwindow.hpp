@@ -17,10 +17,10 @@ namespace MWGui
         public:
             ScrollWindow ();
 
-            void setPtr (const MWWorld::Ptr& scroll) override;
+            void setPtr (const MWWorld::Ptr& scroll);
             void setInventoryAllowed(bool allowed);
 
-            void onResChange(int, int) override { center(); }
+            void onResChange(int, int) { center(); }
 
         protected:
             void onCloseButtonClicked (MyGUI::Widget* _sender);

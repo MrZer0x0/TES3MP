@@ -55,7 +55,15 @@ CompanionWindow::CompanionWindow(DragAndDrop *dragAndDrop, MessageBoxManager* ma
 
     mCloseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &CompanionWindow::onCloseButtonClicked);
 
+    mItemView->getHeader()->eventItemClicked += MyGUI::newDelegate(this, &CompanionWindow::onHeaderClicked);
+
     setCoord(200,0,600,300);
+}
+
+void CompanionWindow::onHeaderClicked(int sort)
+{
+    mSortModel->toggleSort(sort);
+    mItemView->update();
 }
 
 void CompanionWindow::onItemSelected(int index)
@@ -163,8 +171,8 @@ bool CompanionWindow::exit()
     if (mModel && mModel->hasProfit(mPtr) && getProfit(mPtr) < 0)
     {
         std::vector<std::string> buttons;
-        buttons.emplace_back("#{sCompanionWarningButtonOne}");
-        buttons.emplace_back("#{sCompanionWarningButtonTwo}");
+        buttons.push_back("#{sCompanionWarningButtonOne}");
+        buttons.push_back("#{sCompanionWarningButtonTwo}");
         mMessageBoxManager->createInteractiveMessageBox("#{sCompanionWarningMessage}", buttons);
         mMessageBoxManager->eventButtonPressed += MyGUI::newDelegate(this, &CompanionWindow::onMessageBoxButtonClicked);
         return false;

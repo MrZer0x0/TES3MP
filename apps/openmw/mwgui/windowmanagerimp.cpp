@@ -1,14 +1,12 @@
 #include "windowmanagerimp.hpp"
 
-#include <algorithm>
 #include <cassert>
-#include <chrono>
-#include <thread>
 
 #include <osgViewer/Viewer>
 
 #include <MyGUI_UString.h>
 #include <MyGUI_IPointer.h>
+#include <MyGUI_TextureUtility.h>
 #include <MyGUI_FactoryManager.h>
 #include <MyGUI_LanguageManager.h>
 #include <MyGUI_PointerManager.h>
@@ -16,9 +14,6 @@
 #include <MyGUI_Gui.h>
 #include <MyGUI_ClipboardManager.h>
 #include <MyGUI_WidgetManager.h>
-
-// For BT_NO_PROFILE
-#include <LinearMath/btQuickprof.h>
 
 #include <SDL_keyboard.h>
 #include <SDL_clipboard.h>
@@ -38,7 +33,6 @@
 #include <components/debug/debuglog.hpp>
 
 #include <components/sdlutil/sdlcursormanager.hpp>
-#include <components/sdlutil/sdlvideowrapper.hpp>
 
 #include <components/esm/esmreader.hpp>
 #include <components/esm/esmwriter.hpp>
@@ -62,7 +56,6 @@
 #include <components/widgets/tags.hpp>
 
 #include <components/misc/resourcehelpers.hpp>
-#include <components/misc/frameratelimiter.hpp>
 
 #include "../mwbase/inputmanager.hpp"
 #include "../mwbase/statemanager.hpp"
@@ -76,6 +69,7 @@
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/esmstore.hpp"
 
+#include "../mwmechanics/stat.hpp"
 #include "../mwmechanics/npcstats.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
@@ -89,6 +83,7 @@
 #include "statswindow.hpp"
 #include "messagebox.hpp"
 #include "tooltips.hpp"
+#include "quickloot.hpp"
 #include "scrollwindow.hpp"
 #include "bookwindow.hpp"
 #include "hud.hpp"
@@ -120,6 +115,9 @@
 #include "videowidget.hpp"
 #include "backgroundimage.hpp"
 #include "itemwidget.hpp"
+#include "itemlistwidget.hpp"
+#include "itemlistwidgetheader.hpp"
+#include "spelllistwidget.hpp"
 #include "screenfader.hpp"
 #include "debugwindow.hpp"
 #include "spellview.hpp"
@@ -131,10 +129,21 @@
 #include "keyboardnavigation.hpp"
 #include "resourceskin.hpp"
 
+namespace
+{
+
+    MyGUI::Colour getTextColour(const std::string& type)
+    {
+        return MyGUI::Colour::parse(MyGUI::LanguageManager::getInstance().replaceTags("#{fontcolour=" + type + "}"));
+    }
+
+}
+
 namespace MWGui
 {
+
     WindowManager::WindowManager(
-            SDL_Window* window, osgViewer::Viewer* viewer, osg::Group* guiRoot, Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
+            osgViewer::Viewer* viewer, osg::Group* guiRoot, Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
             const std::string& logpath, const std::string& resourcePath, bool consoleOnlyScripts, Translation::Storage& translationDataStorage,
             ToUTF8::FromType encoding, bool exportFonts, const std::string& versionDescription, const std::string& userDataPath)
       : mOldUpdateMask(0)
@@ -149,6 +158,7 @@ namespace MWGui
       , mMap(nullptr)
       , mLocalMapRender(nullptr)
       , mToolTips(nullptr)
+      , mQuickLoot(nullptr)
       , mStatsWindow(nullptr)
       , mMessageBoxManager(nullptr)
       , mConsole(nullptr)
@@ -183,8 +193,15 @@ namespace MWGui
       , mWerewolfOverlayEnabled(Settings::Manager::getBool ("werewolf overlay", "GUI"))
       , mHudEnabled(true)
       , mCursorVisible(true)
-      , mCursorActive(true)
+      , mCursorActive(false)
+      , mUseKeyTooltip(false)
       , mPlayerBounty(-1)
+      , mPlayerName()
+      , mPlayerRaceId()
+      , mPlayerAttributes()
+      , mPlayerMajorSkills()
+      , mPlayerMinorSkills()
+      , mPlayerSkillValues()
       , mGui(nullptr)
       , mGuiModes()
       , mCursorManager(nullptr)
@@ -195,12 +212,12 @@ namespace MWGui
       , mRestAllowed(true)
       , mShowOwned(0)
       , mEncoding(encoding)
+      , mFontHeight(16)
       , mVersionDescription(versionDescription)
-      , mWindowVisible(true)
     {
-        mScalingFactor = std::clamp(Settings::Manager::getFloat("scaling factor", "GUI"), 0.5f, 8.f);
-        mGuiPlatform = new osgMyGUI::Platform(viewer, guiRoot, resourceSystem->getImageManager(), mScalingFactor);
-        mGuiPlatform->initialise(resourcePath, (boost::filesystem::path(logpath) / "MyGUI.log").generic_string());
+        float uiScale = Settings::Manager::getFloat("scaling factor", "GUI");
+        mGuiPlatform = new osgMyGUI::Platform(viewer, guiRoot, resourceSystem->getImageManager(), uiScale);
+        mGuiPlatform->initialise(resourcePath, logpath);
 
         mGui = new MyGUI::Gui;
         mGui->initialise("");
@@ -210,7 +227,7 @@ namespace MWGui
         MyGUI::LanguageManager::getInstance().eventRequestTag = MyGUI::newDelegate(this, &WindowManager::onRetrieveTag);
 
         // Load fonts
-        mFontLoader.reset(new Gui::FontLoader(encoding, resourceSystem->getVFS(), userDataPath, mScalingFactor));
+        mFontLoader.reset(new Gui::FontLoader(encoding, resourceSystem->getVFS(), userDataPath));
         mFontLoader->loadBitmapFonts(exportFonts);
 
         //Register own widgets with MyGUI
@@ -229,8 +246,18 @@ namespace MWGui
         ItemView::registerComponents();
         ItemChargeView::registerComponents();
         ItemWidget::registerComponents();
+        ItemListWidget::registerComponents();
+        ItemListWidgetHeader::registerComponents();
+        SpellListWidget::registerComponents();
         SpellView::registerComponents();
         Gui::registerAllWidgets();
+
+        int fontSize = Settings::Manager::getInt("font size", "GUI");
+        fontSize = std::min(std::max(12, fontSize), 20);
+        mFontHeight = fontSize;
+
+        MyGUI::ResourceManager::getInstance().unregisterLoadXmlDelegate("Resource");
+        MyGUI::ResourceManager::getInstance().registerLoadXmlDelegate("Resource") = newDelegate(this, &WindowManager::loadFontDelegate);
 
         MyGUI::FactoryManager::getInstance().registerFactory<MWGui::Controllers::ControllerFollowMouse>("Controller");
 
@@ -244,7 +271,7 @@ namespace MWGui
         mKeyboardNavigation->setEnabled(keyboardNav);
         Gui::ImageButton::setDefaultNeedKeyFocus(keyboardNav);
 
-        mLoadingScreen = new LoadingScreen(mResourceSystem, mViewer);
+        mLoadingScreen = new LoadingScreen(mResourceSystem->getVFS(), mViewer);
         mWindows.push_back(mLoadingScreen);
 
         //set up the hardware cursor manager
@@ -282,12 +309,94 @@ namespace MWGui
         MyGUI::ClipboardManager::getInstance().eventClipboardRequested += MyGUI::newDelegate(this, &WindowManager::onClipboardRequested);
 
         mShowOwned = Settings::Manager::getInt("show owned", "Game");
+    }
 
-        mVideoWrapper = new SDLUtil::VideoWrapper(window, viewer);
-        mVideoWrapper->setGammaContrast(Settings::Manager::getFloat("gamma", "Video"),
-                                        Settings::Manager::getFloat("contrast", "Video"));
+    void WindowManager::loadFontDelegate(MyGUI::xml::ElementPtr _node, const std::string& _file, MyGUI::Version _version)
+    {
+        MyGUI::xml::ElementEnumerator resourceNode = _node->getElementEnumerator();
+        bool createCopy = false;
+        while (resourceNode.next("Resource"))
+        {
+            std::string type, name;
+            resourceNode->findAttribute("type", type);
+            resourceNode->findAttribute("name", name);
 
-        mStatsWatcher.reset(new StatsWatcher());
+            if (name.empty())
+                continue;
+
+            if (Misc::StringUtils::ciEqual(type, "ResourceTrueTypeFont"))
+            {
+                createCopy = true;
+
+                // For TrueType fonts we should override Size and Resolution properties
+                // to allow to configure font size via config file, without need to edit XML files.
+                // Also we should take UI scaling factor in account.
+                int resolution = Settings::Manager::getInt("ttf resolution", "GUI");
+                resolution = std::min(960, std::max(48, resolution));
+
+                float uiScale = Settings::Manager::getFloat("scaling factor", "GUI");
+                resolution *= uiScale;
+
+                MyGUI::xml::ElementPtr resolutionNode = resourceNode->createChild("Property");
+                resolutionNode->addAttribute("key", "Resolution");
+                resolutionNode->addAttribute("value", std::to_string(resolution));
+
+                MyGUI::xml::ElementPtr sizeNode = resourceNode->createChild("Property");
+                sizeNode->addAttribute("key", "Size");
+                sizeNode->addAttribute("value", std::to_string(mFontHeight));
+            }
+            else if (Misc::StringUtils::ciEqual(type, "ResourceSkin") ||
+                     Misc::StringUtils::ciEqual(type, "AutoSizedResourceSkin"))
+            {
+                // We should adjust line height for MyGUI widgets depending on font size
+                MyGUI::xml::ElementPtr heightNode = resourceNode->createChild("Property");
+                heightNode->addAttribute("key", "HeightLine");
+                heightNode->addAttribute("value", std::to_string(mFontHeight+2));
+            }
+        }
+
+        MyGUI::ResourceManager::getInstance().loadFromXmlNode(_node, _file, _version);
+
+        if (createCopy)
+        {
+            MyGUI::xml::ElementPtr copy = _node->createCopy();
+
+            MyGUI::xml::ElementEnumerator copyFont = copy->getElementEnumerator();
+            while (copyFont.next("Resource"))
+            {
+                std::string type, name;
+                copyFont->findAttribute("type", type);
+                copyFont->findAttribute("name", name);
+
+                if (name.empty())
+                    continue;
+
+                if (Misc::StringUtils::ciEqual(type, "ResourceTrueTypeFont"))
+                {
+                    // Since the journal and books use the custom scaling factor depending on resolution,
+                    // setup separate fonts with different Resolution to fit these windows.
+                    // These fonts have an internal prefix.
+                    int resolution = Settings::Manager::getInt("ttf resolution", "GUI");
+                    resolution = std::min(960, std::max(48, resolution));
+
+                    float currentX = Settings::Manager::getInt("resolution x", "Video");
+                    float currentY = Settings::Manager::getInt("resolution y", "Video");
+                    // TODO: read size from openmw_layout.xml
+                    float heightScale = (currentY / 520);
+                    float widthScale = (currentX / 600);
+                    float uiScale = std::min(widthScale, heightScale);
+                    resolution *= uiScale;
+
+                    MyGUI::xml::ElementPtr resolutionNode = copyFont->createChild("Property");
+                    resolutionNode->addAttribute("key", "Resolution");
+                    resolutionNode->addAttribute("value", std::to_string(resolution));
+
+                    copyFont->setAttribute("name", "Journalbook " + name);
+                }
+            }
+
+            MyGUI::ResourceManager::getInstance().loadFromXmlNode(copy, _file, _version);
+        }
     }
 
     void WindowManager::loadUserFonts()
@@ -301,7 +410,26 @@ namespace MWGui
         int w = MyGUI::RenderManager::getInstance().getViewSize().width;
         int h = MyGUI::RenderManager::getInstance().getViewSize().height;
 
-        mTextColours.loadColours();
+        mTextColours.header = getTextColour("header");
+        mTextColours.normal = getTextColour("normal");
+        mTextColours.notify = getTextColour("notify");
+
+        mTextColours.link = getTextColour("link");
+        mTextColours.linkOver = getTextColour("link_over");
+        mTextColours.linkPressed = getTextColour("link_pressed");
+
+        mTextColours.answer = getTextColour("answer");
+        mTextColours.answerOver = getTextColour("answer_over");
+        mTextColours.answerPressed = getTextColour("answer_pressed");
+
+        mTextColours.journalLink = getTextColour("journal_link");
+        mTextColours.journalLinkOver = getTextColour("journal_link_over");
+        mTextColours.journalLinkPressed = getTextColour("journal_link_pressed");
+
+        mTextColours.journalTopic = getTextColour("journal_topic");
+        mTextColours.journalTopicOver = getTextColour("journal_topic_over");
+        mTextColours.journalTopicPressed = getTextColour("journal_topic_pressed");
+
 
         mDragAndDrop = new DragAndDrop();
 
@@ -365,6 +493,10 @@ namespace MWGui
         mGuiModeStates[GM_Dialogue] = GuiModeState(mDialogueWindow);
         mTradeWindow->eventTradeDone += MyGUI::newDelegate(mDialogueWindow, &DialogueWindow::onTradeComplete);
 
+        ContainerWindow* containerWindow = new ContainerWindow(mDragAndDrop);
+        mWindows.push_back(containerWindow);
+        trackWindow(containerWindow, "container");
+        mGuiModeStates[GM_Container] = GuiModeState({containerWindow, mInventoryWindow});
         /*
             Start of tes3mp change (major)
 
@@ -384,13 +516,15 @@ namespace MWGui
 
         mToolTips = new ToolTips();
 
+        mQuickLoot = new QuickLoot();
+
         mScrollWindow = new ScrollWindow();
         mWindows.push_back(mScrollWindow);
         mGuiModeStates[GM_Scroll] = GuiModeState(mScrollWindow);
         mGuiModeStates[GM_Scroll].mOpenSound = "scroll";
         mGuiModeStates[GM_Scroll].mCloseSound = "scroll";
 
-        mBookWindow = new BookWindow();
+        mBookWindow = new BookWindow(mResourceSystem);
         mWindows.push_back(mBookWindow);
         mGuiModeStates[GM_Book] = GuiModeState(mBookWindow);
         mGuiModeStates[GM_Book].mOpenSound = "book open";
@@ -487,19 +621,26 @@ namespace MWGui
 
         mCharGen = new CharacterCreation(mViewer->getSceneData()->asGroup(), mResourceSystem);
 
+        // Setup player stats
+        for (int i = 0; i < ESM::Attribute::Length; ++i)
+        {
+            mPlayerAttributes.insert(std::make_pair(ESM::Attribute::sAttributeIds[i], MWMechanics::AttributeValue()));
+        }
+
+        for (int i = 0; i < ESM::Skill::Length; ++i)
+        {
+            mPlayerSkillValues.insert(std::make_pair(ESM::Skill::sSkillIds[i], MWMechanics::SkillValue()));
+        }
+
         updatePinnedWindows();
 
         // Set up visibility
         updateVisible();
-
-        mStatsWatcher->addListener(mHud);
-        mStatsWatcher->addListener(mStatsWindow);
-        mStatsWatcher->addListener(mCharGen);
     }
 
     int WindowManager::getFontHeight() const
     {
-        return mFontLoader->getFontHeight();
+        return mFontHeight;
     }
 
     void WindowManager::setNewGame(bool newgame)
@@ -507,24 +648,20 @@ namespace MWGui
         if (newgame)
         {
             disallowAll();
-
-            mStatsWatcher->removeListener(mCharGen);
             delete mCharGen;
             mCharGen = new CharacterCreation(mViewer->getSceneData()->asGroup(), mResourceSystem);
-            mStatsWatcher->addListener(mCharGen);
         }
         else
             allow(GW_ALL);
-
-        mStatsWatcher->forceUpdate();
     }
 
     WindowManager::~WindowManager()
     {
         try
         {
-            mStatsWatcher.reset();
+            mKeyboardNavigation.reset();
 
+            MyGUI::ResourceManager::getInstance().unregisterLoadXmlDelegate("Resource");
             MyGUI::LanguageManager::getInstance().eventRequestTag.clear();
             MyGUI::PointerManager::getInstance().eventChangeMousePointer.clear();
             MyGUI::InputManager::getInstance().eventChangeKeyFocus.clear();
@@ -542,8 +679,7 @@ namespace MWGui
             delete mSoulgemDialog;
             delete mCursorManager;
             delete mToolTips;
-
-            mKeyboardNavigation.reset();
+            delete mQuickLoot;
 
             cleanupGarbage();
 
@@ -554,7 +690,6 @@ namespace MWGui
 
             mGuiPlatform->shutdown();
             delete mGuiPlatform;
-            delete mVideoWrapper;
         }
         catch(const MyGUI::Exception& e)
         {
@@ -597,11 +732,6 @@ namespace MWGui
         }
     }
 
-    void WindowManager::updateConsoleObjectPtr(const MWWorld::Ptr& currentPtr, const MWWorld::Ptr& newPtr)
-    {
-        mConsole->updateSelectedObjectPtr(currentPtr, newPtr);
-    }
-
     void WindowManager::updateVisible()
     {
         bool loading = (getMode() == GM_Loading || getMode() == GM_LoadingWallpaper);
@@ -615,6 +745,7 @@ namespace MWGui
 
         mHud->setVisible(mHudEnabled && !loading);
         mToolTips->setVisible(mHudEnabled && !loading);
+        mQuickLoot->setVisible(mHudEnabled && !loading);
 
         bool gameMode = !isGuiMode();
 
@@ -699,9 +830,88 @@ namespace MWGui
         }
     }
 
+    void WindowManager::setValue (const std::string& id, const MWMechanics::AttributeValue& value)
+    {
+        mStatsWindow->setValue (id, value);
+        mCharGen->setValue(id, value);
+
+        static const char *ids[] =
+        {
+            "AttribVal1", "AttribVal2", "AttribVal3", "AttribVal4", "AttribVal5",
+            "AttribVal6", "AttribVal7", "AttribVal8"
+        };
+        static ESM::Attribute::AttributeID attributes[] =
+        {
+            ESM::Attribute::Strength,
+            ESM::Attribute::Intelligence,
+            ESM::Attribute::Willpower,
+            ESM::Attribute::Agility,
+            ESM::Attribute::Speed,
+            ESM::Attribute::Endurance,
+            ESM::Attribute::Personality,
+            ESM::Attribute::Luck
+        };
+        for (size_t i = 0; i < sizeof(ids)/sizeof(ids[0]); ++i)
+        {
+            if (id != ids[i])
+                continue;
+            mPlayerAttributes[attributes[i]] = value;
+            break;
+        }
+    }
+
+
+    void WindowManager::setValue (int parSkill, const MWMechanics::SkillValue& value)
+    {
+        /// \todo Don't use the skill enum as a parameter type (we will have to drop it anyway, once we
+        /// allow custom skills.
+        mStatsWindow->setValue(static_cast<ESM::Skill::SkillEnum> (parSkill), value);
+        mCharGen->setValue(static_cast<ESM::Skill::SkillEnum> (parSkill), value);
+        mPlayerSkillValues[parSkill] = value;
+    }
+
+    void WindowManager::setValue (const std::string& id, const MWMechanics::DynamicStat<float>& value)
+    {
+        mStatsWindow->setValue (id, value);
+        mHud->setValue (id, value);
+        mCharGen->setValue(id, value);
+    }
+
+    void WindowManager::setValue (const std::string& id, const std::string& value)
+    {
+        mStatsWindow->setValue (id, value);
+        if (id=="name")
+            mPlayerName = value;
+        else if (id=="race")
+            mPlayerRaceId = value;
+    }
+
+    void WindowManager::setValue (const std::string& id, int value)
+    {
+        mStatsWindow->setValue (id, value);
+    }
+
     void WindowManager::setDrowningTimeLeft (float time, float maxTime)
     {
         mHud->setDrowningTimeLeft(time, maxTime);
+    }
+
+    void WindowManager::setPlayerClass (const ESM::Class &class_)
+    {
+        mStatsWindow->setValue("class", class_.mName);
+    }
+
+    void WindowManager::configureSkills (const SkillList& major, const SkillList& minor)
+    {
+        mStatsWindow->configureSkills (major, minor);
+        mCharGen->configureSkills(major, minor);
+        mPlayerMajorSkills = major;
+        mPlayerMinorSkills = minor;
+    }
+
+    void WindowManager::updateSkillArea()
+    {
+        mStatsWindow->updateSkillArea();
     }
 
     void WindowManager::removeDialog(Layout*dialog)
@@ -735,6 +945,9 @@ namespace MWGui
         popGuiMode();
     }
 
+    void WindowManager::interactiveMessageBox(const std::string &message, const std::vector<std::string> &buttons, bool block)
+    {
+        mMessageBoxManager->createInteractiveMessageBox(message, buttons);
     /*
         Start of tes3mp change (major)
 
@@ -753,18 +966,19 @@ namespace MWGui
 
         if (block)
         {
-            Misc::FrameRateLimiter frameRateLimiter = Misc::makeFrameRateLimiter(MWBase::Environment::get().getFrameRateLimit());
+            osg::Timer frameTimer;
             while (mMessageBoxManager->readPressedButton(false) == -1
                    && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
             {
-                const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(frameRateLimiter.getLastFrameDuration()).count();
+                double dt = frameTimer.time_s();
+                frameTimer.setStartTick();
 
                 mKeyboardNavigation->onFrame();
                 mMessageBoxManager->onFrame(dt);
                 MWBase::Environment::get().getInputManager()->update(dt, true, false);
 
-                if (!mWindowVisible)
-                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                if (!MWBase::Environment::get().getInputManager()->isWindowVisible())
+                    OpenThreads::Thread::microSleep(5000);
                 else
                 {
                     mViewer->eventTraversal();
@@ -776,7 +990,7 @@ namespace MWGui
                 // refer to the advance() and frame() order in Engine::go()
                 mViewer->advance(mViewer->getFrameStamp()->getSimulationTime());
 
-                frameRateLimiter.limit();
+                MWBase::Environment::get().limitFrameRate(frameTimer.time_s());
             }
         }
     }
@@ -842,7 +1056,7 @@ namespace MWGui
         mHud->setPlayerPos(x, y, u, v);
     }
 
-    void WindowManager::update (float frameDuration)
+    void WindowManager::onFrame (float frameDuration)
     {
         bool gameRunning = MWBase::Environment::get().getStateManager()->getState()!=
             MWBase::StateManager::State_NoGame;
@@ -909,6 +1123,7 @@ namespace MWGui
             mMessageBoxManager->onFrame(frameDuration);
 
         mToolTips->onFrame(frameDuration);
+        mQuickLoot->onFrame(frameDuration);
 
         if (mLocalMapRender)
             mLocalMapRender->cleanupCameras();
@@ -937,9 +1152,7 @@ namespace MWGui
         if (mCharGen)
             mCharGen->onFrame(frameDuration);
 
-        updateActivatedQuickKey();
-
-        mStatsWatcher->update();
+        updateActivatedQuickKey ();
 
         cleanupGarbage();
     }
@@ -1022,6 +1235,7 @@ namespace MWGui
     void WindowManager::setFocusObject(const MWWorld::Ptr& focus)
     {
         mToolTips->setFocusObject(focus);
+        mQuickLoot->setFocusObject(focus);
 
         if(mHud && (mShowOwned == 2 || mShowOwned == 3))
         {
@@ -1033,6 +1247,7 @@ namespace MWGui
     void WindowManager::setFocusObjectScreenCoords(float min_x, float min_y, float max_x, float max_y)
     {
         mToolTips->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
+        mQuickLoot->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
     }
 
     bool WindowManager::toggleFullHelp()
@@ -1104,9 +1319,8 @@ namespace MWGui
         if(tag.compare(0, MyGuiPrefixLength, MyGuiPrefix) == 0)
         {
             tag = tag.substr(MyGuiPrefixLength, tag.length());
-            size_t comma_pos = tag.find(',');
-            std::string settingSection = tag.substr(0, comma_pos);
-            std::string settingTag = tag.substr(comma_pos+1, tag.length());
+            std::string settingSection = tag.substr(0, tag.find(","));
+            std::string settingTag = tag.substr(tag.find(",")+1, tag.length());
             
             _result = Settings::Manager::getString(settingTag, settingSection);            
         }
@@ -1138,8 +1352,7 @@ namespace MWGui
     void WindowManager::processChangedSettings(const Settings::CategorySettingVector& changed)
     {
         mToolTips->setDelay(Settings::Manager::getFloat("tooltip delay", "GUI"));
-
-        bool changeRes = false;
+        mQuickLoot->setDelay(Settings::Manager::getFloat("tooltip delay", "GUI"));
         for (const auto& setting : changed)
         {
             if (setting.first == "HUD" && setting.second == "crosshair")
@@ -1148,38 +1361,11 @@ namespace MWGui
                 mSubtitlesEnabled = Settings::Manager::getBool ("subtitles", "GUI");
             else if (setting.first == "GUI" && setting.second == "menu transparency")
                 setMenuTransparency(Settings::Manager::getFloat("menu transparency", "GUI"));
-            else if (setting.first == "Video" && (
-                    setting.second == "resolution x"
-                    || setting.second == "resolution y"
-                    || setting.second == "fullscreen"
-                    || setting.second == "window border"))
-                changeRes = true;
-
-            else if (setting.first == "Video" && setting.second == "vsync")
-                mVideoWrapper->setSyncToVBlank(Settings::Manager::getBool("vsync", "Video"));
-            else if (setting.first == "Video" && (setting.second == "gamma" || setting.second == "contrast"))
-                mVideoWrapper->setGammaContrast(Settings::Manager::getFloat("gamma", "Video"),
-                                                Settings::Manager::getFloat("contrast", "Video"));
-        }
-
-        if (changeRes)
-        {
-            mVideoWrapper->setVideoMode(Settings::Manager::getInt("resolution x", "Video"),
-                                        Settings::Manager::getInt("resolution y", "Video"),
-                                        Settings::Manager::getBool("fullscreen", "Video"),
-                                        Settings::Manager::getBool("window border", "Video"));
         }
     }
 
     void WindowManager::windowResized(int x, int y)
     {
-        // Note: this is a side effect of resolution change or window resize.
-        // There is no need to track these changes.
-        Settings::Manager::setInt("resolution x", "Video", x);
-        Settings::Manager::setInt("resolution y", "Video", y);
-        Settings::Manager::resetPendingChange("resolution x", "Video");
-        Settings::Manager::resetPendingChange("resolution y", "Video");
-
         mGuiPlatform->getRenderManagerPtr()->setViewSize(x, y);
 
         // scaled size
@@ -1209,25 +1395,7 @@ namespace MWGui
         for (WindowBase* window : mWindows)
             window->onResChange(x, y);
 
-        // We should reload TrueType fonts to fit new resolution
-        loadUserFonts();
-
         // TODO: check if any windows are now off-screen and move them back if so
-    }
-
-    bool WindowManager::isWindowVisible()
-    {
-        return mWindowVisible;
-    }
-
-    void WindowManager::windowVisibilityChange(bool visible)
-    {
-        mWindowVisible = visible;
-    }
-
-    void WindowManager::windowClosed()
-    {
-        MWBase::Environment::get().getStateManager()->requestQuit();
     }
 
     void WindowManager::onCursorChange(const std::string &name)
@@ -1336,7 +1504,7 @@ namespace MWGui
 
         const ESM::Spell* spell = mStore->get<ESM::Spell>().find(spellId);
 
-        mSpellWindow->setTitle(spell->mName);
+        //mSpellWindow->setTitle(spell->mName);
     }
 
     void WindowManager::setSelectedEnchantItem(const MWWorld::Ptr& item)
@@ -1348,7 +1516,7 @@ namespace MWGui
 
         int chargePercent = static_cast<int>(item.getCellRef().getNormalizedEnchantmentCharge(ench->mData.mCharge) * 100);
         mHud->setSelectedEnchantItem(item, chargePercent);
-        mSpellWindow->setTitle(item.getClass().getName(item));
+        //mSpellWindow->setTitle(item.getClass().getName(item));
     }
 
     const MWWorld::Ptr &WindowManager::getSelectedEnchantItem() const
@@ -1365,7 +1533,7 @@ namespace MWGui
             durabilityPercent = static_cast<int>(item.getClass().getItemNormalizedHealth(item) * 100);
         }
         mHud->setSelectedWeapon(item, durabilityPercent);
-        mInventoryWindow->setTitle(item.getClass().getName(item));
+        //mInventoryWindow->setTitle(item.getClass().getName(item));
     }
 
     const MWWorld::Ptr &WindowManager::getSelectedWeapon() const
@@ -1383,14 +1551,14 @@ namespace MWGui
         if (player->getDrawState() == MWMechanics::DrawState_Spell)
             player->setDrawState(MWMechanics::DrawState_Nothing);
 
-        mSpellWindow->setTitle("#{sNone}");
+        //mSpellWindow->setTitle("#{sNone}");
     }
 
     void WindowManager::unsetSelectedWeapon()
     {
         mSelectedWeapon = MWWorld::Ptr();
         mHud->unsetSelectedWeapon();
-        mInventoryWindow->setTitle("#{sSkillHandtohand}");
+        //mInventoryWindow->setTitle("#{sSkillHandtohand}");
     }
 
     void WindowManager::getMousePosition(int &x, int &y)
@@ -1415,11 +1583,6 @@ namespace MWGui
         return mHud->getWorldMouseOver();
     }
 
-    float WindowManager::getScalingFactor()
-    {
-        return mScalingFactor;
-    }
-
     void WindowManager::executeInConsole (const std::string& path)
     {
         mConsole->executeFile (path);
@@ -1442,6 +1605,8 @@ namespace MWGui
     MWGui::CountDialog* WindowManager::getCountDialog() { return mCountDialog; }
     MWGui::ConfirmationDialog* WindowManager::getConfirmationDialog() { return mConfirmationDialog; }
     MWGui::TradeWindow* WindowManager::getTradeWindow() { return mTradeWindow; }
+    MWGui::QuickKeysMenu* WindowManager::getQuickKeysMenu() { return mQuickKeysMenu; }
+    MWGui::QuickLoot* WindowManager::getQuickLoot() { return mQuickLoot; }
 
     /*
         Start of tes3mp addition
@@ -1559,11 +1724,36 @@ namespace MWGui
         return mConsole && mConsole->isVisible();
     }
 
+    void WindowManager::notifyMouseWheel(int rel)
+    {
+        mQuickLoot->notifyMouseWheel(rel);
+    }
+
     MWGui::GuiMode WindowManager::getMode() const
     {
         if (mGuiModes.empty())
             return GM_None;
         return mGuiModes.back();
+    }
+
+    std::map<int, MWMechanics::SkillValue > WindowManager::getPlayerSkillValues()
+    {
+        return mPlayerSkillValues;
+    }
+
+    std::map<int, MWMechanics::AttributeValue > WindowManager::getPlayerAttributeValues()
+    {
+        return mPlayerAttributes;
+    }
+
+    WindowManager::SkillList WindowManager::getPlayerMinorSkills()
+    {
+        return mPlayerMinorSkills;
+    }
+
+    WindowManager::SkillList WindowManager::getPlayerMajorSkills()
+    {
+        return mPlayerMajorSkills;
     }
 
     void WindowManager::disallowMouse()
@@ -1606,6 +1796,15 @@ namespace MWGui
         mQuickKeysMenu->activateQuickKey(index);
     }
 
+    void WindowManager::setKeyTooltip(bool enable)
+    {
+        mUseKeyTooltip = enable;
+    }
+
+    bool WindowManager::isKeyTooltip() const
+    {
+        return mUseKeyTooltip;
+    }
     /*
         Start of tes3mp addition
 
@@ -1813,6 +2012,7 @@ namespace MWGui
         mMessageBoxManager->clear();
 
         mToolTips->clear();
+        mQuickLoot->clear();
 
         mSelectedSpell.clear();
         mCustomMarkers.clear();
@@ -1914,17 +2114,18 @@ namespace MWGui
                 ~MWSound::Type::Movie & MWSound::Type::Mask
             );
 
-        Misc::FrameRateLimiter frameRateLimiter = Misc::makeFrameRateLimiter(MWBase::Environment::get().getFrameRateLimit());
+        osg::Timer frameTimer;
         while (mVideoWidget->update() && !MWBase::Environment::get().getStateManager()->hasQuitRequest())
         {
-            const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(frameRateLimiter.getLastFrameDuration()).count();
+            double dt = frameTimer.time_s();
+            frameTimer.setStartTick();
 
             MWBase::Environment::get().getInputManager()->update(dt, true, false);
 
-            if (!mWindowVisible)
+            if (!MWBase::Environment::get().getInputManager()->isWindowVisible())
             {
                 mVideoWidget->pause();
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                OpenThreads::Thread::microSleep(5000);
             }
             else
             {
@@ -1940,7 +2141,7 @@ namespace MWGui
             // refer to the advance() and frame() order in Engine::go()
             mViewer->advance(mViewer->getFrameStamp()->getSimulationTime());
 
-            frameRateLimiter.limit();
+            MWBase::Environment::get().limitFrameRate(frameTimer.time_s());
         }
         mVideoWidget->stop();
 
@@ -2120,7 +2321,7 @@ namespace MWGui
     {
         if (_type != "Text")
             return;
-        char* text=nullptr;
+        char* text=0;
         text = SDL_GetClipboardText();
         if (text)
             _data = MyGUI::TextIterator::toTagsString(text);
@@ -2145,9 +2346,7 @@ namespace MWGui
 
     void WindowManager::toggleDebugWindow()
     {
-#ifndef BT_NO_PROFILE
         mDebugWindow->setVisible(!mDebugWindow->isVisible());
-#endif
     }
 
     void WindowManager::cycleSpell(bool next)
@@ -2374,15 +2573,5 @@ namespace MWGui
     {
         for (unsigned int i=0; i<mWindows.size(); ++i)
             mWindows[i]->setVisible(visible);
-    }
-
-    void WindowManager::watchActor(const MWWorld::Ptr& ptr)
-    {
-        mStatsWatcher->watchActor(ptr);
-    }
-
-    MWWorld::Ptr WindowManager::getWatchedActor() const
-    {
-        return mStatsWatcher->getWatchedActor();
     }
 }

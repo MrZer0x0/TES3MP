@@ -94,7 +94,7 @@ namespace MWGui
     public:
         LocalMapBase(CustomMarkerCollection& markers, MWRender::LocalMap* localMapRender, bool fogOfWarEnabled = true);
         virtual ~LocalMapBase();
-        void init(MyGUI::ScrollView* widget, MyGUI::ImageBox* compass);
+        void init(MyGUI::ScrollView* widget, MyGUI::ImageBox* compass, int mapWidgetSize, int cellDistance);
 
         void setCellPrefix(const std::string& prefix);
         void setActiveCell(const int x, const int y, bool interior=false);
@@ -167,6 +167,8 @@ namespace MWGui
         std::vector<MyGUI::Widget*> mMagicMarkerWidgets;
         std::vector<MyGUI::Widget*> mCustomMarkerWidgets;
 
+        virtual void updateCustomMarkers();
+
         /*
             Start of tes3mp addition
 
@@ -221,7 +223,7 @@ namespace MWGui
     public:
         EditNoteDialog();
 
-        void onOpen() override;
+        virtual void onOpen();
 
         void showDeleteButton(bool show);
         bool getDeleteButtonShown();
@@ -261,8 +263,8 @@ namespace MWGui
 
         void setCellName(const std::string& cellName);
 
-        void setAlpha(float alpha) override;
-        void setVisible(bool visible) override;
+        virtual void setAlpha(float alpha);
+        void setVisible(bool visible);
 
         void renderGlobalMap();
 
@@ -289,12 +291,11 @@ namespace MWGui
 
         void ensureGlobalMapLoaded();
 
-        void onOpen() override;
+        virtual void onOpen();
 
-        void onFrame(float dt) override;
+        void onFrame(float dt);
 
-        void updateCustomMarkers() override;
-
+        virtual void updateCustomMarkers();
         /*
             Start of tes3mp addition
 
@@ -306,7 +307,7 @@ namespace MWGui
         */
 
         /// Clear all savegame-specific data
-        void clear() override;
+        void clear();
 
         void write (ESM::ESMWriter& writer, Loading::Listener& progress);
         void readRecord (ESM::ESMReader& reader, uint32_t type);
@@ -352,13 +353,13 @@ namespace MWGui
         EditNoteDialog mEditNoteDialog;
         ESM::CustomMarker mEditingMarker;
 
-        void onPinToggled() override;
-        void onTitleDoubleClicked() override;
+        virtual void onPinToggled();
+        virtual void onTitleDoubleClicked();
 
-        void doorMarkerCreated(MyGUI::Widget* marker) override;
-        void customMarkerCreated(MyGUI::Widget *marker) override;
+        virtual void doorMarkerCreated(MyGUI::Widget* marker);
+        virtual void customMarkerCreated(MyGUI::Widget *marker);
 
-        void notifyPlayerUpdate() override;
+        virtual void notifyPlayerUpdate();
 
     };
 }

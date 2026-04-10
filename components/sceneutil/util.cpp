@@ -8,7 +8,6 @@
 #include <osg/NodeVisitor>
 #include <osg/TexGen>
 #include <osg/TexEnvCombine>
-#include <osg/Version>
 
 #include <components/resource/imagemanager.hpp>
 #include <components/resource/scenemanager.hpp>
@@ -26,7 +25,7 @@ public:
     {
     }
 
-    void apply(osg::Node& node) override
+    virtual void apply(osg::Node& node)
     {
         if (osg::StateSet* stateset = node.getStateSet())
             mLowestUnusedTexUnit = std::max(mLowestUnusedTexUnit, int(stateset->getTextureAttributeList().size()));
@@ -114,8 +113,6 @@ void GlowUpdater::apply(osg::StateSet *stateset, osg::NodeVisitor *nv)
             removeTexture(stateset);
             this->reset();
             mDone = true;
-            // normally done in StateSetUpdater::operator(), but needs doing here so the shader visitor sees the right StateSet
-            mNode->setStateSet(stateset);
             mResourceSystem->getSceneManager()->recreateShaders(mNode);
         }
         if (mOriginalDuration < 0) // if this glowupdater was originally a permanent glow
@@ -220,6 +217,8 @@ bool hasUserDescription(const osg::Node* node, const std::string pattern)
 
 osg::ref_ptr<GlowUpdater> addEnchantedGlow(osg::ref_ptr<osg::Node> node, Resource::ResourceSystem* resourceSystem, osg::Vec4f glowColor, float glowDuration)
 {
+    if (Settings::Manager::getBool("disable glow", "MorroUI"))
+        return nullptr;
     std::vector<osg::ref_ptr<osg::Texture2D> > textures;
     for (int i=0; i<32; ++i)
     {
@@ -260,29 +259,6 @@ osg::ref_ptr<GlowUpdater> addEnchantedGlow(osg::ref_ptr<osg::Node> node, Resourc
     resourceSystem->getSceneManager()->recreateShaders(node);
 
     return glowUpdater;
-}
-
-bool attachAlphaToCoverageFriendlyFramebufferToCamera(osg::Camera* camera, osg::Camera::BufferComponent buffer, osg::Texture * texture, unsigned int level, unsigned int face, bool mipMapGeneration)
-{
-#if OSG_VERSION_LESS_THAN(3, 6, 6)
-    // hack fix for https://github.com/openscenegraph/OpenSceneGraph/issues/1028
-    osg::ref_ptr<osg::GLExtensions> extensions = osg::GLExtensions::Get(0, false);
-    if (extensions)
-        extensions->glRenderbufferStorageMultisampleCoverageNV = nullptr;
-#endif
-    unsigned int samples = 0;
-    unsigned int colourSamples = 0;
-    bool addMSAAIntermediateTarget = Settings::Manager::getBool("antialias alpha test", "Shaders") && Settings::Manager::getInt("antialiasing", "Video") > 1;
-    if (addMSAAIntermediateTarget)
-    {
-        // Alpha-to-coverage requires a multisampled framebuffer.
-        // OSG will set that up automatically and resolve it to the specified single-sample texture for us.
-        // For some reason, two samples are needed, at least with some drivers.
-        samples = 2;
-        colourSamples = 1;
-    }
-    camera->attach(buffer, texture, level, face, mipMapGeneration, samples, colourSamples);
-    return addMSAAIntermediateTarget;
 }
 
 }

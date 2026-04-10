@@ -11,7 +11,7 @@ namespace MWGui
     public:
         LevelupDialog();
 
-        void onOpen() override;
+        virtual void onOpen();
 
     private:
         MyGUI::Button* mOkButton;

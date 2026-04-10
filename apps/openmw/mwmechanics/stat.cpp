@@ -18,10 +18,8 @@ namespace MWMechanics
     }
 
     template<typename T>
-    T Stat<T>::getModified(bool capped) const
+    T Stat<T>::getModified() const
     {
-        if(!capped)
-            return mModified;
         return std::max(static_cast<T>(0), mModified);
     }
 
@@ -229,46 +227,39 @@ namespace MWMechanics
     }
 
     AttributeValue::AttributeValue() :
-        mBase(0.f), mModifier(0.f), mDamage(0.f)
+        mBase(0), mModifier(0), mDamage(0)
     {
     }
 
-    float AttributeValue::getModified() const
+    int AttributeValue::getModified() const
     {
-        return std::max(0.f, mBase - mDamage + mModifier);
+        return std::max(0, mBase - (int) mDamage + mModifier);
     }
-    float AttributeValue::getBase() const
+    int AttributeValue::getBase() const
     {
         return mBase;
     }
-    float AttributeValue::getModifier() const
+    int AttributeValue::getModifier() const
     {
         return mModifier;
     }
 
-    void AttributeValue::setBase(float base)
+    void AttributeValue::setBase(int base)
     {
         mBase = base;
     }
 
-    void AttributeValue::setModifier(float mod)
+    void AttributeValue::setModifier(int mod)
     {
         mModifier = mod;
     }
 
     void AttributeValue::damage(float damage)
     {
-        float threshold = mBase + mModifier;
-
-        if (mDamage + damage > threshold)
-            mDamage = threshold;
-        else
-            mDamage += damage;
+        mDamage += std::min(damage, (float)getModified());
     }
     void AttributeValue::restore(float amount)
     {
-        if (mDamage <= 0) return;
-
         mDamage -= std::min(mDamage, amount);
     }
 
@@ -277,14 +268,14 @@ namespace MWMechanics
         return mDamage;
     }
 
-    void AttributeValue::writeState (ESM::StatState<float>& state) const
+    void AttributeValue::writeState (ESM::StatState<int>& state) const
     {
         state.mBase = mBase;
         state.mMod = mModifier;
         state.mDamage = mDamage;
     }
 
-    void AttributeValue::readState (const ESM::StatState<float>& state)
+    void AttributeValue::readState (const ESM::StatState<int>& state)
     {
         mBase = state.mBase;
         mModifier = state.mMod;
@@ -305,13 +296,13 @@ namespace MWMechanics
         mProgress = progress;
     }
 
-    void SkillValue::writeState (ESM::StatState<float>& state) const
+    void SkillValue::writeState (ESM::StatState<int>& state) const
     {
         AttributeValue::writeState (state);
         state.mProgress = mProgress;
     }
 
-    void SkillValue::readState (const ESM::StatState<float>& state)
+    void SkillValue::readState (const ESM::StatState<int>& state)
     {
         AttributeValue::readState (state);
         mProgress = state.mProgress;

@@ -13,7 +13,6 @@ namespace DetourNavigator
         Flag_walk = 1 << 0,
         Flag_swim = 1 << 1,
         Flag_openDoor = 1 << 2,
-        Flag_usePathgrid = 1 << 3,
     };
 
     inline std::ostream& operator <<(std::ostream& stream, const Flag value)
@@ -28,8 +27,6 @@ namespace DetourNavigator
                 return stream << "swim";
             case Flag_openDoor:
                 return stream << "openDoor";
-            case Flag_usePathgrid:
-                return stream << "usePathgrid";
         }
 
         return stream;
@@ -48,7 +45,7 @@ namespace DetourNavigator
             else
             {
                 bool first = true;
-                for (const auto flag : {Flag_walk, Flag_swim, Flag_openDoor, Flag_usePathgrid})
+                for (const auto flag : {Flag_walk, Flag_swim, Flag_openDoor})
                 {
                     if (value.mValue & flag)
                     {

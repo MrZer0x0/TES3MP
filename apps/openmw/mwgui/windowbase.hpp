@@ -3,6 +3,11 @@
 
 #include "layout.hpp"
 
+namespace MWBase
+{
+    class WindowManager;
+}
+
 namespace MWWorld
 {
     class Ptr;
@@ -10,6 +15,7 @@ namespace MWWorld
 
 namespace MWGui
 {
+    class WindowManager;
     class DragAndDrop;
 
     class WindowBase: public Layout
@@ -35,7 +41,7 @@ namespace MWGui
         /// Gracefully exits the window
         virtual bool exit() {return true;}
         /// Sets the visibility of the window
-        void setVisible(bool visible) override;
+        virtual void setVisible(bool visible);
         /// Returns the visibility state of the window
         bool isVisible();
 
@@ -61,9 +67,9 @@ namespace MWGui
     {
     public:
         WindowModal(const std::string& parLayout);
-        void onOpen() override;
-        void onClose() override;
-        bool exit() override {return true;}
+        virtual void onOpen() override;
+        virtual void onClose() override;
+        virtual bool exit() override {return true;}
     };
 
     /// A window that cannot be the target of a drag&drop action.

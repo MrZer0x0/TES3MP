@@ -3,7 +3,8 @@
 
 #include "flags.hpp"
 
-#include <optional>
+#include <boost/optional.hpp>
+
 #include <osg/Vec3f>
 
 class dtNavMesh;
@@ -12,7 +13,7 @@ namespace DetourNavigator
 {
     struct Settings;
 
-    std::optional<osg::Vec3f> findRandomPointAroundCircle(const dtNavMesh& navMesh, const osg::Vec3f& halfExtents,
+    boost::optional<osg::Vec3f> findRandomPointAroundCircle(const dtNavMesh& navMesh, const osg::Vec3f& halfExtents,
         const osg::Vec3f& start, const float maxRadius, const Flags includeFlags, const Settings& settings);
 }
 

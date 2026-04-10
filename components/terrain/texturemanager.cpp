@@ -25,7 +25,7 @@ struct UpdateTextureFilteringFunctor
     }
     Resource::SceneManager* mSceneManager;
 
-    void operator()(std::string, osg::Object* obj)
+    void operator()(osg::Object* obj)
     {
         mSceneManager->applyFilterSettings(static_cast<osg::Texture2D*>(obj));
     }

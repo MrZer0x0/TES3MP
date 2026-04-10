@@ -19,11 +19,10 @@ struct RankData
 {
     int mAttribute1, mAttribute2; // Attribute level
 
-    // Skill level (faction skills given in
+    int mSkill1, mSkill2; // Skill level (faction skills given in
     // skillID below.) You need one skill at
-    // level 'mPrimarySkill' and two skills at level
-    // 'mFavouredSkill' to advance to this rank.
-    int mPrimarySkill, mFavouredSkill;
+    // level 'skill1' and two skills at level
+    // 'skill2' to advance to this rank.
 
     int mFactReaction; // Reaction from faction members
 };

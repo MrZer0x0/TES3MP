@@ -14,36 +14,27 @@
 #include "movement.hpp"
 #include "steering.hpp"
 
-namespace
-{
-osg::Vec3f::value_type getHalfExtents(const MWWorld::ConstPtr& actor)
-{
-    if(actor.getClass().isNpc())
-        return 64;
-    return MWBase::Environment::get().getWorld()->getHalfExtents(actor).y();
-}
-}
-
 namespace MWMechanics
 {
+
 int AiFollow::mFollowIndexCounter = 0;
 
 AiFollow::AiFollow(const std::string &actorId, float duration, float x, float y, float z)
-: mAlwaysFollow(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
+: mAlwaysFollow(false), mCommanded(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
 , mCellId(""), mActive(false), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = actorId;
 }
 
 AiFollow::AiFollow(const std::string &actorId, const std::string &cellId, float duration, float x, float y, float z)
-: mAlwaysFollow(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
+: mAlwaysFollow(false), mCommanded(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
 , mCellId(cellId), mActive(false), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = actorId;
 }
 
 AiFollow::AiFollow(const MWWorld::Ptr& actor, float duration, float x, float y, float z)
-: mAlwaysFollow(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
+: mAlwaysFollow(false), mCommanded(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
 , mCellId(""), mActive(false), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = actor.getCellRef().getRefId();
@@ -51,7 +42,7 @@ AiFollow::AiFollow(const MWWorld::Ptr& actor, float duration, float x, float y, 
 }
 
 AiFollow::AiFollow(const MWWorld::Ptr& actor, const std::string &cellId, float duration, float x, float y, float z)
-: mAlwaysFollow(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
+: mAlwaysFollow(false), mCommanded(false), mDuration(duration), mRemainingDuration(duration), mX(x), mY(y), mZ(z)
 , mCellId(cellId), mActive(false), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = actor.getCellRef().getRefId();
@@ -59,8 +50,7 @@ AiFollow::AiFollow(const MWWorld::Ptr& actor, const std::string &cellId, float d
 }
 
 AiFollow::AiFollow(const MWWorld::Ptr& actor, bool commanded)
-: TypedAiPackage<AiFollow>(makeDefaultOptions().withShouldCancelPreviousAi(!commanded))
-, mAlwaysFollow(true), mDuration(0), mRemainingDuration(0), mX(0), mY(0), mZ(0)
+: mAlwaysFollow(true), mCommanded(commanded), mDuration(0), mRemainingDuration(0), mX(0), mY(0), mZ(0)
 , mCellId(""), mActive(false), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = actor.getCellRef().getRefId();
@@ -68,18 +58,18 @@ AiFollow::AiFollow(const MWWorld::Ptr& actor, bool commanded)
 }
 
 AiFollow::AiFollow(const ESM::AiSequence::AiFollow *follow)
-    : TypedAiPackage<AiFollow>(makeDefaultOptions().withShouldCancelPreviousAi(!follow->mCommanded))
-    , mAlwaysFollow(follow->mAlwaysFollow)
-    // mDuration isn't saved in the save file, so just giving it "1" for now if the package had a duration.
-    // The exact value of mDuration only matters for repeating packages.
-    // Previously mRemainingDuration could be negative even when mDuration was 0. Checking for > 0 should fix old saves.
-    , mDuration(follow->mRemainingDuration)
-    , mRemainingDuration(follow->mRemainingDuration)
+    : mAlwaysFollow(follow->mAlwaysFollow), mCommanded(follow->mCommanded), mRemainingDuration(follow->mRemainingDuration)
     , mX(follow->mData.mX), mY(follow->mData.mY), mZ(follow->mData.mZ)
     , mCellId(follow->mCellId), mActive(follow->mActive), mFollowIndex(mFollowIndexCounter++)
 {
     mTargetActorRefId = follow->mTargetId;
     mTargetActorId = follow->mTargetActorId;
+    // mDuration isn't saved in the save file, so just giving it "1" for now if the package had a duration.
+    // The exact value of mDuration only matters for repeating packages.
+    if (mRemainingDuration > 0) // Previously mRemainingDuration could be negative even when mDuration was 0. Checking for > 0 should fix old saves.
+       mDuration = 1;
+    else
+       mDuration = 0;
 }
 
 bool AiFollow::execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration)
@@ -134,23 +124,24 @@ bool AiFollow::execute (const MWWorld::Ptr& actor, CharacterController& characte
     if (!mActive)
         return false;
 
-    // In the original engine the first follower stays closer to the player than any subsequent followers.
-    // Followers beyond the first usually attempt to stand inside each other.
-    osg::Vec3f::value_type floatingDistance = 0;
-    auto followers = MWBase::Environment::get().getMechanicsManager()->getActorsFollowingByIndex(target);
-    if (followers.size() >= 2 && followers.cbegin()->first != mFollowIndex)
+    // The distances below are approximations based on observations of the original engine.
+    // If only one actor is following the target, it uses 186.
+    // If there are multiple actors following the same target, they form a group with each group member at 313 + (130 * i) distance to the target.
+
+    short followDistance = 186;
+    std::list<int> followers = MWBase::Environment::get().getMechanicsManager()->getActorsFollowingIndices(target);
+    if (followers.size() >= 2)
     {
-        for(auto& follower : followers)
+        followDistance = 313;
+        short i = 0;
+        followers.sort();
+        for (std::list<int>::iterator it = followers.begin(); it != followers.end(); ++it)
         {
-            auto halfExtent = getHalfExtents(follower.second);
-            if(halfExtent > floatingDistance)
-                floatingDistance = halfExtent;
+            if (*it == mFollowIndex)
+                followDistance += 130 * i;
+            ++i;
         }
-        floatingDistance += 128;
     }
-    floatingDistance += getHalfExtents(target) + 64;
-    floatingDistance += getHalfExtents(actor) * 2;
-    short followDistance = static_cast<short>(floatingDistance);
 
     if (!mAlwaysFollow) //Update if you only follow for a bit
     {
@@ -221,9 +212,19 @@ std::string AiFollow::getFollowedActor()
     return mTargetActorRefId;
 }
 
+AiFollow *MWMechanics::AiFollow::clone() const
+{
+    return new AiFollow(*this);
+}
+
+int AiFollow::getTypeId() const
+{
+    return TypeIdFollow;
+}
+
 bool AiFollow::isCommanded() const
 {
-    return !mOptions.mShouldCancelPreviousAi;
+    return mCommanded;
 }
 
 void AiFollow::writeState(ESM::AiSequence::AiSequence &sequence) const
@@ -237,7 +238,7 @@ void AiFollow::writeState(ESM::AiSequence::AiSequence &sequence) const
     follow->mRemainingDuration = mRemainingDuration;
     follow->mCellId = mCellId;
     follow->mAlwaysFollow = mAlwaysFollow;
-    follow->mCommanded = isCommanded();
+    follow->mCommanded = mCommanded;
     follow->mActive = mActive;
 
     ESM::AiSequence::AiPackageContainer package;

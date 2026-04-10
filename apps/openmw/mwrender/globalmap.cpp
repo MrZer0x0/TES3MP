@@ -9,6 +9,7 @@
 
 #include <osgDB/WriteFile>
 
+#include <components/loadinglistener/loadinglistener.hpp>
 #include <components/settings/settings.hpp>
 #include <components/files/memorystream.hpp>
 
@@ -82,7 +83,7 @@ namespace
         {
         }
 
-        void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+        virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
         {
             if (mRendered)
             {
@@ -128,7 +129,7 @@ namespace MWRender
         {
         }
 
-        void doWork() override
+        virtual void doWork()
         {
             osg::ref_ptr<osg::Image> image = new osg::Image;
             image->allocateImage(mWidth, mHeight, 1, GL_RGB, GL_UNSIGNED_BYTE);
@@ -252,6 +253,7 @@ namespace MWRender
         , mMinY(0), mMaxY(0)
 
     {
+        mCellSize = Settings::Manager::getInt("global map cell size", "Map");
         /*
             Start of tes3mp change (major)
 
@@ -629,6 +631,7 @@ namespace MWRender
             }
 
             mOverlayImage->copySubImage(imageDest.mX, imageDest.mY, 0, imageDest.mImage);
+            it = mPendingImageDest.erase(it);
 
             /*
                 Start of tes3mp addition

@@ -1,7 +1,7 @@
 #ifndef GAME_MWMECHANICS_AICOMBAT_H
 #define GAME_MWMECHANICS_AICOMBAT_H
 
-#include "typedaipackage.hpp"
+#include "aipackage.hpp"
 
 #include "../mwworld/cellstore.hpp" // for Doors
 
@@ -9,7 +9,7 @@
 
 #include "pathfinding.hpp"
 #include "movement.hpp"
-#include "aitimer.hpp"
+#include "obstacle.hpp"
 
 namespace ESM
 {
@@ -27,7 +27,7 @@ namespace MWMechanics
     struct AiCombatStorage : AiTemporaryBase
     {
         float mAttackCooldown;
-        AiReactionTimer mReaction;
+        float mTimerReact;
         float mTimerCombatMove;
         bool mReadyToAttack;
         bool mAttack;
@@ -55,11 +55,9 @@ namespace MWMechanics
         float mFleeBlindRunTimer;
         ESM::Pathgrid::Point mFleeDest;
 
-        bool mUseCustomDestination;
-        osg::Vec3f mCustomDestination;
-
         AiCombatStorage():
         mAttackCooldown(0.0f),
+        mTimerReact(AI_REACTION_TIME),
         mTimerCombatMove(0.0f),
         mReadyToAttack(false),
         mAttack(false),
@@ -76,9 +74,7 @@ namespace MWMechanics
         mFleeState(FleeState_None),
         mLOS(false),
         mUpdateLOSTimer(0.0f),
-        mFleeBlindRunTimer(0.0f),
-        mUseCustomDestination(false),
-        mCustomDestination()
+        mFleeBlindRunTimer(0.0f)
         {}
 
         void startCombatMove(bool isDistantCombat, float distToTarget, float rangeAttack, const MWWorld::Ptr& actor, const MWWorld::Ptr& target);
@@ -95,34 +91,32 @@ namespace MWMechanics
     };
 
     /// \brief Causes the actor to fight another actor
-    class AiCombat final : public TypedAiPackage<AiCombat>
+    class AiCombat : public AiPackage
     {
         public:
             ///Constructor
             /** \param actor Actor to fight **/
-            explicit AiCombat(const MWWorld::Ptr& actor);
+            AiCombat(const MWWorld::Ptr& actor);
 
-            explicit AiCombat (const ESM::AiSequence::AiCombat* combat);
+            AiCombat (const ESM::AiSequence::AiCombat* combat);
 
             void init();
 
-            bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration) override;
+            virtual AiCombat *clone() const;
 
-            static constexpr AiPackageTypeId getTypeId() { return AiPackageTypeId::Combat; }
+            virtual bool execute (const MWWorld::Ptr& actor, CharacterController& characterController, AiState& state, float duration);
 
-            static constexpr Options makeDefaultOptions()
-            {
-                AiPackage::Options options;
-                options.mPriority = 1;
-                options.mCanCancel = false;
-                options.mShouldCancelPreviousAi = false;
-                return options;
-            }
+            virtual int getTypeId() const;
+
+            virtual unsigned int getPriority() const;
 
             ///Returns target ID
-            MWWorld::Ptr getTarget() const override;
+            MWWorld::Ptr getTarget() const;
 
-            void writeState(ESM::AiSequence::AiSequence &sequence) const override;
+            virtual void writeState(ESM::AiSequence::AiSequence &sequence) const;
+
+            virtual bool canCancel() const { return false; }
+            virtual bool shouldCancelPreviousAi() const { return false; }
 
         private:
             /// Returns true if combat should end

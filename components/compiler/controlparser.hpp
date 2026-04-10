@@ -54,20 +54,20 @@ namespace Compiler
             void appendCode (std::vector<Interpreter::Type_Code>& code) const;
             ///< store generated code in \a code.
 
-            bool parseName (const std::string& name, const TokenLoc& loc,
-                Scanner& scanner) override;
+            virtual bool parseName (const std::string& name, const TokenLoc& loc,
+                Scanner& scanner);
             ///< Handle a name token.
             /// \return fetch another token?
 
-            bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a keyword token.
             /// \return fetch another token?
 
-            bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a special character token.
             /// \return fetch another token?
 
-            void reset() override;
+            void reset();
             ///< Reset parser to clean state.
     };
 }

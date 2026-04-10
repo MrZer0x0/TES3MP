@@ -28,7 +28,7 @@ namespace ContentSelectorModel
             FileProperty_GameFile       = 6
         };
 
-        EsmFile(QString fileName = QString(), ModelItem *parent = nullptr);
+        EsmFile(QString fileName = QString(), ModelItem *parent = 0);
      //   EsmFile(const EsmFile &);
 
         ~EsmFile()
@@ -57,7 +57,6 @@ namespace ContentSelectorModel
         /// @note Contains file names, not paths.
         inline const QStringList &gameFiles() const { return mGameFiles; }
         inline QString description() const          { return mDescription; }
-        bool isGroundcoverCandidate() const;
         inline QString toolTip() const              { return sToolTip.arg(mAuthor)
                                                              .arg(mFormat)
                                                              .arg(mModified.toString(Qt::ISODate))

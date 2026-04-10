@@ -1,6 +1,7 @@
 #ifndef COMPILER_SCRIPTPARSER_H_INCLUDED
 #define COMPILER_SCRIPTPARSER_H_INCLUDED
 
+
 #include "parser.hpp"
 #include "lineparser.hpp"
 #include "controlparser.hpp"
@@ -28,23 +29,23 @@ namespace Compiler
             void getCode (std::vector<Interpreter::Type_Code>& code) const;
             ///< store generated code in \a code.
 
-            bool parseName (const std::string& name, const TokenLoc& loc,
-                Scanner& scanner) override;
+            virtual bool parseName (const std::string& name, const TokenLoc& loc,
+                Scanner& scanner);
             ///< Handle a name token.
             /// \return fetch another token?
 
-            bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseKeyword (int keyword, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a keyword token.
             /// \return fetch another token?
 
-            bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner) override;
+            virtual bool parseSpecial (int code, const TokenLoc& loc, Scanner& scanner);
             ///< Handle a special character token.
             /// \return fetch another token?
 
-            void parseEOF (Scanner& scanner) override;
+            virtual void parseEOF (Scanner& scanner);
             ///< Handle EOF token.
 
-            void reset() override;
+            void reset();
             ///< Reset parser to clean state.
     };
 }

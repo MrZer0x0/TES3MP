@@ -19,23 +19,23 @@ namespace MWGui
         EnchantingDialog();
         virtual ~EnchantingDialog();
 
-        void onOpen() override;
+        virtual void onOpen();
 
-        void onFrame(float dt) override { checkReferenceAvailable(); }
-        void clear() override { resetReference(); }
+        void onFrame(float dt) { checkReferenceAvailable(); }
+        void clear() { resetReference(); }
 
         void setSoulGem (const MWWorld::Ptr& gem);
         void setItem (const MWWorld::Ptr& item);
 
         /// Actor Ptr: buy enchantment from this actor
         /// Soulgem Ptr: player self-enchant
-        void setPtr(const MWWorld::Ptr& ptr) override;
+        void setPtr(const MWWorld::Ptr& ptr);
 
-        void resetReference() override;
+        virtual void resetReference();
 
     protected:
-        void onReferenceUnavailable() override;
-        void notifyEffectsChanged() override;
+        virtual void onReferenceUnavailable();
+        virtual void notifyEffectsChanged ();
 
         void onCancelButtonClicked(MyGUI::Widget* sender);
         void onSelectItem (MyGUI::Widget* sender);

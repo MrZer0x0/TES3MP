@@ -3,6 +3,8 @@
 
 #include "windowbase.hpp"
 
+#include "itemselection.hpp"
+
 #include "../mwmechanics/repair.hpp"
 
 namespace MWGui
@@ -17,9 +19,9 @@ class Repair : public WindowBase
 public:
     Repair();
 
-    void onOpen() override;
+    virtual void onOpen();
 
-    void setPtr (const MWWorld::Ptr& item) override;
+    void setPtr (const MWWorld::Ptr& item);
 
 protected:
     ItemChargeView* mRepairBox;

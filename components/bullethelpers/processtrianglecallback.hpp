@@ -11,11 +11,11 @@ namespace BulletHelpers
     class ProcessTriangleCallback : public btTriangleCallback
     {
     public:
-        explicit ProcessTriangleCallback(Impl impl)
+        ProcessTriangleCallback(Impl impl)
             : mImpl(std::move(impl))
         {}
 
-        void processTriangle(btVector3* triangle, int partId, int triangleIndex) override
+        void processTriangle(btVector3* triangle, int partId, int triangleIndex) override final
         {
             return mImpl(triangle, partId, triangleIndex);
         }

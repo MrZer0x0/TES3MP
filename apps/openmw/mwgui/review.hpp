@@ -13,6 +13,11 @@ namespace ESM
 
 namespace MWGui
 {
+    class WindowManager;
+}
+
+namespace MWGui
+{
     class ReviewDialog : public WindowModal
     {
     public:
@@ -26,7 +31,7 @@ namespace MWGui
 
         ReviewDialog();
 
-        bool exit() override { return false; }
+        bool exit() { return false; }
 
         void setPlayerName(const std::string &name);
         void setRace(const std::string &raceId);
@@ -42,9 +47,9 @@ namespace MWGui
         void configureSkills(const SkillList& major, const SkillList& minor);
         void setSkillValue(ESM::Skill::SkillEnum skillId, const MWMechanics::SkillValue& value);
 
-        void onOpen() override;
+        virtual void onOpen();
 
-        void onFrame(float duration) override;
+        void onFrame(float duration);
 
         // Events
         typedef MyGUI::delegates::CMultiDelegate0 EventHandle_Void;

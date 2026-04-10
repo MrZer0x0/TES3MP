@@ -62,8 +62,7 @@ namespace SceneUtil
                 mPhase = mPhase <= 0.5f ? 1.f : 0.25f;
         }
 
-        auto* lightSource = static_cast<SceneUtil::LightSource*>(node);
-        lightSource->getLight(nv->getTraversalNumber())->setDiffuse(mDiffuseColor * mBrightness * lightSource->getActorFade());
+        static_cast<SceneUtil::LightSource*>(node)->getLight(nv->getTraversalNumber())->setDiffuse(mDiffuseColor * mBrightness);
 
         traverse(node, nv);
     }

@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-#include <components/resource/resourcesystem.hpp>
+#include <OpenThreads/Thread>
 
 #include "world.hpp"
 #include "scriptmanager.hpp"
@@ -14,12 +14,12 @@
 #include "windowmanager.hpp"
 #include "statemanager.hpp"
 
-MWBase::Environment *MWBase::Environment::sThis = nullptr;
+MWBase::Environment *MWBase::Environment::sThis = 0;
 
 MWBase::Environment::Environment()
-: mWorld (nullptr), mSoundManager (nullptr), mScriptManager (nullptr), mWindowManager (nullptr),
-  mMechanicsManager (nullptr),  mDialogueManager (nullptr), mJournal (nullptr), mInputManager (nullptr),
-    mStateManager (nullptr), mResourceSystem (nullptr),  mFrameDuration (0), mFrameRateLimit(0.f)
+: mWorld (0), mSoundManager (0), mScriptManager (0), mWindowManager (0),
+  mMechanicsManager (0),  mDialogueManager (0), mJournal (0), mInputManager (0), mStateManager (0),
+  mFrameDuration (0), mFrameRateLimit(0.f)
 {
     assert (!sThis);
     sThis = this;
@@ -28,7 +28,7 @@ MWBase::Environment::Environment()
 MWBase::Environment::~Environment()
 {
     cleanup();
-    sThis = nullptr;
+    sThis = 0;
 }
 
 void MWBase::Environment::setWorld (World *world)
@@ -76,11 +76,6 @@ void MWBase::Environment::setStateManager (StateManager *stateManager)
     mStateManager = stateManager;
 }
 
-void MWBase::Environment::setResourceSystem (Resource::ResourceSystem *resourceSystem)
-{
-    mResourceSystem = resourceSystem;
-}
-
 void MWBase::Environment::setFrameDuration (float duration)
 {
     mFrameDuration = duration;
@@ -94,6 +89,19 @@ void MWBase::Environment::setFrameRateLimit(float limit)
 float MWBase::Environment::getFrameRateLimit() const
 {
     return mFrameRateLimit;
+}
+
+void MWBase::Environment::limitFrameRate(double dt) const
+{
+    if (mFrameRateLimit > 0.f)
+    {
+        double thisFrameTime = dt;
+        double minFrameTime = 1.0 / static_cast<double>(mFrameRateLimit);
+        if (thisFrameTime < minFrameTime)
+        {
+            OpenThreads::Thread::microSleep(1000*1000*(minFrameTime-thisFrameTime));
+        }
+    }
 }
 
 MWBase::World *MWBase::Environment::getWorld() const
@@ -150,11 +158,6 @@ MWBase::StateManager *MWBase::Environment::getStateManager() const
     return mStateManager;
 }
 
-Resource::ResourceSystem *MWBase::Environment::getResourceSystem() const
-{
-    return mResourceSystem;
-}
-
 float MWBase::Environment::getFrameDuration() const
 {
     return mFrameDuration;
@@ -163,41 +166,35 @@ float MWBase::Environment::getFrameDuration() const
 void MWBase::Environment::cleanup()
 {
     delete mMechanicsManager;
-    mMechanicsManager = nullptr;
+    mMechanicsManager = 0;
 
     delete mDialogueManager;
-    mDialogueManager = nullptr;
+    mDialogueManager = 0;
 
     delete mJournal;
-    mJournal = nullptr;
+    mJournal = 0;
 
     delete mScriptManager;
-    mScriptManager = nullptr;
+    mScriptManager = 0;
 
     delete mWindowManager;
-    mWindowManager = nullptr;
+    mWindowManager = 0;
 
     delete mWorld;
-    mWorld = nullptr;
+    mWorld = 0;
 
     delete mSoundManager;
-    mSoundManager = nullptr;
+    mSoundManager = 0;
 
     delete mInputManager;
-    mInputManager = nullptr;
+    mInputManager = 0;
 
     delete mStateManager;
-    mStateManager = nullptr;
+    mStateManager = 0;
 }
 
 const MWBase::Environment& MWBase::Environment::get()
 {
     assert (sThis);
     return *sThis;
-}
-
-void MWBase::Environment::reportStats(unsigned int frameNumber, osg::Stats& stats) const
-{
-    mMechanicsManager->reportStats(frameNumber, stats);
-    mWorld->reportStats(frameNumber, stats);
 }

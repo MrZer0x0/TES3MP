@@ -41,20 +41,7 @@ namespace MWScript
             Interpreter::Interpreter mInterpreter;
             bool mOpcodesInstalled;
 
-            struct CompiledScript
-            {
-                std::vector<Interpreter::Type_Code> mByteCode;
-                Compiler::Locals mLocals;
-                bool mActive;
-
-                CompiledScript(const std::vector<Interpreter::Type_Code>& code, const Compiler::Locals& locals)
-                {
-                    mByteCode = code;
-                    mLocals = locals;
-                    mActive = true;
-                }
-            };
-
+            typedef std::pair<std::vector<Interpreter::Type_Code>, Compiler::Locals> CompiledScript;
             typedef std::map<std::string, CompiledScript> ScriptCollection;
 
             ScriptCollection mScripts;
@@ -68,23 +55,21 @@ namespace MWScript
                 Compiler::Context& compilerContext, int warningsMode,
                 const std::vector<std::string>& scriptBlacklist);
 
-            void clear() override;
-
-            bool run (const std::string& name, Interpreter::Context& interpreterContext) override;
+            virtual void run (const std::string& name, Interpreter::Context& interpreterContext);
             ///< Run the script with the given name (compile first, if not compiled yet)
 
-            bool compile (const std::string& name) override;
+            virtual bool compile (const std::string& name);
             ///< Compile script with the given namen
             /// \return Success?
 
-            std::pair<int, int> compileAll() override;
+            virtual std::pair<int, int> compileAll();
             ///< Compile all scripts
             /// \return count, success
 
-            const Compiler::Locals& getLocals (const std::string& name) override;
+            virtual const Compiler::Locals& getLocals (const std::string& name);
             ///< Return locals for script \a name.
 
-            GlobalScripts& getGlobalScripts() override;
+            virtual GlobalScripts& getGlobalScripts();
     };
 }
 

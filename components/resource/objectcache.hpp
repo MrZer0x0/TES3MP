@@ -26,8 +26,6 @@
 
 #include <string>
 #include <map>
-#include <mutex>
-#include <optional>
 
 namespace osg
 {
@@ -55,7 +53,7 @@ class GenericObjectCache : public osg::Referenced
         void updateTimeStampOfObjectsInCacheWithExternalReferences(double referenceTime)
         {
             // look for objects with external references and update their time stamp.
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             for(typename ObjectCacheMap::iterator itr=_objectCache.begin(); itr!=_objectCache.end(); ++itr)
             {
                 // If ref count is greater than 1, the object has an external reference.
@@ -73,7 +71,7 @@ class GenericObjectCache : public osg::Referenced
         {
             std::vector<osg::ref_ptr<osg::Object> > objectsToRemove;
             {
-                std::lock_guard<std::mutex> lock(_objectCacheMutex);
+                OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
                 // Remove expired entries from object cache
                 typename ObjectCacheMap::iterator oitr = _objectCache.begin();
                 while(oitr != _objectCache.end())
@@ -94,21 +92,21 @@ class GenericObjectCache : public osg::Referenced
         /** Remove all objects in the cache regardless of having external references or expiry times.*/
         void clear()
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             _objectCache.clear();
         }
 
         /** Add a key,object,timestamp triple to the Registry::ObjectCache.*/
         void addEntryToObjectCache(const KeyType& key, osg::Object* object, double timestamp = 0.0)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             _objectCache[key]=ObjectTimeStampPair(object,timestamp);
         }
 
         /** Remove Object from cache.*/
         void removeFromObjectCache(const KeyType& key)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             typename ObjectCacheMap::iterator itr = _objectCache.find(key);
             if (itr!=_objectCache.end()) _objectCache.erase(itr);
         }
@@ -116,17 +114,17 @@ class GenericObjectCache : public osg::Referenced
         /** Get an ref_ptr<Object> from the object cache*/
         osg::ref_ptr<osg::Object> getRefFromObjectCache(const KeyType& key)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             typename ObjectCacheMap::iterator itr = _objectCache.find(key);
             if (itr!=_objectCache.end())
                 return itr->second.first;
-            else return nullptr;
+            else return 0;
         }
 
         /** Check if an object is in the cache, and if it is, update its usage time stamp. */
         bool checkInObjectCache(const KeyType& key, double timeStamp)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             typename ObjectCacheMap::iterator itr = _objectCache.find(key);
             if (itr!=_objectCache.end())
             {
@@ -139,7 +137,7 @@ class GenericObjectCache : public osg::Referenced
         /** call releaseGLObjects on all objects attached to the object cache.*/
         void releaseGLObjects(osg::State* state)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             for(typename ObjectCacheMap::iterator itr = _objectCache.begin(); itr != _objectCache.end(); ++itr)
             {
                 osg::Object* object = itr->second.first.get();
@@ -150,7 +148,7 @@ class GenericObjectCache : public osg::Referenced
         /** call node->accept(nv); for all nodes in the objectCache. */
         void accept(osg::NodeVisitor& nv)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             for(typename ObjectCacheMap::iterator itr = _objectCache.begin(); itr != _objectCache.end(); ++itr)
             {
                 osg::Object* object = itr->second.first.get();
@@ -163,29 +161,19 @@ class GenericObjectCache : public osg::Referenced
             }
         }
 
-        /** call operator()(KeyType, osg::Object*) for each object in the cache. */
+        /** call operator()(osg::Object*) for each object in the cache. */
         template <class Functor>
         void call(Functor& f)
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             for (typename ObjectCacheMap::iterator it = _objectCache.begin(); it != _objectCache.end(); ++it)
-                f(it->first, it->second.first.get());
-        }
-
-        template <class K>
-        std::optional<std::pair<KeyType, osg::ref_ptr<osg::Object>>> lowerBound(const K& key)
-        {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
-            typename ObjectCacheMap::const_iterator itr = _objectCache.lower_bound(key);
-            if (itr == _objectCache.end())
-                return std::nullopt;
-            return std::make_optional(std::make_pair(itr->first, itr->second.first));
+                f(it->second.first.get());
         }
 
         /** Get the number of objects in the cache. */
         unsigned int getCacheSize() const
         {
-            std::lock_guard<std::mutex> lock(_objectCacheMutex);
+            OpenThreads::ScopedLock<OpenThreads::Mutex> lock(_objectCacheMutex);
             return _objectCache.size();
         }
 
@@ -194,10 +182,10 @@ class GenericObjectCache : public osg::Referenced
         virtual ~GenericObjectCache() {}
 
         typedef std::pair<osg::ref_ptr<osg::Object>, double >           ObjectTimeStampPair;
-        typedef std::map<KeyType, ObjectTimeStampPair, std::less<> > ObjectCacheMap;
+        typedef std::map<KeyType, ObjectTimeStampPair >             ObjectCacheMap;
 
         ObjectCacheMap                          _objectCache;
-        mutable std::mutex                      _objectCacheMutex;
+        mutable OpenThreads::Mutex              _objectCacheMutex;
 
 };
 

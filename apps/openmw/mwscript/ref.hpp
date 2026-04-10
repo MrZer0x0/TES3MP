@@ -14,7 +14,7 @@ namespace MWScript
 {
     struct ExplicitRef
     {
-        static constexpr bool implicit = false;
+        static const bool implicit = false;
 
         MWWorld::Ptr operator() (Interpreter::Runtime& runtime, bool required = true,
             bool activeOnly = false) const;
@@ -22,7 +22,7 @@ namespace MWScript
 
     struct ImplicitRef
     {
-        static constexpr bool implicit = true;
+        static const bool implicit = true;
 
         MWWorld::Ptr operator() (Interpreter::Runtime& runtime, bool required = true,
             bool activeOnly = false) const;

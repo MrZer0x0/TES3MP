@@ -1,4 +1,5 @@
 #include "navmeshtilescache.hpp"
+#include "exceptions.hpp"
 
 #include <osg/Stats>
 
@@ -8,36 +9,67 @@ namespace DetourNavigator
 {
     namespace
     {
-        inline std::size_t getSize(const RecastMesh& recastMesh,
-                                   const std::vector<OffMeshConnection>& offMeshConnections)
+        inline std::string makeNavMeshKey(const RecastMesh& recastMesh,
+            const std::vector<OffMeshConnection>& offMeshConnections)
         {
-            const std::size_t indicesSize = recastMesh.getIndices().size() * sizeof(int);
-            const std::size_t verticesSize = recastMesh.getVertices().size() * sizeof(float);
-            const std::size_t areaTypesSize = recastMesh.getAreaTypes().size() * sizeof(AreaType);
-            const std::size_t waterSize = recastMesh.getWater().size() * sizeof(RecastMesh::Water);
-            const std::size_t offMeshConnectionsSize = offMeshConnections.size() * sizeof(OffMeshConnection);
-            return indicesSize + verticesSize + areaTypesSize + waterSize + offMeshConnectionsSize;
+            std::string result;
+            result.reserve(
+                recastMesh.getIndices().size() * sizeof(int)
+                + recastMesh.getVertices().size() * sizeof(float)
+                + recastMesh.getAreaTypes().size() * sizeof(AreaType)
+                + recastMesh.getWater().size() * sizeof(RecastMesh::Water)
+                + offMeshConnections.size() * sizeof(OffMeshConnection)
+            );
+            std::copy(
+                reinterpret_cast<const char*>(recastMesh.getIndices().data()),
+                reinterpret_cast<const char*>(recastMesh.getIndices().data() + recastMesh.getIndices().size()),
+                std::back_inserter(result)
+            );
+            std::copy(
+                reinterpret_cast<const char*>(recastMesh.getVertices().data()),
+                reinterpret_cast<const char*>(recastMesh.getVertices().data() + recastMesh.getVertices().size()),
+                std::back_inserter(result)
+            );
+            std::copy(
+                reinterpret_cast<const char*>(recastMesh.getAreaTypes().data()),
+                reinterpret_cast<const char*>(recastMesh.getAreaTypes().data() + recastMesh.getAreaTypes().size()),
+                std::back_inserter(result)
+            );
+            std::copy(
+                reinterpret_cast<const char*>(recastMesh.getWater().data()),
+                reinterpret_cast<const char*>(recastMesh.getWater().data() + recastMesh.getWater().size()),
+                std::back_inserter(result)
+            );
+            std::copy(
+                reinterpret_cast<const char*>(offMeshConnections.data()),
+                reinterpret_cast<const char*>(offMeshConnections.data() + offMeshConnections.size()),
+                std::back_inserter(result)
+            );
+            return result;
         }
     }
 
     NavMeshTilesCache::NavMeshTilesCache(const std::size_t maxNavMeshDataSize)
-        : mMaxNavMeshDataSize(maxNavMeshDataSize), mUsedNavMeshDataSize(0), mFreeNavMeshDataSize(0),
-          mHitCount(0), mGetCount(0) {}
+        : mMaxNavMeshDataSize(maxNavMeshDataSize), mUsedNavMeshDataSize(0), mFreeNavMeshDataSize(0) {}
 
     NavMeshTilesCache::Value NavMeshTilesCache::get(const osg::Vec3f& agentHalfExtents, const TilePosition& changedTile,
         const RecastMesh& recastMesh, const std::vector<OffMeshConnection>& offMeshConnections)
     {
         const std::lock_guard<std::mutex> lock(mMutex);
 
-        ++mGetCount;
+        const auto agentValues = mValues.find(agentHalfExtents);
+        if (agentValues == mValues.end())
+            return Value();
 
-        const auto tile = mValues.find(std::make_tuple(agentHalfExtents, changedTile, NavMeshKeyView(recastMesh, offMeshConnections)));
-        if (tile == mValues.end())
+        const auto tileValues = agentValues->second.find(changedTile);
+        if (tileValues == agentValues->second.end())
+            return Value();
+
+        const auto tile = tileValues->second.mMap.find(RecastMeshKeyView(recastMesh, offMeshConnections));
+        if (tile == tileValues->second.mMap.end())
             return Value();
 
         acquireItemUnsafe(tile->second);
-
-        ++mHitCount;
 
         return Value(*this, tile->second);
     }
@@ -46,9 +78,18 @@ namespace DetourNavigator
         const RecastMesh& recastMesh, const std::vector<OffMeshConnection>& offMeshConnections,
         NavMeshData&& value)
     {
-        const auto itemSize = static_cast<std::size_t>(value.mSize) + getSize(recastMesh, offMeshConnections);
+        const auto navMeshSize = static_cast<std::size_t>(value.mSize);
 
         const std::lock_guard<std::mutex> lock(mMutex);
+
+        if (navMeshSize > mMaxNavMeshDataSize)
+            return Value();
+
+        if (navMeshSize > mFreeNavMeshDataSize + (mMaxNavMeshDataSize - mUsedNavMeshDataSize))
+            return Value();
+
+        auto navMeshKey = makeNavMeshKey(recastMesh, offMeshConnections);
+        const auto itemSize = navMeshSize + 2 * navMeshKey.size();
 
         if (itemSize > mFreeNavMeshDataSize + (mMaxNavMeshDataSize - mUsedNavMeshDataSize))
             return Value();
@@ -56,67 +97,72 @@ namespace DetourNavigator
         while (!mFreeItems.empty() && mUsedNavMeshDataSize + itemSize > mMaxNavMeshDataSize)
             removeLeastRecentlyUsed();
 
-        NavMeshKey navMeshKey {
-            RecastMeshData {recastMesh.getIndices(), recastMesh.getVertices(), recastMesh.getAreaTypes(), recastMesh.getWater()},
-            offMeshConnections
-        };
-
-        const auto iterator = mFreeItems.emplace(mFreeItems.end(), agentHalfExtents, changedTile, std::move(navMeshKey), itemSize);
-        const auto emplaced = mValues.emplace(std::make_tuple(agentHalfExtents, changedTile, NavMeshKeyRef(iterator->mNavMeshKey)), iterator);
+        const auto iterator = mFreeItems.emplace(mFreeItems.end(), agentHalfExtents, changedTile, std::move(navMeshKey));
+        const auto emplaced = mValues[agentHalfExtents][changedTile].mMap.emplace(iterator->mNavMeshKey, iterator);
 
         if (!emplaced.second)
         {
             mFreeItems.erase(iterator);
-            acquireItemUnsafe(emplaced.first->second);
-            ++mGetCount;
-            ++mHitCount;
-            return Value(*this, emplaced.first->second);
+            throw InvalidArgument("Set existing cache value");
         }
 
         iterator->mNavMeshData = std::move(value);
-        ++iterator->mUseCount;
         mUsedNavMeshDataSize += itemSize;
-        mBusyItems.splice(mBusyItems.end(), mFreeItems, iterator);
+        mFreeNavMeshDataSize += itemSize;
+
+        acquireItemUnsafe(iterator);
 
         return Value(*this, iterator);
     }
 
-    NavMeshTilesCache::Stats NavMeshTilesCache::getStats() const
+    void NavMeshTilesCache::reportStats(unsigned int frameNumber, osg::Stats& stats) const
     {
-        Stats result;
+        std::size_t navMeshCacheSize = 0;
+        std::size_t usedNavMeshTiles = 0;
+        std::size_t cachedNavMeshTiles = 0;
+
         {
             const std::lock_guard<std::mutex> lock(mMutex);
-            result.mNavMeshCacheSize = mUsedNavMeshDataSize;
-            result.mUsedNavMeshTiles = mBusyItems.size();
-            result.mCachedNavMeshTiles = mFreeItems.size();
-            result.mHitCount = mHitCount;
-            result.mGetCount = mGetCount;
+            navMeshCacheSize = mUsedNavMeshDataSize;
+            usedNavMeshTiles = mBusyItems.size();
+            cachedNavMeshTiles = mFreeItems.size();
         }
-        return result;
-    }
 
-    void NavMeshTilesCache::reportStats(unsigned int frameNumber, osg::Stats& out) const
-    {
-        const Stats stats = getStats();
-        out.setAttribute(frameNumber, "NavMesh CacheSize", stats.mNavMeshCacheSize);
-        out.setAttribute(frameNumber, "NavMesh UsedTiles", stats.mUsedNavMeshTiles);
-        out.setAttribute(frameNumber, "NavMesh CachedTiles", stats.mCachedNavMeshTiles);
-        out.setAttribute(frameNumber, "NavMesh CacheHitRate", static_cast<double>(stats.mHitCount) / stats.mGetCount * 100.0);
+        stats.setAttribute(frameNumber, "NavMesh CacheSize", navMeshCacheSize);
+        stats.setAttribute(frameNumber, "NavMesh UsedTiles", usedNavMeshTiles);
+        stats.setAttribute(frameNumber, "NavMesh CachedTiles", cachedNavMeshTiles);
     }
 
     void NavMeshTilesCache::removeLeastRecentlyUsed()
     {
         const auto& item = mFreeItems.back();
 
-        const auto value = mValues.find(std::make_tuple(item.mAgentHalfExtents, item.mChangedTile, NavMeshKeyRef(item.mNavMeshKey)));
-        if (value == mValues.end())
+        const auto agentValues = mValues.find(item.mAgentHalfExtents);
+        if (agentValues == mValues.end())
             return;
 
-        mUsedNavMeshDataSize -= item.mSize;
-        mFreeNavMeshDataSize -= item.mSize;
+        const auto tileValues = agentValues->second.find(item.mChangedTile);
+        if (tileValues == agentValues->second.end())
+            return;
 
-        mValues.erase(value);
+        const auto value = tileValues->second.mMap.find(item.mNavMeshKey);
+        if (value == tileValues->second.mMap.end())
+            return;
+
+        mUsedNavMeshDataSize -= getSize(item);
+        mFreeNavMeshDataSize -= getSize(item);
+
+        tileValues->second.mMap.erase(value);
         mFreeItems.pop_back();
+
+        if (!tileValues->second.mMap.empty())
+            return;
+
+        agentValues->second.erase(tileValues);
+        if (!agentValues->second.empty())
+            return;
+
+        mValues.erase(agentValues);
     }
 
     void NavMeshTilesCache::acquireItemUnsafe(ItemIterator iterator)
@@ -125,7 +171,7 @@ namespace DetourNavigator
             return;
 
         mBusyItems.splice(mBusyItems.end(), mFreeItems, iterator);
-        mFreeNavMeshDataSize -= iterator->mSize;
+        mFreeNavMeshDataSize -= getSize(*iterator);
     }
 
     void NavMeshTilesCache::releaseItem(ItemIterator iterator)
@@ -136,6 +182,71 @@ namespace DetourNavigator
         const std::lock_guard<std::mutex> lock(mMutex);
 
         mFreeItems.splice(mFreeItems.begin(), mBusyItems, iterator);
-        mFreeNavMeshDataSize += iterator->mSize;
+        mFreeNavMeshDataSize += getSize(*iterator);
+    }
+
+    namespace
+    {
+        struct CompareBytes
+        {
+            const char* mRhsIt;
+            const char* mRhsEnd;
+
+            template <class T>
+            int operator ()(const std::vector<T>& lhs)
+            {
+                const auto lhsBegin = reinterpret_cast<const char*>(lhs.data());
+                const auto lhsEnd = reinterpret_cast<const char*>(lhs.data() + lhs.size());
+                const auto lhsSize = static_cast<std::ptrdiff_t>(lhsEnd - lhsBegin);
+                const auto rhsSize = static_cast<std::ptrdiff_t>(mRhsEnd - mRhsIt);
+
+                if (lhsBegin == nullptr || mRhsIt == nullptr)
+                {
+                    if (lhsSize < rhsSize)
+                        return -1;
+                    else if (lhsSize > rhsSize)
+                        return 1;
+                    else
+                        return 0;
+                }
+
+                const auto size = std::min(lhsSize, rhsSize);
+
+                if (const auto result = std::memcmp(lhsBegin, mRhsIt, size))
+                    return result;
+
+                if (lhsSize > rhsSize)
+                    return 1;
+
+                mRhsIt += size;
+
+                return 0;
+            }
+        };
+    }
+
+    int NavMeshTilesCache::RecastMeshKeyView::compare(const std::string& other) const
+    {
+        CompareBytes compareBytes {other.data(), other.data() + other.size()};
+
+        if (const auto result = compareBytes(mRecastMesh.get().getIndices()))
+            return result;
+
+        if (const auto result = compareBytes(mRecastMesh.get().getVertices()))
+            return result;
+
+        if (const auto result = compareBytes(mRecastMesh.get().getAreaTypes()))
+            return result;
+
+        if (const auto result = compareBytes(mRecastMesh.get().getWater()))
+            return result;
+
+        if (const auto result = compareBytes(mOffMeshConnections.get()))
+            return result;
+
+        if (compareBytes.mRhsIt < compareBytes.mRhsEnd)
+            return -1;
+
+        return 0;
     }
 }

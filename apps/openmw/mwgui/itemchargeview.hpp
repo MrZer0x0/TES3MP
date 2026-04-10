@@ -36,7 +36,7 @@ namespace MWGui
             /// Register needed components with MyGUI's factory manager
             static void registerComponents();
 
-            void initialiseOverride() override;
+            void initialiseOverride() final;
 
             /// Takes ownership of \a model
             void setModel(ItemModel* model);
@@ -47,8 +47,8 @@ namespace MWGui
             void layoutWidgets();
             void resetScrollbars();
 
-            void setSize(const MyGUI::IntSize& value) override;
-            void setCoord(const MyGUI::IntCoord& value) override;
+            void setSize(const MyGUI::IntSize& value) final;
+            void setCoord(const MyGUI::IntCoord& value) final;
 
             MyGUI::delegates::CMultiDelegate2<MyGUI::Widget*, const MWWorld::Ptr&> eventItemClicked;
 

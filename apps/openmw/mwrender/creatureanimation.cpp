@@ -10,7 +10,7 @@
 #include <components/sceneutil/visitor.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/skeleton.hpp>
-#include <components/settings/settings.hpp>
+
 #include <components/misc/stringops.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -35,7 +35,7 @@ CreatureAnimation::CreatureAnimation(const MWWorld::Ptr &ptr,
         setObjectRoot(model, false, false, true);
 
         if((ref->mBase->mFlags&ESM::Creature::Bipedal))
-            addAnimSource(Settings::Manager::getString("xbaseanim", "Models"), model);
+            addAnimSource("meshes\\xbase_anim.nif", model);
         addAnimSource(model, model);
     }
 }
@@ -54,7 +54,7 @@ CreatureWeaponAnimation::CreatureWeaponAnimation(const MWWorld::Ptr &ptr, const 
 
         if((ref->mBase->mFlags&ESM::Creature::Bipedal))
         {
-            addAnimSource(Settings::Manager::getString("xbaseanim", "Models"), model);
+            addAnimSource("meshes\\xbase_anim.nif", model);
         }
         addAnimSource(model, model);
 
@@ -208,12 +208,6 @@ bool CreatureWeaponAnimation::isArrowAttached() const
     return mAmmunition != nullptr;
 }
 
-void CreatureWeaponAnimation::detachArrow()
-{
-    WeaponAnimation::detachArrow(mPtr);
-    updateQuiver();
-}
-
 void CreatureWeaponAnimation::attachArrow()
 {
     WeaponAnimation::attachArrow(mPtr);
@@ -252,15 +246,11 @@ osg::Group *CreatureWeaponAnimation::getArrowBone()
     int type = weapon->get<ESM::Weapon>()->mBase->mData.mType;
     int ammoType = MWMechanics::getWeaponType(type)->mAmmoType;
 
-    // Try to find and attachment bone in actor's skeleton, otherwise fall back to the ArrowBone in weapon's mesh
-    osg::Group* bone = getBoneByName(MWMechanics::getWeaponType(ammoType)->mAttachBone);
-    if (bone == nullptr)
-    {
-        SceneUtil::FindByNameVisitor findVisitor ("ArrowBone");
-        mWeapon->getNode()->accept(findVisitor);
-        bone = findVisitor.mFoundNode;
-    }
-    return bone;
+    SceneUtil::FindByNameVisitor findVisitor (MWMechanics::getWeaponType(ammoType)->mAttachBone);
+
+    mWeapon->getNode()->accept(findVisitor);
+
+    return findVisitor.mFoundNode;
 }
 
 osg::Node *CreatureWeaponAnimation::getWeaponNode()
@@ -283,7 +273,7 @@ osg::Vec3f CreatureWeaponAnimation::runAnimation(float duration)
 {
     osg::Vec3f ret = Animation::runAnimation(duration);
 
-    WeaponAnimation::configureControllers(mPtr.getRefData().getPosition().rot[0] + getBodyPitchRadians());
+    WeaponAnimation::configureControllers(mPtr.getRefData().getPosition().rot[0]);
 
     return ret;
 }

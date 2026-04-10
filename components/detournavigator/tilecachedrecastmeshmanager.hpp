@@ -5,14 +5,12 @@
 #include "tileposition.hpp"
 #include "settingsutils.hpp"
 #include "gettilespositions.hpp"
-#include "version.hpp"
 
 #include <components/misc/guarded.hpp>
 
-#include <algorithm>
 #include <map>
 #include <mutex>
-#include <vector>
+#include <set>
 
 namespace DetourNavigator
 {
@@ -21,11 +19,11 @@ namespace DetourNavigator
     public:
         TileCachedRecastMeshManager(const Settings& settings);
 
-        bool addObject(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
+        bool addObject(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
                        const AreaType areaType);
 
         template <class OnChangedTile>
-        bool updateObject(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
+        bool updateObject(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
             const AreaType areaType, OnChangedTile&& onChangedTile)
         {
             const auto object = mObjectsTilesPositions.find(id);
@@ -34,14 +32,14 @@ namespace DetourNavigator
             auto& currentTiles = object->second;
             const auto border = getBorderSize(mSettings);
             bool changed = false;
-            std::vector<TilePosition> newTiles;
+            std::set<TilePosition> newTiles;
             {
                 auto tiles = mTiles.lock();
                 const auto onTilePosition = [&] (const TilePosition& tilePosition)
                 {
-                    if (std::binary_search(currentTiles.begin(), currentTiles.end(), tilePosition))
+                    if (currentTiles.count(tilePosition))
                     {
-                        newTiles.push_back(tilePosition);
+                        newTiles.insert(tilePosition);
                         if (updateTile(id, transform, areaType, tilePosition, tiles.get()))
                         {
                             onChangedTile(tilePosition);
@@ -50,69 +48,63 @@ namespace DetourNavigator
                     }
                     else if (addTile(id, shape, transform, areaType, tilePosition, border, tiles.get()))
                     {
-                        newTiles.push_back(tilePosition);
+                        newTiles.insert(tilePosition);
                         onChangedTile(tilePosition);
                         changed = true;
                     }
                 };
-                getTilesPositions(shape.getShape(), transform, mSettings, onTilePosition);
-                std::sort(newTiles.begin(), newTiles.end());
+                getTilesPositions(shape, transform, mSettings, onTilePosition);
                 for (const auto& tile : currentTiles)
                 {
-                    if (!std::binary_search(newTiles.begin(), newTiles.end(), tile) && removeTile(id, tile, tiles.get()))
+                    if (!newTiles.count(tile) && removeTile(id, tile, tiles.get()))
                     {
                         onChangedTile(tile);
                         changed = true;
                     }
                 }
             }
+            std::swap(currentTiles, newTiles);
             if (changed)
-            {
-                currentTiles = std::move(newTiles);
                 ++mRevision;
-            }
             return changed;
         }
 
-        std::optional<RemovedRecastMeshObject> removeObject(const ObjectId id);
+        boost::optional<RemovedRecastMeshObject> removeObject(const ObjectId id);
 
         bool addWater(const osg::Vec2i& cellPosition, const int cellSize, const btTransform& transform);
 
-        std::optional<RecastMeshManager::Water> removeWater(const osg::Vec2i& cellPosition);
+        boost::optional<RecastMeshManager::Water> removeWater(const osg::Vec2i& cellPosition);
 
         std::shared_ptr<RecastMesh> getMesh(const TilePosition& tilePosition);
 
         bool hasTile(const TilePosition& tilePosition);
 
         template <class Function>
-        void forEachTile(Function&& function)
+        void forEachTilePosition(Function&& function)
         {
-            for (auto& [tilePosition, recastMeshManager] : *mTiles.lock())
-                function(tilePosition, *recastMeshManager);
+            for (const auto& tile : *mTiles.lock())
+                function(tile.first);
         }
 
         std::size_t getRevision() const;
 
-        void reportNavMeshChange(const TilePosition& tilePosition, Version recastMeshVersion, Version navMeshVersion);
-
     private:
-        using TilesMap = std::map<TilePosition, std::shared_ptr<CachedRecastMeshManager>>;
-
         const Settings& mSettings;
-        Misc::ScopeGuarded<TilesMap> mTiles;
-        std::unordered_map<ObjectId, std::vector<TilePosition>> mObjectsTilesPositions;
+        Misc::ScopeGuarded<std::map<TilePosition, CachedRecastMeshManager>> mTiles;
+        std::unordered_map<ObjectId, std::set<TilePosition>> mObjectsTilesPositions;
         std::map<osg::Vec2i, std::vector<TilePosition>> mWaterTilesPositions;
         std::size_t mRevision = 0;
         std::size_t mTilesGeneration = 0;
 
-        bool addTile(const ObjectId id, const CollisionShape& shape, const btTransform& transform,
-                const AreaType areaType, const TilePosition& tilePosition, float border, TilesMap& tiles);
+        bool addTile(const ObjectId id, const btCollisionShape& shape, const btTransform& transform,
+                     const AreaType areaType, const TilePosition& tilePosition, float border,
+                     std::map<TilePosition, CachedRecastMeshManager>& tiles);
 
         bool updateTile(const ObjectId id, const btTransform& transform, const AreaType areaType,
-                const TilePosition& tilePosition, TilesMap& tiles);
+                        const TilePosition& tilePosition, std::map<TilePosition, CachedRecastMeshManager>& tiles);
 
-        std::optional<RemovedRecastMeshObject> removeTile(const ObjectId id, const TilePosition& tilePosition,
-                TilesMap& tiles);
+        boost::optional<RemovedRecastMeshObject> removeTile(const ObjectId id, const TilePosition& tilePosition,
+                                                            std::map<TilePosition, CachedRecastMeshManager>& tiles);
     };
 }
 

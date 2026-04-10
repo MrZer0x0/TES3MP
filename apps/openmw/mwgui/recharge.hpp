@@ -3,6 +3,8 @@
 
 #include "windowbase.hpp"
 
+#include "itemselection.hpp"
+
 namespace MWWorld
 {
     class Ptr;
@@ -20,9 +22,9 @@ class Recharge : public WindowBase
 public:
     Recharge();
 
-    void onOpen() override;
+    virtual void onOpen();
 
-    void setPtr (const MWWorld::Ptr& gem) override;
+    void setPtr (const MWWorld::Ptr& gem);
 
 protected:
     ItemChargeView* mBox;

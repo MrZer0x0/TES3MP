@@ -97,6 +97,13 @@ void ESMReader::open(const std::string &file)
     open (Files::openConstrainedFileStream (file.c_str ()), file);
 }
 
+int64_t ESMReader::getHNLong(const char *name)
+{
+    int64_t val;
+    getHNT(val, name);
+    return val;
+}
+
 std::string ESMReader::getHNOString(const char* name)
 {
     if (isNextSub(name))
@@ -203,9 +210,21 @@ void ESMReader::getSubName()
     }
 
     // reading the subrecord data anyway.
-    const int subNameSize = static_cast<int>(mCtx.subName.data_size());
+    const size_t subNameSize = mCtx.subName.data_size();
     getExact(mCtx.subName.rw_data(), subNameSize);
-    mCtx.leftRec -= static_cast<uint32_t>(subNameSize);
+    mCtx.leftRec -= subNameSize;
+}
+
+bool ESMReader::isEmptyOrGetName()
+{
+    if (mCtx.leftRec)
+    {
+        const size_t subNameSize = mCtx.subName.data_size();
+        getExact(mCtx.subName.rw_data(), subNameSize);
+        mCtx.leftRec -= subNameSize;
+        return false;
+    }
+    return true;
 }
 
 void ESMReader::skipHSub()
@@ -324,10 +343,10 @@ std::string ESMReader::getString(int size)
     mBuffer[s] = 0;
 
     // read ESM data
-    char *ptr = mBuffer.data();
+    char *ptr = &mBuffer[0];
     getExact(ptr, size);
 
-    size = static_cast<int>(strnlen(ptr, size));
+    size = strnlen(ptr, size);
 
     // Convert to UTF8 and return
     if (mEncoder)
@@ -338,14 +357,16 @@ std::string ESMReader::getString(int size)
 
 void ESMReader::fail(const std::string &msg)
 {
-    std::stringstream ss;
+    using namespace std;
+
+    stringstream ss;
 
     ss << "ESM Error: " << msg;
     ss << "\n  File: " << mCtx.filename;
     ss << "\n  Record: " << mCtx.recName.toString();
     ss << "\n  Subrecord: " << mCtx.subName.toString();
     if (mEsm.get())
-        ss << "\n  Offset: 0x" << std::hex << mEsm->tellg();
+        ss << "\n  Offset: 0x" << hex << mEsm->tellg();
     throw std::runtime_error(ss.str());
 }
 
@@ -354,7 +375,7 @@ void ESMReader::setEncoder(ToUTF8::Utf8Encoder* encoder)
     mEncoder = encoder;
 }
 
-size_t ESMReader::getFileOffset() const
+size_t ESMReader::getFileOffset()
 {
     return mEsm->tellg();
 }

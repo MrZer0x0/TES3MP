@@ -2,7 +2,8 @@
 #define COMPONENTS_ESM_TERRAIN_STORAGE_H
 
 #include <cassert>
-#include <mutex>
+
+#include <OpenThreads/Mutex>
 
 #include <components/terrain/storage.hpp>
 
@@ -60,7 +61,7 @@ namespace ESMTerrain
         virtual osg::ref_ptr<const LandObject> getLand (int cellX, int cellY)= 0;
         virtual const ESM::LandTexture* getLandTexture(int index, short plugin) = 0;
         /// Get bounds of the whole terrain in cell units
-        void getBounds(float& minX, float& maxX, float& minY, float& maxY) override = 0;
+        virtual void getBounds(float& minX, float& maxX, float& minY, float& maxY) = 0;
 
         /// Get the minimum and maximum heights of a terrain region.
         /// @note Will only be called for chunks with size = minBatchSize, i.e. leafs of the quad tree.
@@ -70,7 +71,7 @@ namespace ESMTerrain
         /// @param min min height will be stored here
         /// @param max max height will be stored here
         /// @return true if there was data available for this terrain chunk
-        bool getMinMaxHeights (float size, const osg::Vec2f& center, float& min, float& max) override;
+        virtual bool getMinMaxHeights (float size, const osg::Vec2f& center, float& min, float& max);
 
         /// Fill vertex buffers for a terrain chunk.
         /// @note May be called from background threads. Make sure to only call thread-safe functions from here!
@@ -82,10 +83,10 @@ namespace ESMTerrain
         /// @param positions buffer to write vertices
         /// @param normals buffer to write vertex normals
         /// @param colours buffer to write vertex colours
-        void fillVertexBuffers (int lodLevel, float size, const osg::Vec2f& center,
+        virtual void fillVertexBuffers (int lodLevel, float size, const osg::Vec2f& center,
                                 osg::ref_ptr<osg::Vec3Array> positions,
                                 osg::ref_ptr<osg::Vec3Array> normals,
-                                osg::ref_ptr<osg::Vec4ubArray> colours) override;
+                                osg::ref_ptr<osg::Vec4ubArray> colours);
 
         /// Create textures holding layer blend values for a terrain chunk.
         /// @note The terrain chunk shouldn't be larger than one cell since otherwise we might
@@ -95,18 +96,18 @@ namespace ESMTerrain
         /// @param chunkCenter center of the chunk in cell units
         /// @param blendmaps created blendmaps will be written here
         /// @param layerList names of the layer textures used will be written here
-        void getBlendmaps (float chunkSize, const osg::Vec2f& chunkCenter, ImageVector& blendmaps,
-                               std::vector<Terrain::LayerInfo>& layerList) override;
+        virtual void getBlendmaps (float chunkSize, const osg::Vec2f& chunkCenter, ImageVector& blendmaps,
+                               std::vector<Terrain::LayerInfo>& layerList);
 
-        float getHeightAt (const osg::Vec3f& worldPos) override;
+        virtual float getHeightAt (const osg::Vec3f& worldPos);
 
         /// Get the transformation factor for mapping cell units to world units.
-        float getCellWorldSize() override;
+        virtual float getCellWorldSize();
 
         /// Get the number of vertices on one side for each cell. Should be (power of two)+1
-        int getCellVertices() override;
+        virtual int getCellVertices();
 
-        int getBlendmapScale(float chunkSize) override;
+        virtual int getBlendmapScale(float chunkSize);
 
         float getVertexHeight (const ESM::Land::LandData* data, int x, int y)
         {
@@ -137,7 +138,7 @@ namespace ESMTerrain
         std::string getTextureName (UniqueTextureId id);
 
         std::map<std::string, Terrain::LayerInfo> mLayerInfoMap;
-        std::mutex mLayerInfoMutex;
+        OpenThreads::Mutex mLayerInfoMutex;
 
         std::string mNormalMapPattern;
         std::string mNormalHeightMapPattern;

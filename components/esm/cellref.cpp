@@ -5,11 +5,6 @@
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
 
-namespace ESM
-{
-    int GroundcoverIndex = std::numeric_limits<int>::max();
-}
-
 void ESM::RefNum::load (ESMReader& esm, bool wide, const std::string& tag)
 {
     if (wide)
@@ -236,7 +231,22 @@ void ESM::CellRef::blank()
         mPos.pos[i] = 0;
         mPos.rot[i] = 0;
     }
+}
 
+bool ESM::operator== (const RefNum& left, const RefNum& right)
+{
+    return left.mIndex==right.mIndex && left.mContentFile==right.mContentFile;
+}
+
+bool ESM::operator< (const RefNum& left, const RefNum& right)
+{
+    if (left.mIndex<right.mIndex)
+        return true;
+
+    if (left.mIndex>right.mIndex)
+        return false;
+
+    return left.mContentFile<right.mContentFile;
     /*
         Start of tes3mp addition
 

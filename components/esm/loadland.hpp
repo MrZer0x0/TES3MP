@@ -148,7 +148,7 @@ struct Land
 
         Land (const Land& land);
 
-        Land& operator= (const Land& land);
+        Land& operator= (Land land);
 
         void swap (Land& land);
 

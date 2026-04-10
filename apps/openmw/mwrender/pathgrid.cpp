@@ -8,7 +8,6 @@
 
 #include <components/esm/loadpgrd.hpp>
 #include <components/sceneutil/pathgridutil.hpp>
-#include <components/misc/coordinateconverter.hpp>
 
 #include "../mwbase/world.hpp" // these includes can be removed once the static-hack is gone
 #include "../mwbase/environment.hpp"
@@ -16,6 +15,7 @@
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwmechanics/pathfinding.hpp"
+#include "../mwmechanics/coordinateconverter.hpp"
 
 #include "vismask.hpp"
 
@@ -105,7 +105,7 @@ void Pathgrid::enableCellPathgrid(const MWWorld::CellStore *store)
     if (!pathgrid) return;
 
     osg::Vec3f cellPathGridPos(0, 0, 0);
-    Misc::CoordinateConverter(store->getCell()).toWorld(cellPathGridPos);
+    MWMechanics::CoordinateConverter(store->getCell()).toWorld(cellPathGridPos);
 
     osg::ref_ptr<osg::PositionAttitudeTransform> cellPathGrid = new osg::PositionAttitudeTransform;
     cellPathGrid->setPosition(cellPathGridPos);

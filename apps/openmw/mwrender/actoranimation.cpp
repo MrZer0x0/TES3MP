@@ -11,6 +11,7 @@
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 
+#include <components/sceneutil/attach.hpp>
 #include <components/sceneutil/lightmanager.hpp>
 #include <components/sceneutil/lightutil.hpp>
 #include <components/sceneutil/visitor.hpp>
@@ -357,8 +358,6 @@ void ActorAnimation::updateHolsteredWeapon(bool showHolsteredWeapons)
     }
 
     mScabbard = attachMesh(scabbardName, boneName);
-    if (mScabbard)
-        resetControllers(mScabbard->getNode());
 
     osg::Group* weaponNode = getBoneByName("Bip01 Weapon");
     if (!weaponNode)

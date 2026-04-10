@@ -1,12 +1,6 @@
 #include "engine.hpp"
 
 #include <iomanip>
-#include <fstream>
-#include <chrono>
-#include <thread>
-#include <algorithm>
-#include <sstream>
-#include <vector>
 
 #include <boost/filesystem/fstream.hpp>
 
@@ -17,7 +11,6 @@
 #include <SDL.h>
 
 #include <components/debug/debuglog.hpp>
-#include <components/debug/gldebug.hpp>
 
 #include <components/misc/rng.hpp>
 
@@ -53,8 +46,6 @@
 
 #include <components/detournavigator/navigator.hpp>
 
-#include <components/misc/frameratelimiter.hpp>
-
 #include "mwinput/inputmanagerimp.hpp"
 
 #include "mwgui/windowmanagerimp.hpp"
@@ -86,357 +77,6 @@ namespace
     {
         if (ret != 0)
             Log(Debug::Error) << "SDL error: " << SDL_GetError();
-    }
-
-    std::string trimCopy(const std::string& value)
-    {
-        std::string::size_type start = value.find_first_not_of(" \t\r\n");
-        if (start == std::string::npos)
-            return std::string();
-
-        std::string::size_type end = value.find_last_not_of(" \t\r\n");
-        return value.substr(start, end - start + 1);
-    }
-
-    bool hasIniKey(const std::vector<std::string>& lines, const std::string& section, const std::string& key)
-    {
-        std::string currentSection;
-        const std::string invalidPrefix = "# invalid setting: ";
-
-        for (const std::string& rawLine : lines)
-        {
-            const std::string line = trimCopy(rawLine);
-            if (line.empty() || line[0] == ';')
-                continue;
-
-            // Handle comments — but also peek inside "# invalid setting:" lines
-            // so we don't keep appending duplicate keys that were previously
-            // commented out by the launcher.
-            if (line[0] == '#')
-            {
-                if (currentSection == section
-                    && line.size() > invalidPrefix.size()
-                    && line.compare(0, invalidPrefix.size(), invalidPrefix) == 0)
-                {
-                    const std::string rest = line.substr(invalidPrefix.size());
-                    const std::string::size_type equals = rest.find('=');
-                    if (equals != std::string::npos && trimCopy(rest.substr(0, equals)) == key)
-                        return true;
-                }
-                continue;
-            }
-
-            if (line.front() == '[')
-            {
-                const std::string::size_type end = line.find(']');
-                if (end != std::string::npos)
-                    currentSection = line.substr(1, end - 1);
-                continue;
-            }
-
-            if (currentSection != section)
-                continue;
-
-            const std::string::size_type equals = line.find('=');
-            if (equals == std::string::npos)
-                continue;
-
-            if (trimCopy(line.substr(0, equals)) == key)
-                return true;
-        }
-
-        return false;
-    }
-
-
-    osgViewer::ViewerBase::ThreadingModel getViewerThreadingModelSetting()
-    {
-        const std::string value = Settings::Manager::getString("threading model", "OSG");
-
-        if (value == "SingleThreaded")
-            return osgViewer::ViewerBase::SingleThreaded;
-        if (value == "CullDrawThreadPerContext")
-            return osgViewer::ViewerBase::CullDrawThreadPerContext;
-
-        return osgViewer::ViewerBase::DrawThreadPerContext;
-    }
-
-    const char* getViewerThreadingModelName(osgViewer::ViewerBase::ThreadingModel model)
-    {
-        switch (model)
-        {
-            case osgViewer::ViewerBase::SingleThreaded:
-                return "SingleThreaded";
-            case osgViewer::ViewerBase::CullDrawThreadPerContext:
-                return "CullDrawThreadPerContext";
-            case osgViewer::ViewerBase::DrawThreadPerContext:
-                return "DrawThreadPerContext";
-            default:
-                return "DrawThreadPerContext";
-        }
-    }
-
-    void appendIniKeyIfMissing(std::vector<std::string>& lines, const std::string& section, const std::string& key, const std::string& value)
-    {
-        if (hasIniKey(lines, section, key))
-            return;
-
-        bool sectionFound = false;
-        std::size_t insertPos = lines.size();
-
-        for (std::size_t i = 0; i < lines.size(); ++i)
-        {
-            const std::string line = trimCopy(lines[i]);
-            if (line.empty() || line[0] != '[')
-                continue;
-
-            const std::string::size_type end = line.find(']');
-            if (end == std::string::npos)
-                continue;
-
-            const std::string currentSection = line.substr(1, end - 1);
-            if (sectionFound)
-            {
-                insertPos = i;
-                break;
-            }
-
-            if (currentSection == section)
-            {
-                sectionFound = true;
-                insertPos = i + 1;
-            }
-        }
-
-        const std::string entry = key + " = " + value;
-
-        if (!sectionFound)
-        {
-            if (!lines.empty() && !trimCopy(lines.back()).empty())
-                lines.push_back(std::string());
-            lines.push_back("[" + section + "]");
-            lines.push_back(entry);
-            return;
-        }
-
-        lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertPos), entry);
-    }
-
-    bool queryPrimaryDisplayResolution(int& width, int& height)
-    {
-        SDL_DisplayMode mode;
-        if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0)
-        {
-            width = mode.w;
-            height = mode.h;
-            return true;
-        }
-
-        if (SDL_GetDesktopDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0)
-        {
-            width = mode.w;
-            height = mode.h;
-            return true;
-        }
-
-        SDL_Rect bounds;
-        if (SDL_GetDisplayBounds(0, &bounds) == 0 && bounds.w > 0 && bounds.h > 0)
-        {
-            width = bounds.w;
-            height = bounds.h;
-            return true;
-        }
-
-        width = 1920;
-        height = 1080;
-        return false;
-    }
-
-    std::string formatScalingFactor(int width, int height)
-    {
-        const int maxResolution = std::max(width, height);
-        float scalingFactor = static_cast<float>(maxResolution) / 1280.f;
-        scalingFactor = std::max(0.5f, std::min(4.0f, scalingFactor));
-
-        std::ostringstream stream;
-        stream << std::fixed << std::setprecision(2) << scalingFactor;
-        return stream.str();
-    }
-
-    void ensureDisplaySettingsFile(const boost::filesystem::path& settingsPath)
-    {
-        int width = 1920;
-        int height = 1080;
-        queryPrimaryDisplayResolution(width, height);
-
-        std::vector<std::string> lines;
-        if (boost::filesystem::exists(settingsPath))
-        {
-            boost::filesystem::ifstream input(settingsPath);
-            std::string line;
-            while (std::getline(input, line))
-                lines.push_back(line);
-        }
-
-        const std::size_t oldSize = lines.size();
-
-        appendIniKeyIfMissing(lines, "Video", "resolution x", std::to_string(width));
-        appendIniKeyIfMissing(lines, "Video", "resolution y", std::to_string(height));
-        appendIniKeyIfMissing(lines, "Video", "screen", "0");
-        appendIniKeyIfMissing(lines, "Video", "fullscreen", "true");
-        appendIniKeyIfMissing(lines, "GUI", "scaling factor", formatScalingFactor(width, height));
-
-        if (boost::filesystem::exists(settingsPath) && lines.size() == oldSize)
-            return;
-
-        boost::filesystem::create_directories(settingsPath.parent_path());
-        boost::filesystem::ofstream output(settingsPath, std::ios::out | std::ios::trunc);
-        for (const std::string& line : lines)
-            output << line << '\n';
-    }
-
-    struct UserStats
-    {
-        const std::string mLabel;
-        const std::string mBegin;
-        const std::string mEnd;
-        const std::string mTaken;
-
-        UserStats(const std::string& label, const std::string& prefix)
-            : mLabel(label),
-              mBegin(prefix + "_time_begin"),
-              mEnd(prefix + "_time_end"),
-              mTaken(prefix + "_time_taken")
-        {}
-    };
-
-    enum class UserStatsType : std::size_t
-    {
-        Input,
-        Sound,
-        State,
-        Script,
-        Mechanics,
-        Physics,
-        PhysicsWorker,
-        World,
-        Gui,
-
-        Number,
-    };
-
-    template <UserStatsType type>
-    struct UserStatsValue
-    {
-        static const UserStats sValue;
-    };
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Input>::sValue {"Input", "input"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Sound>::sValue {"Sound", "sound"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::State>::sValue {"State", "state"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Script>::sValue {"Script", "script"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Mechanics>::sValue {"Mech", "mechanics"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Physics>::sValue {"Phys", "physics"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::PhysicsWorker>::sValue {" -Async", "physicsworker"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::World>::sValue {"World", "world"};
-
-    template <>
-    const UserStats UserStatsValue<UserStatsType::Gui>::sValue {"Gui", "gui"};
-
-    template <UserStatsType type>
-    struct ForEachUserStatsValue
-    {
-        template <class F>
-        static void apply(F&& f)
-        {
-            f(UserStatsValue<type>::sValue);
-            using Next = ForEachUserStatsValue<static_cast<UserStatsType>(static_cast<std::size_t>(type) + 1)>;
-            Next::apply(std::forward<F>(f));
-        }
-    };
-
-    template <>
-    struct ForEachUserStatsValue<UserStatsType::Number>
-    {
-        template <class F>
-        static void apply(F&&) {}
-    };
-
-    template <class F>
-    void forEachUserStatsValue(F&& f)
-    {
-        ForEachUserStatsValue<static_cast<UserStatsType>(0)>::apply(std::forward<F>(f));
-    }
-
-    template <UserStatsType sType>
-    class ScopedProfile
-    {
-        public:
-            ScopedProfile(osg::Timer_t frameStart, unsigned int frameNumber, const osg::Timer& timer, osg::Stats& stats)
-                : mScopeStart(timer.tick()),
-                  mFrameStart(frameStart),
-                  mFrameNumber(frameNumber),
-                  mTimer(timer),
-                  mStats(stats)
-            {
-            }
-
-            ScopedProfile(const ScopedProfile&) = delete;
-            ScopedProfile& operator=(const ScopedProfile&) = delete;
-
-            ~ScopedProfile()
-            {
-                if (!mStats.collectStats("engine"))
-                    return;
-                const osg::Timer_t end = mTimer.tick();
-                const UserStats& stats = UserStatsValue<sType>::sValue;
-
-                mStats.setAttribute(mFrameNumber, stats.mBegin, mTimer.delta_s(mFrameStart, mScopeStart));
-                mStats.setAttribute(mFrameNumber, stats.mTaken, mTimer.delta_s(mScopeStart, end));
-                mStats.setAttribute(mFrameNumber, stats.mEnd, mTimer.delta_s(mFrameStart, end));
-            }
-
-        private:
-            const osg::Timer_t mScopeStart;
-            const osg::Timer_t mFrameStart;
-            const unsigned int mFrameNumber;
-            const osg::Timer& mTimer;
-            osg::Stats& mStats;
-    };
-
-    void initStatsHandler(Resource::Profiler& profiler)
-    {
-        const osg::Vec4f textColor(1.f, 1.f, 1.f, 1.f);
-        const osg::Vec4f barColor(1.f, 1.f, 1.f, 1.f);
-        const float multiplier = 1000;
-        const bool average = true;
-        const bool averageInInverseSpace = false;
-        const float maxValue = 10000;
-
-        forEachUserStatsValue([&] (const UserStats& v)
-        {
-            profiler.addUserStatsLine(v.mLabel, textColor, barColor, v.mTaken, multiplier,
-                                      average, averageInInverseSpace, v.mBegin, v.mEnd, maxValue);
-        });
-        // the forEachUserStatsValue loop is "run" at compile time, hence the settings manager is not available.
-        // Unconditionnally add the async physics stats, and then remove it at runtime if necessary
-        if (Settings::Manager::getInt("async num threads", "Physics") == 0)
-            profiler.removeUserStatsLine(" -Async");
     }
 }
 
@@ -489,23 +129,20 @@ bool OMW::Engine::frame(float frametime)
 {
     try
     {
-        const osg::Timer_t frameStart = mViewer->getStartTick();
-        const unsigned int frameNumber = mViewer->getFrameStamp()->getFrameNumber();
-        const osg::Timer* const timer = osg::Timer::instance();
-        osg::Stats* const stats = mViewer->getViewerStats();
+        mStartTick = mViewer->getStartTick();
 
         mEnvironment.setFrameDuration(frametime);
 
         // update input
-        {
-            ScopedProfile<UserStatsType::Input> profile(frameStart, frameNumber, *timer, *stats);
-            mEnvironment.getInputManager()->update(frametime, false);
-        }
+        mEnvironment.getInputManager()->update(frametime, false);
 
         // When the window is minimized, pause the game. Currently this *has* to be here to work around a MyGUI bug.
         // If we are not currently rendering, then RenderItems will not be reused resulting in a memory leak upon changing widget textures (fixed in MyGUI 3.3.2),
         // and destroyed widgets will not be deleted (not fixed yet, https://github.com/MyGUI/mygui/issues/21)
+        if (!mEnvironment.getInputManager()->isWindowVisible())
         {
+            mEnvironment.getSoundManager()->pausePlayback();
+            return false;
             ScopedProfile<UserStatsType::Sound> profile(frameStart, frameNumber, *timer, *stats);
 
             if (!mEnvironment.getWindowManager()->isWindowVisible())
@@ -528,7 +165,15 @@ bool OMW::Engine::frame(float frametime)
             if (mUseSound)
                 mEnvironment.getSoundManager()->update(frametime);
         }
+        else
+            mEnvironment.getSoundManager()->resumePlayback();
 
+        // sound
+        if (mUseSound)
+            mEnvironment.getSoundManager()->update(frametime);
+
+        // Main menu opened? Then scripts are also paused.
+        bool paused = mEnvironment.getWindowManager()->containsMode(MWGui::GM_MainMenu);
         /*
             Start of tes3mp addition
 
@@ -554,11 +199,9 @@ bool OMW::Engine::frame(float frametime)
         */
 
         // update game state
-        {
-            ScopedProfile<UserStatsType::State> profile(frameStart, frameNumber, *timer, *stats);
-            mEnvironment.getStateManager()->update (frametime);
-        }
+        mEnvironment.getStateManager()->update (frametime);
 
+        bool guiActive = mEnvironment.getWindowManager()->isGuiMode();
         /*
             Start of tes3mp change (major)
 
@@ -571,43 +214,40 @@ bool OMW::Engine::frame(float frametime)
             End of tes3mp change (major)
         */
 
+        osg::Timer_t beforeScriptTick = osg::Timer::instance()->tick();
+        if (mEnvironment.getStateManager()->getState()!=
+            MWBase::StateManager::State_NoGame)
         {
-            ScopedProfile<UserStatsType::Script> profile(frameStart, frameNumber, *timer, *stats);
-
-            if (mEnvironment.getStateManager()->getState() != MWBase::StateManager::State_NoGame)
+            if (!paused)
             {
-                if (!paused)
+                if (mEnvironment.getWorld()->getScriptsEnabled())
                 {
-                    if (mEnvironment.getWorld()->getScriptsEnabled())
-                    {
-                        // local scripts
-                        executeLocalScripts();
+                    // local scripts
+                    executeLocalScripts();
 
-                        // global scripts
-                        mEnvironment.getScriptManager()->getGlobalScripts().run();
-                    }
-
-                    mEnvironment.getWorld()->markCellAsUnchanged();
+                    // global scripts
+                    mEnvironment.getScriptManager()->getGlobalScripts().run();
                 }
 
-                if (!guiActive)
-                {
-                    double hours = (frametime * mEnvironment.getWorld()->getTimeScaleFactor()) / 3600.0;
-                    mEnvironment.getWorld()->advanceTime(hours, true);
-                    mEnvironment.getWorld()->rechargeItems(frametime, true);
-                }
+                mEnvironment.getWorld()->markCellAsUnchanged();
+            }
+
+            if (!guiActive)
+            {
+                double hours = (frametime * mEnvironment.getWorld()->getTimeScaleFactor()) / 3600.0;
+                mEnvironment.getWorld()->advanceTime(hours, true);
+                mEnvironment.getWorld()->rechargeItems(frametime, true);
             }
         }
+        osg::Timer_t afterScriptTick = osg::Timer::instance()->tick();
 
-        // update mechanics
+        // update actors
+        osg::Timer_t beforeMechanicsTick = osg::Timer::instance()->tick();
+        if (mEnvironment.getStateManager()->getState()!=
+            MWBase::StateManager::State_NoGame)
         {
-            ScopedProfile<UserStatsType::Mechanics> profile(frameStart, frameNumber, *timer, *stats);
-
-            if (mEnvironment.getStateManager()->getState() != MWBase::StateManager::State_NoGame)
-            {
-                mEnvironment.getMechanicsManager()->update(frametime, guiActive);
-            }
-
+            mEnvironment.getMechanicsManager()->update(frametime,
+                guiActive);
             if (mEnvironment.getStateManager()->getState() == MWBase::StateManager::State_Running)
             {
                 MWWorld::Ptr player = mEnvironment.getWorld()->getPlayerPtr();
@@ -624,44 +264,65 @@ bool OMW::Engine::frame(float frametime)
                 */
             }
         }
+        osg::Timer_t afterMechanicsTick = osg::Timer::instance()->tick();
+
+        if (mEnvironment.getStateManager()->getState()==
+            MWBase::StateManager::State_Running)
+        {
+            MWWorld::Ptr player = mEnvironment.getWorld()->getPlayerPtr();
+            if(!guiActive && player.getClass().getCreatureStats(player).isDead())
+                mEnvironment.getStateManager()->endGame();
+        }
 
         // update physics
+        osg::Timer_t beforePhysicsTick = osg::Timer::instance()->tick();
+        if (mEnvironment.getStateManager()->getState()!=
+            MWBase::StateManager::State_NoGame)
         {
-            ScopedProfile<UserStatsType::Physics> profile(frameStart, frameNumber, *timer, *stats);
-
-            if (mEnvironment.getStateManager()->getState() != MWBase::StateManager::State_NoGame)
-            {
-                mEnvironment.getWorld()->updatePhysics(frametime, guiActive, frameStart, frameNumber, *stats);
-            }
+            mEnvironment.getWorld()->updatePhysics(frametime, guiActive);
         }
+        osg::Timer_t afterPhysicsTick = osg::Timer::instance()->tick();
 
         // update world
+        osg::Timer_t beforeWorldTick = osg::Timer::instance()->tick();
+        if (mEnvironment.getStateManager()->getState()!=
+            MWBase::StateManager::State_NoGame)
         {
-            ScopedProfile<UserStatsType::World> profile(frameStart, frameNumber, *timer, *stats);
-
-            if (mEnvironment.getStateManager()->getState() != MWBase::StateManager::State_NoGame)
-            {
-                mEnvironment.getWorld()->update(frametime, guiActive);
-            }
+            mEnvironment.getWorld()->update(frametime, guiActive);
         }
+        osg::Timer_t afterWorldTick = osg::Timer::instance()->tick();
 
         // update GUI
-        {
-            ScopedProfile<UserStatsType::Gui> profile(frameStart, frameNumber, *timer, *stats);
-            mEnvironment.getWindowManager()->update(frametime);
-        }
+        mEnvironment.getWindowManager()->onFrame(frametime);
+
+        unsigned int frameNumber = mViewer->getFrameStamp()->getFrameNumber();
+        osg::Stats* stats = mViewer->getViewerStats();
+        stats->setAttribute(frameNumber, "script_time_begin", osg::Timer::instance()->delta_s(mStartTick, beforeScriptTick));
+        stats->setAttribute(frameNumber, "script_time_taken", osg::Timer::instance()->delta_s(beforeScriptTick, afterScriptTick));
+        stats->setAttribute(frameNumber, "script_time_end", osg::Timer::instance()->delta_s(mStartTick, afterScriptTick));
+
+        stats->setAttribute(frameNumber, "mechanics_time_begin", osg::Timer::instance()->delta_s(mStartTick, beforeMechanicsTick));
+        stats->setAttribute(frameNumber, "mechanics_time_taken", osg::Timer::instance()->delta_s(beforeMechanicsTick, afterMechanicsTick));
+        stats->setAttribute(frameNumber, "mechanics_time_end", osg::Timer::instance()->delta_s(mStartTick, afterMechanicsTick));
+
+        stats->setAttribute(frameNumber, "physics_time_begin", osg::Timer::instance()->delta_s(mStartTick, beforePhysicsTick));
+        stats->setAttribute(frameNumber, "physics_time_taken", osg::Timer::instance()->delta_s(beforePhysicsTick, afterPhysicsTick));
+        stats->setAttribute(frameNumber, "physics_time_end", osg::Timer::instance()->delta_s(mStartTick, afterPhysicsTick));
+
+        stats->setAttribute(frameNumber, "world_time_begin", osg::Timer::instance()->delta_s(mStartTick, beforeWorldTick));
+        stats->setAttribute(frameNumber, "world_time_taken", osg::Timer::instance()->delta_s(beforeWorldTick, afterWorldTick));
+        stats->setAttribute(frameNumber, "world_time_end", osg::Timer::instance()->delta_s(mStartTick, afterWorldTick));
 
         if (stats->collectStats("resource"))
         {
-            stats->setAttribute(frameNumber, "FrameNumber", frameNumber);
-
             mResourceSystem->reportStats(frameNumber, stats);
 
             stats->setAttribute(frameNumber, "WorkQueue", mWorkQueue->getNumItems());
             stats->setAttribute(frameNumber, "WorkThread", mWorkQueue->getNumActiveThreads());
 
-            mEnvironment.reportStats(frameNumber, *stats);
+            mEnvironment.getWorld()->getNavigator()->reportStats(frameNumber, *stats);
         }
+
     }
     catch (const std::exception& e)
     {
@@ -685,12 +346,14 @@ OMW::Engine::Engine(Files::ConfigurationManager& configurationManager)
   , mGrab(true)
   , mExportFonts(false)
   , mRandomSeed(0)
-  , mScriptContext (nullptr)
+  , mScriptContext (0)
   , mFSStrict (false)
   , mScriptBlacklistUse (true)
   , mNewGame (false)
   , mCfgMgr(configurationManager)
 {
+    MWClass::registerClasses();
+
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0"); // We use only gamepads
 
     Uint32 flags = SDL_INIT_VIDEO|SDL_INIT_NOPARACHUTE|SDL_INIT_GAMECONTROLLER|SDL_INIT_JOYSTICK|SDL_INIT_SENSOR;
@@ -702,10 +365,14 @@ OMW::Engine::Engine(Files::ConfigurationManager& configurationManager)
             throw std::runtime_error("Could not initialize SDL! " + std::string(SDL_GetError()));
         }
     }
+
+    mStartTick = osg::Timer::instance()->tick();
 }
 
 OMW::Engine::~Engine()
 {
+    mEnvironment.cleanup();
+
     /*
         Start of tes3mp addition
 
@@ -797,11 +464,6 @@ void OMW::Engine::addContentFile(const std::string& file)
     mContentFiles.push_back(file);
 }
 
-void OMW::Engine::addGroundcoverFile(const std::string& file)
-{
-    mGroundcoverFiles.emplace_back(file);
-}
-
 void OMW::Engine::setSkipMenu (bool skipMenu, bool newGame)
 {
     mSkipMenu = skipMenu;
@@ -810,29 +472,20 @@ void OMW::Engine::setSkipMenu (bool skipMenu, bool newGame)
 
 std::string OMW::Engine::loadSettings (Settings::Manager & settings)
 {
-    // Load default settings. Prefer defaults.bin when available, but also
-    // support a plain settings-default.cfg for portable/client-only builds.
-    const std::string localdefault = (mCfgMgr.getLocalPath() / "defaults.bin").string();
-    const std::string globaldefault = (mCfgMgr.getGlobalPath() / "defaults.bin").string();
-    const std::string localdefaultcfg = (mCfgMgr.getLocalPath() / "settings-default.cfg").string();
-    const std::string globaldefaultcfg = (mCfgMgr.getGlobalPath() / "settings-default.cfg").string();
+    // Create the settings manager and load default settings file
+    const std::string localdefault = (mCfgMgr.getLocalPath() / "settings-default.cfg").string();
+    const std::string globaldefault = (mCfgMgr.getGlobalPath() / "settings-default.cfg").string();
 
+    // prefer local
     if (boost::filesystem::exists(localdefault))
         settings.loadDefault(localdefault);
     else if (boost::filesystem::exists(globaldefault))
         settings.loadDefault(globaldefault);
-    else if (boost::filesystem::exists(localdefaultcfg))
-        settings.loadDefault(localdefaultcfg, false);
-    else if (boost::filesystem::exists(globaldefaultcfg))
-        settings.loadDefault(globaldefaultcfg, false);
     else
-        throw std::runtime_error("No default settings file found! Make sure \"defaults.bin\" or \"settings-default.cfg\" was properly installed.");
-
-    const boost::filesystem::path settingsPath = mCfgMgr.getPrimarySettingsPath();
-    ensureDisplaySettingsFile(settingsPath);
+        throw std::runtime_error ("No default settings file found! Make sure the file \"settings-default.cfg\" was properly installed.");
 
     // load user settings if they exist
-    const std::string settingspath = settingsPath.string();
+    const std::string settingspath = (mCfgMgr.getUserConfigPath() / "settings.cfg").string();
     if (boost::filesystem::exists(settingspath))
         settings.loadUser(settingspath);
 
@@ -847,7 +500,7 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
     bool fullscreen = settings.getBool("fullscreen", "Video");
     bool windowBorder = settings.getBool("window border", "Video");
     bool vsync = settings.getBool("vsync", "Video");
-    unsigned int antialiasing = std::max(0, settings.getInt("antialiasing", "Video"));
+    int antialiasing = settings.getInt("antialiasing", "Video");
 
     int pos_x = SDL_WINDOWPOS_CENTERED_DISPLAY(screen),
         pos_y = SDL_WINDOWPOS_CENTERED_DISPLAY(screen);
@@ -873,8 +526,6 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24));
-    if (Debug::shouldDebugOpenGL())
-        checkSDLError(SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG));
 
     if (antialiasing > 0)
     {
@@ -882,11 +533,13 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
         checkSDLError(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, antialiasing));
     }
 
-    osg::ref_ptr<SDLUtil::GraphicsWindowSDL2> graphicsWindow;
-    while (!graphicsWindow || !graphicsWindow->valid())
+    while (!mWindow)
     {
-        while (!mWindow)
+        mWindow = SDL_CreateWindow("OpenMW", pos_x, pos_y, width, height, flags);
+        if (!mWindow)
         {
+            // Try with a lower AA
+            if (antialiasing > 0)
             /*
                 Start of tes3mp change (major)
 
@@ -898,77 +551,60 @@ void OMW::Engine::createWindow(Settings::Manager& settings)
             */
             if (!mWindow)
             {
-                // Try with a lower AA
-                if (antialiasing > 0)
-                {
-                    Log(Debug::Warning) << "Warning: " << antialiasing << "x antialiasing not supported, trying " << antialiasing/2;
-                    antialiasing /= 2;
-                    Settings::Manager::setInt("antialiasing", "Video", antialiasing);
-                    checkSDLError(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, antialiasing));
-                    continue;
-                }
-                else
-                {
-                    std::stringstream error;
-                    error << "Failed to create SDL window: " << SDL_GetError();
-                    throw std::runtime_error(error.str());
-                }
+                Log(Debug::Warning) << "Warning: " << antialiasing << "x antialiasing not supported, trying " << antialiasing/2;
+                antialiasing /= 2;
+                Settings::Manager::setInt("antialiasing", "Video", antialiasing);
+                checkSDLError(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, antialiasing));
+                continue;
+            }
+            else
+            {
+                std::stringstream error;
+                error << "Failed to create SDL window: " << SDL_GetError();
+                throw std::runtime_error(error.str());
             }
         }
-
-        setWindowIcon();
-
-        osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
-        SDL_GetWindowPosition(mWindow, &traits->x, &traits->y);
-        SDL_GetWindowSize(mWindow, &traits->width, &traits->height);
-        traits->windowName = SDL_GetWindowTitle(mWindow);
-        traits->windowDecoration = !(SDL_GetWindowFlags(mWindow)&SDL_WINDOW_BORDERLESS);
-        traits->screenNum = SDL_GetWindowDisplayIndex(mWindow);
-        traits->vsync = vsync;
-        traits->inheritedWindowData = new SDLUtil::GraphicsWindowSDL2::WindowData(mWindow);
-
-        graphicsWindow = new SDLUtil::GraphicsWindowSDL2(traits);
-        if (!graphicsWindow->valid()) throw std::runtime_error("Failed to create GraphicsContext");
-
-        if (traits->samples < antialiasing)
-        {
-            Log(Debug::Warning) << "Warning: Framebuffer MSAA level is only " << traits->samples << "x instead of " << antialiasing << "x. Trying " << antialiasing / 2 << "x instead.";
-            graphicsWindow->closeImplementation();
-            SDL_DestroyWindow(mWindow);
-            mWindow = nullptr;
-            antialiasing /= 2;
-            Settings::Manager::setInt("antialiasing", "Video", antialiasing);
-            checkSDLError(SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, antialiasing));
-            continue;
-        }
-
-        if (traits->red < 8)
-            Log(Debug::Warning) << "Warning: Framebuffer only has a " << traits->red << " bit red channel.";
-        if (traits->green < 8)
-            Log(Debug::Warning) << "Warning: Framebuffer only has a " << traits->green << " bit green channel.";
-        if (traits->blue < 8)
-            Log(Debug::Warning) << "Warning: Framebuffer only has a " << traits->blue << " bit blue channel.";
-        if (traits->depth < 24)
-            Log(Debug::Warning) << "Warning: Framebuffer only has " << traits->depth << " bits of depth precision.";
-
-        traits->alpha = 0; // set to 0 to stop ScreenCaptureHandler reading the alpha channel
     }
+
+    setWindowIcon();
+
+    osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
+    SDL_GetWindowPosition(mWindow, &traits->x, &traits->y);
+    SDL_GetWindowSize(mWindow, &traits->width, &traits->height);
+    traits->windowName = SDL_GetWindowTitle(mWindow);
+    traits->windowDecoration = !(SDL_GetWindowFlags(mWindow)&SDL_WINDOW_BORDERLESS);
+    traits->screenNum = SDL_GetWindowDisplayIndex(mWindow);
+    // We tried to get rid of the hardcoding but failed: https://github.com/OpenMW/openmw/pull/1771
+    // Here goes kcat's quote:
+    // It's ultimately a chicken and egg problem, and the reason why the code is like it was in the first place.
+    // It needs a context to get the current attributes, but it needs the attributes to set up the context.
+    // So it just specifies the same values that were given to SDL in the hopes that it's good enough to what the window eventually gets.
+    traits->red = 8;
+    traits->green = 8;
+    traits->blue = 8;
+    traits->alpha = 0; // set to 0 to stop ScreenCaptureHandler reading the alpha channel
+    traits->depth = 24;
+    traits->stencil = 8;
+    traits->vsync = vsync;
+    traits->doubleBuffer = true;
+    traits->inheritedWindowData = new SDLUtil::GraphicsWindowSDL2::WindowData(mWindow);
+
+    osg::ref_ptr<SDLUtil::GraphicsWindowSDL2> graphicsWindow = new SDLUtil::GraphicsWindowSDL2(traits);
+    if(!graphicsWindow->valid()) throw std::runtime_error("Failed to create GraphicsContext");
 
     osg::ref_ptr<osg::Camera> camera = mViewer->getCamera();
     camera->setGraphicsContext(graphicsWindow);
-    camera->setViewport(0, 0, graphicsWindow->getTraits()->width, graphicsWindow->getTraits()->height);
-
-    if (Debug::shouldDebugOpenGL())
-        mViewer->setRealizeOperation(new Debug::EnableGLDebugOperation());
+    camera->setViewport(0, 0, traits->width, traits->height);
 
     mViewer->realize();
 
-    mViewer->getEventQueue()->getCurrentEventState()->setWindowRectangle(0, 0, graphicsWindow->getTraits()->width, graphicsWindow->getTraits()->height);
+    mViewer->getEventQueue()->getCurrentEventState()->setWindowRectangle(0, 0, traits->width, traits->height);
 }
 
 void OMW::Engine::setWindowIcon()
 {
     boost::filesystem::ifstream windowIconStream;
+    std::string windowIcon = (mResDir / "mygui" / "openmw.png").string();
     /*
         Start of tes3mp change (major)
 
@@ -1062,19 +698,19 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
     else
         gameControllerdb = ""; //if it doesn't exist, pass in an empty string
 
+    MWInput::InputManager* input = new MWInput::InputManager (mWindow, mViewer, mScreenCaptureHandler, mScreenCaptureOperation, keybinderUser, keybinderUserExists, userGameControllerdb, gameControllerdb, mGrab);
+    mEnvironment.setInputManager (input);
+
     std::string myguiResources = (mResDir / "mygui").string();
     osg::ref_ptr<osg::Group> guiRoot = new osg::Group;
     guiRoot->setName("GUI Root");
     guiRoot->setNodeMask(MWRender::Mask_GUI);
     rootNode->addChild(guiRoot);
-    MWGui::WindowManager* window = new MWGui::WindowManager(mWindow, mViewer, guiRoot, mResourceSystem.get(), mWorkQueue.get(),
+    MWGui::WindowManager* window = new MWGui::WindowManager(mViewer, guiRoot, mResourceSystem.get(), mWorkQueue.get(),
                 mCfgMgr.getLogPath().string() + std::string("/"), myguiResources,
                 mScriptConsoleMode, mTranslationDataStorage, mEncoding, mExportFonts,
                 Version::getOpenmwVersionDescription(mResDir.string()), mCfgMgr.getUserConfigPath().string());
     mEnvironment.setWindowManager (window);
-
-    MWInput::InputManager* input = new MWInput::InputManager (mWindow, mViewer, mScreenCaptureHandler, mScreenCaptureOperation, keybinderUser, keybinderUserExists, userGameControllerdb, gameControllerdb, mGrab);
-    mEnvironment.setInputManager (input);
 
     // Create sound system
     mEnvironment.setSoundManager (new MWSound::SoundManager(mVFS.get(), mUseSound));
@@ -1088,9 +724,10 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
 
     // Create the world
     mEnvironment.setWorld( new MWWorld::World (mViewer, rootNode, mResourceSystem.get(), mWorkQueue.get(),
-        mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder, mActivationDistanceOverride, mCellName,
+        mFileCollections, mContentFiles, mEncoder, mActivationDistanceOverride, mCellName,
         mStartupScript, mResDir.string(), mCfgMgr.getUserDataPath().string()));
     mEnvironment.getWorld()->setupPlayer();
+    input->setPlayer(&mEnvironment.getWorld()->getPlayer());
 
     window->setStore(mEnvironment.getWorld()->getStore());
     window->initUI();
@@ -1116,7 +753,6 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
     // Create dialog system
     mEnvironment.setJournal (new MWDialogue::Journal);
     mEnvironment.setDialogueManager (new MWDialogue::DialogueManager (mExtensions, mTranslationDataStorage));
-    mEnvironment.setResourceSystem(mResourceSystem.get());
 
     // scripts
     if (mCompileAll)
@@ -1148,7 +784,7 @@ public:
     {
     }
 
-    void operator()(const osg::Image& image, const unsigned int context_id) override
+    virtual void operator()(const osg::Image& image, const unsigned int context_id)
     {
         // Count screenshots.
         int shotCount = 0;
@@ -1215,22 +851,16 @@ void OMW::Engine::go()
     std::string settingspath;
     settingspath = loadSettings (settings);
 
-    MWClass::registerClasses();
-
     // Create encoder
     mEncoder = new ToUTF8::Utf8Encoder(mEncoding);
 
     // Setup viewer
     mViewer = new osgViewer::Viewer;
     mViewer->setReleaseContextAtEndOfFrameHint(false);
-    const osgViewer::ViewerBase::ThreadingModel threadingModel = getViewerThreadingModelSetting();
-    mViewer->setThreadingModel(threadingModel);
-    Log(Debug::Info) << "Using OSG threading model: " << getViewerThreadingModelName(threadingModel);
 
 #if OSG_VERSION_GREATER_OR_EQUAL(3,5,5)
-    const bool useConfigureAffinity = Settings::Manager::getBool("use configure affinity", "OSG");
-    mViewer->setUseConfigureAffinity(useConfigureAffinity);
-    Log(Debug::Info) << "OSG configure affinity: " << (useConfigureAffinity ? "enabled" : "disabled");
+    // Do not try to outsmart the OS thread scheduler (see bug #4785).
+    mViewer->setUseConfigureAffinity(false);
 #endif
 
     mScreenCaptureOperation = new WriteScreenshotToFileOperation(
@@ -1276,17 +906,21 @@ void OMW::Engine::go()
     */
 
     // Setup profiler
-    osg::ref_ptr<Resource::Profiler> statshandler = new Resource::Profiler(stats.is_open());
+    osg::ref_ptr<Resource::Profiler> statshandler = new Resource::Profiler;
 
-    initStatsHandler(*statshandler);
+    statshandler->addUserStatsLine("Script", osg::Vec4f(1.f, 1.f, 1.f, 1.f), osg::Vec4f(1.f, 1.f, 1.f, 1.f),
+                                   "script_time_taken", 1000.0, true, false, "script_time_begin", "script_time_end", 10000);
+    statshandler->addUserStatsLine("Mech", osg::Vec4f(1.f, 1.f, 1.f, 1.f), osg::Vec4f(1.f, 1.f, 1.f, 1.f),
+                                   "mechanics_time_taken", 1000.0, true, false, "mechanics_time_begin", "mechanics_time_end", 10000);
+    statshandler->addUserStatsLine("Phys", osg::Vec4f(1.f, 1.f, 1.f, 1.f), osg::Vec4f(1.f, 1.f, 1.f, 1.f),
+                                   "physics_time_taken", 1000.0, true, false, "physics_time_begin", "physics_time_end", 10000);
+    statshandler->addUserStatsLine("World", osg::Vec4f(1.f, 1.f, 1.f, 1.f), osg::Vec4f(1.f, 1.f, 1.f, 1.f),
+                                   "world_time_taken", 1000.0, true, false, "world_time_begin", "world_time_end", 10000);
 
     mViewer->addEventHandler(statshandler);
 
-    osg::ref_ptr<Resource::StatsHandler> resourceshandler = new Resource::StatsHandler(stats.is_open());
+    osg::ref_ptr<Resource::StatsHandler> resourceshandler = new Resource::StatsHandler;
     mViewer->addEventHandler(resourceshandler);
-
-    if (stats.is_open())
-        Resource::CollectStatistics(mViewer);
 
     // Start the game
     if (!mSaveGameFile.empty())
@@ -1313,21 +947,19 @@ void OMW::Engine::go()
     }
 
     // Start the main rendering loop
+    osg::Timer frameTimer;
     double simulationTime = 0.0;
-    Misc::FrameRateLimiter frameRateLimiter = Misc::makeFrameRateLimiter(mEnvironment.getFrameRateLimit());
-    const std::chrono::steady_clock::duration maxSimulationInterval(std::chrono::milliseconds(200));
     while (!mViewer->done() && !mEnvironment.getStateManager()->hasQuitRequest())
     {
-        const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(std::min(
-            frameRateLimiter.getLastFrameDuration(),
-            maxSimulationInterval
-        )).count();
+        double dt = frameTimer.time_s();
+        frameTimer.setStartTick();
+        dt = std::min(dt, 0.2);
 
         mViewer->advance(simulationTime);
 
         if (!frame(dt))
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            OpenThreads::Thread::microSleep(5000);
             continue;
         }
         else
@@ -1356,26 +988,11 @@ void OMW::Engine::go()
                 simulationTime += dt;
         }
 
-        if (stats)
-        {
-            const auto frameNumber = mViewer->getFrameStamp()->getFrameNumber();
-            if (frameNumber >= 2)
-            {
-                mViewer->getViewerStats()->report(stats, frameNumber - 2);
-                osgViewer::Viewer::Cameras cameras;
-                mViewer->getCameras(cameras);
-                for (auto camera : cameras)
-                    camera->getStats()->report(stats, frameNumber - 2);
-            }
-        }
-
-        frameRateLimiter.limit();
+        mEnvironment.limitFrameRate(frameTimer.time_s());
     }
 
     // Save user settings
     settings.saveUser(settingspath);
-
-    mViewer->stopThreading();
 
     Log(Debug::Info) << "Quitting peacefully.";
 }

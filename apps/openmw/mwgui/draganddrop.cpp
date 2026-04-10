@@ -127,6 +127,10 @@ void DragAndDrop::onFrame()
         finish();
 }
 
+void DragAndDrop::finish()
+{
+    mIsOnDragAndDrop = false;
+    mSourceSortModel->clearDragItems();
 /*
     Start of tes3mp change (minor)
 
@@ -160,7 +164,7 @@ void DragAndDrop::finish(bool deleteDragItems)
     MWBase::Environment::get().getWindowManager()->getInventoryWindow()->updateItemView();
 
     MyGUI::Gui::getInstance().destroyWidget(mDraggedWidget);
-    mDraggedWidget = nullptr;
+    mDraggedWidget = 0;
     MWBase::Environment::get().getWindowManager()->setDragDrop(false);
 }
 

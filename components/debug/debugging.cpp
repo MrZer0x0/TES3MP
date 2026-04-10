@@ -1,13 +1,8 @@
 #include "debugging.hpp"
 
-#include <chrono>
-#include <memory>
-#include <functional>
-
 #include <components/crashcatcher/crashcatcher.hpp>
 
 #ifdef _WIN32
-#   include <components/crashcatcher/windows_crashcatcher.hpp>
 #   undef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
@@ -16,21 +11,10 @@
 namespace Debug
 {
 #ifdef _WIN32
-    bool isRedirected(DWORD nStdHandle)
-    {
-        DWORD fileType = GetFileType(GetStdHandle(nStdHandle));
-
-        return (fileType == FILE_TYPE_DISK) || (fileType == FILE_TYPE_PIPE);
-    }
-
     bool attachParentConsole()
     {
         if (GetConsoleWindow() != nullptr)
             return true;
-
-        bool inRedirected = isRedirected(STD_INPUT_HANDLE);
-        bool outRedirected = isRedirected(STD_OUTPUT_HANDLE);
-        bool errRedirected = isRedirected(STD_ERROR_HANDLE);
 
         if (AttachConsole(ATTACH_PARENT_PROCESS))
         {
@@ -40,21 +24,12 @@ namespace Debug
             std::cerr.flush();
 
             // this looks dubious but is really the right way
-            if (!inRedirected)
-            {
-                _wfreopen(L"CON", L"r", stdin);
-                freopen("CON", "r", stdin);
-            }
-            if (!outRedirected)
-            {
-                _wfreopen(L"CON", L"w", stdout);
-                freopen("CON", "w", stdout);
-            }
-            if (!errRedirected)
-            {
-                _wfreopen(L"CON", L"w", stderr);
-                freopen("CON", "w", stderr);
-            }
+            _wfreopen(L"CON", L"w", stdout);
+            _wfreopen(L"CON", L"w", stderr);
+            _wfreopen(L"CON", L"r", stdin);
+            freopen("CON", "w", stdout);
+            freopen("CON", "w", stderr);
+            freopen("CON", "r", stdin);
 
             return true;
         }
@@ -65,13 +40,12 @@ namespace Debug
 
     std::streamsize DebugOutputBase::write(const char *str, std::streamsize size)
     {
-        if (size <= 0)
-            return size;
-        std::string_view msg{str, size_t(size)};
-
         // Skip debug level marker
         Level level = getLevelMarker(str);
         if (level != NoLevel)
+        {
+            writeImpl(str+1, size-1, level);
+            return size;
             msg = msg.substr(1);
 
         /*
@@ -117,6 +91,7 @@ namespace Debug
             msg = msg.substr(lineSize);
         }
 
+        writeImpl(str, size, NoLevel);
         return size;
     }
 
@@ -154,19 +129,11 @@ namespace Debug
     }
 }
 
-static std::unique_ptr<std::ostream> rawStdout = nullptr;
-
-std::ostream& getRawStdout()
-{
-    return rawStdout ? *rawStdout : std::cout;
-}
-
 int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, char *argv[], const std::string& appName)
 {
 #if defined _WIN32
     (void)Debug::attachParentConsole();
 #endif
-    rawStdout = std::make_unique<std::ostream>(std::cout.rdbuf());
 
     // Some objects used to redirect cout and cerr
     // Scope must be here, so this still works inside the catch block for logging exceptions
@@ -183,6 +150,7 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
 #endif
 
     const std::string logName = Misc::StringUtils::lowerCase(appName) + ".log";
+    const std::string crashLogName = Misc::StringUtils::lowerCase(appName) + "-crash.log";
     boost::filesystem::ofstream logfile;
 
     int ret = 0;
@@ -197,12 +165,7 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
         std::cerr.rdbuf (&sb);
 #else
         // Redirect cout and cerr to the log file
-        // If we are collecting a stack trace, append to existing log file
-        std::ios_base::openmode mode = std::ios::out;
-        if(argc == 2 && strcmp(argv[1], crash_switch) == 0)
-            mode |= std::ios::app;
-
-        logfile.open (boost::filesystem::path(cfgMgr.getLogPath() / logName), mode);
+        logfile.open (boost::filesystem::path(cfgMgr.getLogPath() / logName));
 
         coutsb.open (Debug::Tee(logfile, oldcout));
         cerrsb.open (Debug::Tee(logfile, oldcerr));
@@ -211,18 +174,13 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
         std::cerr.rdbuf (&cerrsb);
 #endif
 
-#if defined(_WIN32)
-        const std::string crashLogName = Misc::StringUtils::lowerCase(appName) + "-crash.dmp";
-        Crash::CrashCatcher crashy(argc, argv, (cfgMgr.getLogPath() / crashLogName).make_preferred().string());
-#else
-        const std::string crashLogName = Misc::StringUtils::lowerCase(appName) + "-crash.log";
         // install the crash handler as soon as possible. note that the log path
         // does not depend on config being read.
         crashCatcherInstall(argc, argv, (cfgMgr.getLogPath() / crashLogName).string());
-#endif
+
         ret = innerApplication(argc, argv);
     }
-    catch (const std::exception& e)
+    catch (std::exception& e)
     {
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
         if (!isatty(fileno(stdin)))
@@ -237,7 +195,6 @@ int wrapApplication(int (*innerApplication)(int argc, char *argv[]), int argc, c
     // Restore cout and cerr
     std::cout.rdbuf(cout_rdbuf);
     std::cerr.rdbuf(cerr_rdbuf);
-    Debug::CurrentDebugLevel = Debug::NoLevel;
 
     return ret;
 }

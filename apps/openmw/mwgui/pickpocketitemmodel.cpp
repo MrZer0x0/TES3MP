@@ -7,6 +7,7 @@
 #include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/pickpocket.hpp"
 
+#include "../mwworld/containerstore.hpp"
 #include "../mwworld/class.hpp"
 
 #include "../mwbase/environment.hpp"
@@ -21,7 +22,7 @@ namespace MWGui
     {
         MWWorld::Ptr player = MWMechanics::getPlayer();
         mSourceModel = sourceModel;
-        float chance = player.getClass().getSkill(player, ESM::Skill::Sneak);
+        int chance = player.getClass().getSkill(player, ESM::Skill::Sneak);
 
         mSourceModel->update();
 

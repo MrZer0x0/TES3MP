@@ -19,8 +19,7 @@ namespace MWGui
     public:
         SaveGameDialog();
 
-        void onOpen() override;
-        void onClose() override;
+        virtual void onOpen();
 
         void setLoadOrSave(bool load);
 

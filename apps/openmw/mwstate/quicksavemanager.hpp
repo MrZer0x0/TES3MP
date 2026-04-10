@@ -4,6 +4,7 @@
 #include <string>
 
 #include "character.hpp"
+#include "../mwbase/statemanager.hpp"
 
 namespace MWState{
     class QuickSaveManager{
@@ -12,8 +13,8 @@ namespace MWState{
         unsigned int mSlotsVisited;
         const Slot *mOldestSlotVisited;
     private:
-        bool shouldCreateNewSlot() const;
-        bool isOldestSave(const Slot *compare) const;
+        bool shouldCreateNewSlot();
+        bool isOldestSave(const Slot *compare);
     public:
         QuickSaveManager(std::string &saveName, unsigned int maxSaves);
         ///< A utility class to manage multiple quicksave slots

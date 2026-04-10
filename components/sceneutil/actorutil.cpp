@@ -1,7 +1,5 @@
 #include "actorutil.hpp"
 
-#include <components/settings/settings.hpp>
-
 namespace SceneUtil
 {
     std::string getActorSkeleton(bool firstPerson, bool isFemale, bool isBeast, bool isWerewolf)
@@ -9,24 +7,24 @@ namespace SceneUtil
         if (!firstPerson)
         {
             if (isWerewolf)
-                return Settings::Manager::getString("wolfskin", "Models");
+                return "meshes\\wolf\\skin.nif";
             else if (isBeast)
-                return Settings::Manager::getString("baseanimkna", "Models");
+                return "meshes\\base_animkna.nif";
             else if (isFemale)
-                return Settings::Manager::getString("baseanimfemale", "Models");
+                return "meshes\\base_anim_female.nif";
             else
-                return Settings::Manager::getString("baseanim", "Models");
+                return "meshes\\base_anim.nif";
         }
         else
         {
             if (isWerewolf)
-                return Settings::Manager::getString("wolfskin1st", "Models");
+                return "meshes\\wolf\\skin.1st.nif";
             else if (isBeast)
-                return Settings::Manager::getString("baseanimkna1st", "Models");
+                return "meshes\\base_animkna.1st.nif";
             else if (isFemale)
-                return Settings::Manager::getString("baseanimfemale1st", "Models");
+                return "meshes\\base_anim_female.1st.nif";
             else
-                return Settings::Manager::getString("xbaseanim1st", "Models");
+                return "meshes\\base_anim.1st.nif";
         }
     }
 }

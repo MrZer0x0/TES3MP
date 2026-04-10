@@ -49,7 +49,7 @@ namespace ESM
 
         virtual void save (ESMWriter &esm, bool inInventory = false) const;
 
-        virtual /// Initialize to default state
+        /// Initialize to default state
         void blank();
 
         virtual ~ObjectState();

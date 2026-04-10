@@ -32,13 +32,13 @@ namespace MWGui
             MainMenu(int w, int h, const VFS::Manager* vfs, const std::string& versionDescription);
             ~MainMenu();
 
-            void onResChange(int w, int h) override;
+            void onResChange(int w, int h);
 
-            void setVisible (bool visible) override;
+            virtual void setVisible (bool visible);
 
-            void onFrame(float dt) override;
+            void onFrame(float dt);
 
-            bool exit() override;
+            bool exit();
 
         private:
             const VFS::Manager* mVFS;

@@ -23,7 +23,7 @@ namespace ContentSelectorView
 
     public:
 
-        explicit ContentSelector(QWidget *parent = nullptr);
+        explicit ContentSelector(QWidget *parent = 0);
 
         QString currentFile() const;
 
@@ -47,9 +47,6 @@ namespace ContentSelectorView
             
         QToolButton *refreshButton() const  
             { return ui.refreshButton; }        
-
-        QLineEdit *searchFilter() const
-            { return ui.searchFilter; }
 
 
    private:
@@ -77,7 +74,6 @@ namespace ContentSelectorView
         void slotCheckMultiSelectedItems();
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
-        void slotSearchFilterTextChanged(const QString& newText);
     };
 }
 

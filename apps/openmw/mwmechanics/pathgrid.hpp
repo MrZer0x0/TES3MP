@@ -44,6 +44,7 @@ namespace MWMechanics
 
             const ESM::Cell *mCell;
             const ESM::Pathgrid *mPathgrid;
+            bool mIsExterior;
 
             struct ConnectedPoint // edge
             {

@@ -21,7 +21,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.getContext().report ("user1: not in use");
                 }
@@ -31,7 +31,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
                     runtime.getContext().report ("user2: not in use");
                 }
@@ -42,7 +42,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
 //                    MWWorld::Ptr ptr = R()(runtime);
 
@@ -55,7 +55,7 @@ namespace MWScript
         {
             public:
 
-                void execute (Interpreter::Runtime& runtime) override
+                virtual void execute (Interpreter::Runtime& runtime)
                 {
 //                    MWWorld::Ptr ptr = R()(runtime);
 

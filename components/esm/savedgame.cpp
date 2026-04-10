@@ -2,9 +2,10 @@
 
 #include "esmreader.hpp"
 #include "esmwriter.hpp"
+#include "defs.hpp"
 
 unsigned int ESM::SavedGame::sRecordId = ESM::REC_SAVE;
-int ESM::SavedGame::sCurrentFormat = 15;
+int ESM::SavedGame::sCurrentFormat = 5;
 
 void ESM::SavedGame::load (ESMReader &esm)
 {
@@ -25,7 +26,7 @@ void ESM::SavedGame::load (ESMReader &esm)
     esm.getSubNameIs("SCRN");
     esm.getSubHeader();
     mScreenshot.resize(esm.getSubSize());
-    esm.getExact(mScreenshot.data(), mScreenshot.size());
+    esm.getExact(&mScreenshot[0], mScreenshot.size());
 }
 
 void ESM::SavedGame::save (ESMWriter &esm) const

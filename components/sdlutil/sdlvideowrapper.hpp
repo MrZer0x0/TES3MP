@@ -27,8 +27,6 @@ namespace SDLUtil
 
         void setVideoMode(int width, int height, bool fullscreen, bool windowBorder);
 
-        void centerWindow();
-
     private:
         SDL_Window* mWindow;
         osg::ref_ptr<osgViewer::Viewer> mViewer;

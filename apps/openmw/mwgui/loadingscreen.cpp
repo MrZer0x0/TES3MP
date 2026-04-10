@@ -1,12 +1,10 @@
 #include "loadingscreen.hpp"
 
 #include <array>
-#include <condition_variable>
 
 #include <osgViewer/Viewer>
 
 #include <osg/Texture2D>
-#include <osg/Version>
 
 #include <MyGUI_RenderManager.h>
 #include <MyGUI_ScrollBar.h>
@@ -18,21 +16,22 @@
 #include <components/myguiplatform/myguitexture.hpp>
 #include <components/settings/settings.hpp>
 #include <components/vfs/manager.hpp>
-#include <components/resource/resourcesystem.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/statemanager.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/inputmanager.hpp"
 
+#include "../mwrender/vismask.hpp"
+
 #include "backgroundimage.hpp"
 
 namespace MWGui
 {
 
-    LoadingScreen::LoadingScreen(Resource::ResourceSystem* resourceSystem, osgViewer::Viewer* viewer)
+    LoadingScreen::LoadingScreen(const VFS::Manager* vfs, osgViewer::Viewer* viewer)
         : WindowBase("openmw_loading_screen.layout")
-        , mResourceSystem(resourceSystem)
+        , mVFS(vfs)
         , mViewer(viewer)
         , mTargetFrameRate(120.0)
         , mLastWallpaperChangeTime(0.0)
@@ -40,7 +39,6 @@ namespace MWGui
         , mLoadingOnTime(0.0)
         , mImportantLabel(false)
         , mVisible(false)
-        , mNestedLoadingCount(0)
         , mProgress(0)
         , mShowWallpaper(true)
     {
@@ -66,9 +64,9 @@ namespace MWGui
 
     void LoadingScreen::findSplashScreens()
     {
-        const std::map<std::string, VFS::File*>& index = mResourceSystem->getVFS()->getIndex();
+        const std::map<std::string, VFS::File*>& index = mVFS->getIndex();
         std::string pattern = "Splash/";
-        mResourceSystem->getVFS()->normalizeFilename(pattern);
+        mVFS->normalizeFilename(pattern);
 
         /* priority given to the left */
         const std::array<std::string, 7> supported_extensions {{".tga", ".dds", ".ktx", ".png", ".bmp", ".jpeg", ".jpg"}};
@@ -100,7 +98,7 @@ namespace MWGui
             Log(Debug::Warning) << "Warning: no splash screens found!";
     }
 
-    void LoadingScreen::setLabel(const std::string &label, bool important)
+    void LoadingScreen::setLabel(const std::string &label, bool important, bool center)
     {
         mImportantLabel = important;
 
@@ -110,7 +108,7 @@ namespace MWGui
         size.width = std::max(300, size.width);
         mLoadingBox->setSize(size);
 
-        if (MWBase::Environment::get().getWindowManager()->getMessagesCount() > 0)
+        if (center)
             mLoadingBox->setPosition(mMainWidget->getWidth()/2 - mLoadingBox->getWidth()/2, mMainWidget->getHeight()/2 - mLoadingBox->getHeight()/2);
         else
             mLoadingBox->setPosition(mMainWidget->getWidth()/2 - mLoadingBox->getWidth()/2, mMainWidget->getHeight() - mLoadingBox->getHeight() - 8);
@@ -136,52 +134,42 @@ namespace MWGui
     {
     public:
         CopyFramebufferToTextureCallback(osg::Texture2D* texture)
-            : mOneshot(true)
-            , mTexture(texture)
+            : mTexture(texture)
+            , oneshot(true)
         {
         }
 
-        void operator () (osg::RenderInfo& renderInfo) const override
+        virtual void operator () (osg::RenderInfo& renderInfo) const
         {
+            if (!oneshot)
+                return;
+            oneshot = false;
             int w = renderInfo.getCurrentCamera()->getViewport()->width();
             int h = renderInfo.getCurrentCamera()->getViewport()->height();
             mTexture->copyTexImage2D(*renderInfo.getState(), 0, 0, w, h);
-
-            mOneshot = false;
-        }
-
-        void reset()
-        {
-            mOneshot = true;
         }
 
     private:
-        mutable bool mOneshot;
         osg::ref_ptr<osg::Texture2D> mTexture;
+        mutable bool oneshot;
     };
 
     class DontComputeBoundCallback : public osg::Node::ComputeBoundingSphereCallback
     {
     public:
-        osg::BoundingSphere computeBound(const osg::Node&) const override { return osg::BoundingSphere(); }
+        virtual osg::BoundingSphere computeBound(const osg::Node&) const { return osg::BoundingSphere(); }
     };
 
     void LoadingScreen::loadingOn(bool visible)
     {
-        // Early-out if already on
-        if (mNestedLoadingCount++ > 0 && mMainWidget->getVisible())
-            return;
-
         mLoadingOnTime = mTimer.time_m();
+        // Early-out if already on
+        if (mMainWidget->getVisible())
+            return;
 
         // Assign dummy bounding sphere callback to avoid the bounding sphere of the entire scene being recomputed after each frame of loading
         // We are already using node masks to avoid the scene from being updated/rendered, but node masks don't work for computeBound()
         mViewer->getSceneData()->setComputeBoundingSphereCallback(new DontComputeBoundCallback);
-
-        if (const osgUtil::IncrementalCompileOperation* ico = mViewer->getIncrementalCompileOperation()) {
-            mOldIcoMin = ico->getMinimumTimeAvailableForGLCompileAndDeletePerFrame();
-            mOldIcoMax = ico->getMaximumNumOfObjectsToCompilePerFrame();
-        }
 
         mVisible = visible;
         mLoadingBox->setVisible(mVisible);
@@ -206,8 +194,6 @@ namespace MWGui
 
     void LoadingScreen::loadingOff()
     {
-        if (--mNestedLoadingCount > 0)
-            return;
         mLoadingBox->setVisible(true);   // restore
 
         if (mLastRenderTime < mLoadingOnTime)
@@ -228,12 +214,6 @@ namespace MWGui
 
         //std::cout << "loading took " << mTimer.time_m() - mLoadingOnTime << std::endl;
         setVisible(false);
-
-        if (osgUtil::IncrementalCompileOperation* ico = mViewer->getIncrementalCompileOperation())
-        {
-            ico->setMinimumTimeAvailableForGLCompileAndDeletePerFrame(mOldIcoMin);
-            ico->setMaximumNumOfObjectsToCompilePerFrame(mOldIcoMax);
-        }
 
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Loading);
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_LoadingWallpaper);
@@ -326,18 +306,9 @@ namespace MWGui
             mGuiTexture.reset(new osgMyGUI::OSGTexture(mTexture));
         }
 
-        if (!mCopyFramebufferToTextureCallback)
-        {
-            mCopyFramebufferToTextureCallback = new CopyFramebufferToTextureCallback(mTexture);
-        }
-
-#if OSG_VERSION_GREATER_OR_EQUAL(3, 5, 10)
-        mViewer->getCamera()->removeInitialDrawCallback(mCopyFramebufferToTextureCallback);
-        mViewer->getCamera()->addInitialDrawCallback(mCopyFramebufferToTextureCallback);
-#else
-        mViewer->getCamera()->setInitialDrawCallback(mCopyFramebufferToTextureCallback);
-#endif
-        mCopyFramebufferToTextureCallback->reset();
+        // Notice that the next time this is called, the current CopyFramebufferToTextureCallback will be deleted
+        // so there's no memory leak as at most one object of type CopyFramebufferToTextureCallback is allocated at a time.
+        mViewer->getCamera()->setInitialDrawCallback(new CopyFramebufferToTextureCallback(mTexture));
 
         mBackgroundImage->setBackgroundImage("");
         mBackgroundImage->setVisible(false);
@@ -365,13 +336,7 @@ namespace MWGui
 
         MWBase::Environment::get().getInputManager()->update(0, true, true);
 
-        mResourceSystem->reportStats(mViewer->getFrameStamp()->getFrameNumber(), mViewer->getViewerStats());
-        if (osgUtil::IncrementalCompileOperation* ico = mViewer->getIncrementalCompileOperation())
-        {
-            ico->setMinimumTimeAvailableForGLCompileAndDeletePerFrame(1.f/getTargetFrameRate());
-            ico->setMaximumNumOfObjectsToCompilePerFrame(1000);
-        }
-
+        //osg::Timer timer;
         // at the time this function is called we are in the middle of a frame,
         // so out of order calls are necessary to get a correct frameNumber for the next frame.
         // refer to the advance() and frame() order in Engine::go()
@@ -379,6 +344,10 @@ namespace MWGui
         mViewer->updateTraversal();
         mViewer->renderingTraversals();
         mViewer->advance(mViewer->getFrameStamp()->getSimulationTime());
+        //std::cout << "frame took " << timer.time_m() << std::endl;
+
+        //if (mViewer->getIncrementalCompileOperation())
+            //std::cout << "num to compile " << mViewer->getIncrementalCompileOperation()->getToCompile().size() << std::endl;
 
         mLastRenderTime = mTimer.time_m();
     }

@@ -21,7 +21,7 @@
 
 namespace Compiler
 {
-    int ExprParser::getPriority (char op)
+    int ExprParser::getPriority (char op) const
     {
         switch (op)
         {
@@ -372,7 +372,9 @@ namespace Compiler
             keyword==Scanner::K_elseif || keyword==Scanner::K_while ||
             keyword==Scanner::K_endwhile || keyword==Scanner::K_return ||
             keyword==Scanner::K_messagebox || keyword==Scanner::K_set ||
-            keyword==Scanner::K_to)
+            keyword==Scanner::K_to || keyword==Scanner::K_startscript ||
+            keyword==Scanner::K_stopscript || keyword==Scanner::K_enable ||
+            keyword==Scanner::K_disable)
         {
             return parseName (loc.mLiteral, loc, scanner);
         }
@@ -383,6 +385,53 @@ namespace Compiler
         {
             if (mRefOp && mNextOperand)
             {
+                if (keyword==Scanner::K_getdisabled)
+                {
+                    start();
+
+                    mTokenLoc = loc;
+
+                    Generator::getDisabled (mCode, mLiterals, mExplicit);
+                    mOperands.push_back ('l');
+                    mExplicit.clear();
+                    mRefOp = false;
+
+                    std::vector<Interpreter::Type_Code> ignore;
+                    parseArguments ("x", scanner, ignore);
+
+                    mNextOperand = false;
+                    return true;
+                }
+                else if (keyword==Scanner::K_getdistance)
+                {
+                    start();
+
+                    mTokenLoc = loc;
+                    parseArguments ("c", scanner);
+
+                    Generator::getDistance (mCode, mLiterals, mExplicit);
+                    mOperands.push_back ('f');
+                    mExplicit.clear();
+                    mRefOp = false;
+
+                    mNextOperand = false;
+                    return true;
+                }
+                else if (keyword==Scanner::K_scriptrunning)
+                {
+                    start();
+
+                    mTokenLoc = loc;
+                    parseArguments ("c", scanner);
+
+                    Generator::scriptRunning (mCode);
+                    mOperands.push_back ('l');
+
+                    mExplicit.clear();
+                    mRefOp = false;
+                    mNextOperand = false;
+                    return true;
+                }
 
                 // check for custom extensions
                 if (const Extensions *extensions = getContext().getExtensions())
@@ -430,6 +479,84 @@ namespace Compiler
 
                 Generator::squareRoot (mCode);
                 mOperands.push_back ('f');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_menumode)
+            {
+                start();
+
+                mTokenLoc = loc;
+
+                Generator::menuMode (mCode);
+                mOperands.push_back ('l');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_random)
+            {
+                start();
+
+                mTokenLoc = loc;
+                parseArguments ("l", scanner);
+
+                Generator::random (mCode);
+                mOperands.push_back ('f');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_scriptrunning)
+            {
+                start();
+
+                mTokenLoc = loc;
+                parseArguments ("c", scanner);
+
+                Generator::scriptRunning (mCode);
+                mOperands.push_back ('l');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_getdistance)
+            {
+                start();
+
+                mTokenLoc = loc;
+                parseArguments ("c", scanner);
+
+                Generator::getDistance (mCode, mLiterals, "");
+                mOperands.push_back ('f');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_getsecondspassed)
+            {
+                start();
+
+                mTokenLoc = loc;
+
+                Generator::getSecondsPassed (mCode);
+                mOperands.push_back ('f');
+
+                mNextOperand = false;
+                return true;
+            }
+            else if (keyword==Scanner::K_getdisabled)
+            {
+                start();
+
+                mTokenLoc = loc;
+
+                Generator::getDisabled (mCode, mLiterals, "");
+                mOperands.push_back ('l');
+
+                std::vector<Interpreter::Type_Code> ignore;
+                parseArguments ("x", scanner, ignore);
 
                 mNextOperand = false;
                 return true;
@@ -654,27 +781,28 @@ namespace Compiler
 
         std::stack<std::vector<Interpreter::Type_Code> > stack;
 
-        for (char argument : arguments)
+        for (std::string::const_iterator iter (arguments.begin()); iter!=arguments.end();
+            ++iter)
         {
-            if (argument=='/')
+            if (*iter=='/')
             {
                 optional = true;
             }
-            else if (argument=='S' || argument=='c' || argument=='x')
+            else if (*iter=='S' || *iter=='c' || *iter=='x')
             {
                 stringParser.reset();
 
-                if (optional || argument=='x')
+                if (optional || *iter=='x')
                     stringParser.setOptional (true);
 
-                if (argument=='c') stringParser.smashCase();
-                if (argument=='x') stringParser.discard();
+                if (*iter=='c') stringParser.smashCase();
+                if (*iter=='x') stringParser.discard();
                 scanner.scan (stringParser);
 
-                if ((optional || argument=='x') && stringParser.isEmpty())
+                if ((optional || *iter=='x') && stringParser.isEmpty())
                     break;
 
-                if (argument!='x')
+                if (*iter!='x')
                 {
                     std::vector<Interpreter::Type_Code> tmp;
                     stringParser.append (tmp);
@@ -688,7 +816,7 @@ namespace Compiler
                     getErrorHandler().warning ("Extra argument",
                         stringParser.getTokenLoc());
             }
-            else if (argument=='X')
+            else if (*iter=='X')
             {
                 parser.reset();
 
@@ -701,7 +829,7 @@ namespace Compiler
                 else
                     getErrorHandler().warning("Extra argument", parser.getTokenLoc());
             }
-            else if (argument=='z')
+            else if (*iter=='z')
             {
                 discardParser.reset();
                 discardParser.setOptional (true);
@@ -713,7 +841,7 @@ namespace Compiler
                 else
                     getErrorHandler().warning("Extra argument", discardParser.getTokenLoc());
             }
-            else if (argument=='j')
+            else if (*iter=='j')
             {
                 /// \todo disable this when operating in strict mode
                 junkParser.reset();
@@ -736,8 +864,8 @@ namespace Compiler
 
                 char type = parser.append (tmp);
 
-                if (type!=argument)
-                    Generator::convert (tmp, type, argument);
+                if (type!=*iter)
+                    Generator::convert (tmp, type, *iter);
 
                 stack.push (tmp);
 

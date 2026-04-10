@@ -24,53 +24,53 @@ class GraphicsWindowSDL2 : public osgViewer::GraphicsWindow
 public:
     GraphicsWindowSDL2(osg::GraphicsContext::Traits *traits);
 
-    bool isSameKindAs(const Object* object) const override { return dynamic_cast<const GraphicsWindowSDL2*>(object)!=nullptr; }
-    const char* libraryName() const override { return "osgViewer"; }
-    const char* className() const override { return "GraphicsWindowSDL2"; }
+    virtual bool isSameKindAs(const Object* object) const { return dynamic_cast<const GraphicsWindowSDL2*>(object)!=0; }
+    virtual const char* libraryName() const { return "osgViewer"; }
+    virtual const char* className() const { return "GraphicsWindowSDL2"; }
 
-    bool valid() const override { return mValid; }
+    virtual bool valid() const { return mValid; }
 
     /** Realise the GraphicsContext.*/
-    bool realizeImplementation()override ;
+    virtual bool realizeImplementation();
 
     /** Return true if the graphics context has been realised and is ready to use.*/
-    bool isRealizedImplementation() const override { return mRealized; }
+    virtual bool isRealizedImplementation() const { return mRealized; }
 
     /** Close the graphics context.*/
-    void closeImplementation() override;
+    virtual void closeImplementation();
 
     /** Make this graphics context current.*/
-    bool makeCurrentImplementation() override;
+    virtual bool makeCurrentImplementation();
 
     /** Release the graphics context.*/
-    bool releaseContextImplementation() override;
+    virtual bool releaseContextImplementation();
 
     /** Swap the front and back buffers.*/
-    void swapBuffersImplementation() override;
+    virtual void swapBuffersImplementation();
 
     /** Set sync-to-vblank. */
-    void setSyncToVBlank(bool on) override;
+    virtual void setSyncToVBlank(bool on);
 
     /** Set Window decoration.*/
-    bool setWindowDecorationImplementation(bool flag) override;
+    virtual bool setWindowDecorationImplementation(bool flag);
 
     /** Raise specified window */
-    void raiseWindow() override;
+    virtual void raiseWindow();
 
     /** Set the window's position and size.*/
-    bool setWindowRectangleImplementation(int x, int y, int width, int height) override;
+    virtual bool setWindowRectangleImplementation(int x, int y, int width, int height);
 
     /** Set the name of the window */
-    void setWindowName(const std::string &name) override;
+    virtual void setWindowName(const std::string &name);
 
     /** Set mouse cursor to a specific shape.*/
-    void setCursor(MouseCursor cursor) override;
+    virtual void setCursor(MouseCursor cursor);
 
     /** Get focus.*/
-    void grabFocus() override {}
+    virtual void grabFocus() {}
 
     /** Get focus on if the pointer is in this window.*/
-    void grabFocusIfPointerInWindow() override {}
+    virtual void grabFocusIfPointerInWindow() {}
 
     /** WindowData is used to pass in the SDL2 window handle attached to the GraphicsContext::Traits structure. */
     struct WindowData : public osg::Referenced

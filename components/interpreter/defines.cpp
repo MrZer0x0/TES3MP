@@ -176,8 +176,7 @@ namespace Interpreter{
                                 transform(temp.begin(), temp.end(), temp.begin(), ::tolower);
                             }
 
-                            found = check(temp, globals[j], &i, &start);
-                            if(found){
+                            if((found = check(temp, globals[j], &i, &start))){
                                 char type = context.getGlobalType(globals[j]);
 
                                 switch(type){

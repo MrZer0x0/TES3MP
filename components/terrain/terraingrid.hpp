@@ -14,19 +14,18 @@ namespace Terrain
     class TerrainGrid : public Terrain::World
     {
     public:
-        TerrainGrid(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, unsigned int nodeMask, unsigned int preCompileMask=~0u, unsigned int borderMask=0);
-        TerrainGrid(osg::Group* parent, Storage* storage, unsigned int nodeMask=~0u);
+        TerrainGrid(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem, Storage* storage, int nodeMask, int preCompileMask=~0, int borderMask=0);
         ~TerrainGrid();
 
-        void cacheCell(View* view, int x, int y) override;
+        virtual void cacheCell(View* view, int x, int y);
 
         /// @note Not thread safe.
-        void loadCell(int x, int y) override;
+        virtual void loadCell(int x, int y);
 
         /// @note Not thread safe.
-        void unloadCell(int x, int y) override;
+        virtual void unloadCell(int x, int y);
 
-        View* createView() override;
+        View* createView();
 
     protected:
         bool isGridEmpty() const { return mGrid.empty(); }

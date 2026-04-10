@@ -13,14 +13,14 @@ namespace Compiler
 
         public:
 
-            Context() : mExtensions (nullptr) {}
+            Context() : mExtensions (0) {}
 
-            virtual ~Context() = default;
+            virtual ~Context() {}
 
             virtual bool canDeclareLocals() const = 0;
             ///< Is the compiler allowed to declare local variables?
 
-            void setExtensions (const Extensions *extensions = nullptr)
+            void setExtensions (const Extensions *extensions = 0)
             {
                 mExtensions = extensions;
             }

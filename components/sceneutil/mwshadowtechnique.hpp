@@ -19,9 +19,6 @@
 #ifndef COMPONENTS_SCENEUTIL_MWSHADOWTECHNIQUE_H
 #define COMPONENTS_SCENEUTIL_MWSHADOWTECHNIQUE_H 1
 
-#include <array>
-#include <mutex>
-
 #include <osg/Camera>
 #include <osg/Material>
 #include <osg/MatrixTransform>
@@ -46,28 +43,28 @@ namespace SceneUtil {
         META_Object(SceneUtil, MWShadowTechnique);
 
         /** initialize the ShadowedScene and local cached data structures.*/
-        void init() override;
+        virtual void init();
 
         /** run the update traversal of the ShadowedScene and update any loca chached data structures.*/
-        void update(osg::NodeVisitor& nv) override;
+        virtual void update(osg::NodeVisitor& nv);
 
         /** run the cull traversal of the ShadowedScene and set up the rendering for this ShadowTechnique.*/
-        void cull(osgUtil::CullVisitor& cv) override;
+        virtual void cull(osgUtil::CullVisitor& cv);
 
         /** Resize any per context GLObject buffers to specified size. */
-        void resizeGLObjectBuffers(unsigned int maxSize) override;
+        virtual void resizeGLObjectBuffers(unsigned int maxSize);
 
         /** If State is non-zero, this function releases any associated OpenGL objects for
         * the specified graphics context. Otherwise, releases OpenGL objects
         * for all graphics contexts. */
-        void releaseGLObjects(osg::State* = 0) const override;
+        virtual void releaseGLObjects(osg::State* = 0) const;
 
         /** Clean scene graph from any shadow technique specific nodes, state and drawables.*/
-        void cleanSceneGraph() override;
+        virtual void cleanSceneGraph();
 
         virtual void enableShadows();
 
-        virtual void disableShadows(bool setDummyState = false);
+        virtual void disableShadows();
 
         virtual void enableDebugHUD();
 
@@ -92,19 +89,19 @@ namespace SceneUtil {
         public:
             ComputeLightSpaceBounds(osg::Viewport* viewport, const osg::Matrixd& projectionMatrix, osg::Matrixd& viewMatrix);
 
-            void apply(osg::Node& node) override;
+            void apply(osg::Node& node);
 
-            void apply(osg::Drawable& drawable) override;
+            void apply(osg::Drawable& drawable);
 
             void apply(Terrain::QuadTreeWorld& quadTreeWorld);
 
-            void apply(osg::Billboard&) override;
+            void apply(osg::Billboard&);
 
-            void apply(osg::Projection&) override;
+            void apply(osg::Projection&);
 
-            void apply(osg::Transform& transform) override;
+            void apply(osg::Transform& transform);
 
-            void apply(osg::Camera&) override;
+            void apply(osg::Camera&);
 
             using osg::NodeVisitor::apply;
 
@@ -192,7 +189,7 @@ namespace SceneUtil {
 
             ShadowDataList& getShadowDataList() { return _shadowDataList; }
 
-            osg::StateSet* getStateSet(unsigned int traversalNumber) { return _stateset[traversalNumber % 2].get(); }
+            osg::StateSet* getStateSet() { return _stateset.get(); }
 
             virtual void releaseGLObjects(osg::State* = 0) const;
 
@@ -201,7 +198,7 @@ namespace SceneUtil {
 
             MWShadowTechnique*          _viewDependentShadowMap;
 
-            std::array<osg::ref_ptr<osg::StateSet>, 2> _stateset;
+            osg::ref_ptr<osg::StateSet> _stateset;
 
             LightDataList               _lightDataList;
             ShadowDataList              _shadowDataList;
@@ -214,8 +211,6 @@ namespace SceneUtil {
 
 
         virtual void createShaders();
-
-        virtual std::array<osg::ref_ptr<osg::Program>, GL_ALWAYS - GL_NEVER + 1> getCastingPrograms() const { return _castingPrograms; }
 
         virtual bool selectActiveLights(osgUtil::CullVisitor* cv, ViewDependentData* vdd) const;
 
@@ -233,13 +228,13 @@ namespace SceneUtil {
 
         virtual void cullShadowCastingScene(osgUtil::CullVisitor* cv, osg::Camera* camera) const;
 
-        virtual osg::StateSet* prepareStateSetForRenderingShadow(ViewDependentData& vdd, unsigned int traversalNumber) const;
+        virtual osg::StateSet* selectStateSetForRenderingShadow(ViewDependentData& vdd) const;
 
     protected:
         virtual ~MWShadowTechnique();
 
         typedef std::map< osgUtil::CullVisitor*, osg::ref_ptr<ViewDependentData> >  ViewDependentDataMap;
-        mutable std::mutex                      _viewDependentDataMapMutex;
+        mutable OpenThreads::Mutex              _viewDependentDataMapMutex;
         ViewDependentDataMap                    _viewDependentDataMap;
 
         osg::ref_ptr<osg::StateSet>             _shadowRecievingPlaceholderStateSet;
@@ -250,11 +245,11 @@ namespace SceneUtil {
         osg::ref_ptr<osg::Texture2D>            _fallbackShadowMapTexture;
 
         typedef std::vector< osg::ref_ptr<osg::Uniform> > Uniforms;
-        std::array<Uniforms, 2>                 _uniforms;
+        mutable OpenThreads::Mutex              _accessUniformsAndProgramMutex;
+        Uniforms                                _uniforms;
         osg::ref_ptr<osg::Program>              _program;
 
         bool                                    _enableShadows;
-        bool                                    mSetDummyStateWhenDisabled;
 
         double                                  _splitPointUniformLogRatio = 0.5;
         double                                  _splitPointDeltaBias = 0.0;
@@ -285,12 +280,12 @@ namespace SceneUtil {
             osg::ref_ptr<osg::Program> mDebugProgram;
             std::vector<osg::ref_ptr<osg::Node>> mDebugGeometry;
             std::vector<osg::ref_ptr<osg::Group>> mFrustumTransforms;
-            std::array<std::vector<osg::ref_ptr<osg::Uniform>>, 2> mFrustumUniforms;
-            std::array<osg::ref_ptr<osg::Geometry>, 2> mFrustumGeometries;
+            std::vector<osg::ref_ptr<osg::Uniform>> mFrustumUniforms;
+            std::vector<osg::ref_ptr<osg::Geometry>> mFrustumGeometries;
         };
 
         osg::ref_ptr<DebugHUD>                  _debugHud;
-        std::array<osg::ref_ptr<osg::Program>, GL_ALWAYS - GL_NEVER + 1> _castingPrograms;
+        osg::ref_ptr<osg::Program>              _castingProgram;
     };
 
 }

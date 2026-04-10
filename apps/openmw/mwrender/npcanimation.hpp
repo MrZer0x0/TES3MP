@@ -8,17 +8,10 @@
 #include "actoranimation.hpp"
 #include "weaponanimation.hpp"
 
-#include <array>
-
 namespace ESM
 {
     struct NPC;
     struct BodyPart;
-}
-
-namespace MWSound
-{
-    class Sound;
 }
 
 namespace MWRender
@@ -30,8 +23,8 @@ class HeadAnimationTime;
 class NpcAnimation : public ActorAnimation, public WeaponAnimation, public MWWorld::InventoryStoreListener
 {
 public:
-    void equipmentChanged() override;
-    void permanentEffectAdded(const ESM::MagicEffect *magicEffect, bool isNew) override;
+    virtual void equipmentChanged();
+    virtual void permanentEffectAdded(const ESM::MagicEffect *magicEffect, bool isNew);
 
 public:
     typedef std::map<ESM::PartReferenceType,std::string> PartBoneMap;
@@ -47,7 +40,7 @@ private:
 
     // Bounded Parts
     PartHolderPtr mObjectParts[ESM::PRT_Count];
-    std::array<MWSound::Sound*, ESM::PRT_Count> mSounds;
+    std::string mSoundIds[ESM::PRT_Count];
 
     const ESM::NPC *mNpc;
     std::string    mHeadModel;
@@ -95,7 +88,7 @@ private:
     void addPartGroup(int group, int priority, const std::vector<ESM::PartReference> &parts,
                                     bool enchantedGlow=false, osg::Vec4f* glowColor=nullptr);
 
-    void setRenderBin();
+    virtual void setRenderBin();
 
     osg::ref_ptr<NeckController> mFirstPersonNeckController;
 
@@ -104,9 +97,9 @@ private:
     static NpcType getNpcType(const MWWorld::Ptr& ptr);
 
 protected:
-    void addControllers() override;
-    bool isArrowAttached() const override;
-    std::string getShieldMesh(MWWorld::ConstPtr shield) const override;
+    virtual void addControllers();
+    virtual bool isArrowAttached() const;
+    virtual std::string getShieldMesh(MWWorld::ConstPtr shield) const;
 
 public:
     /**
@@ -122,35 +115,34 @@ public:
                  bool disableSounds = false, ViewMode viewMode=VM_Normal, float firstPersonFieldOfView=55.f);
     virtual ~NpcAnimation();
 
-    void enableHeadAnimation(bool enable) override;
+    virtual void enableHeadAnimation(bool enable);
 
     /// 1: the first person meshes follow the camera's rotation completely
     /// 0: the first person meshes follow the camera with a reduced factor, so you can look down at your own hands
-    void setAccurateAiming(bool enabled) override;
+    virtual void setAccurateAiming(bool enabled);
 
-    void setWeaponGroup(const std::string& group, bool relativeDuration) override;
+    virtual void setWeaponGroup(const std::string& group, bool relativeDuration);
 
-    osg::Vec3f runAnimation(float timepassed) override;
+    virtual osg::Vec3f runAnimation(float timepassed);
 
     /// A relative factor (0-1) that decides if and how much the skeleton should be pitched
     /// to indicate the facing orientation of the character.
-    void setPitchFactor(float factor) override { mPitchFactor = factor; }
+    virtual void setPitchFactor(float factor) { mPitchFactor = factor; }
 
-    void showWeapons(bool showWeapon) override;
+    virtual void showWeapons(bool showWeapon);
 
-    bool getCarriedLeftShown() const override { return mShowCarriedLeft; }
-    void showCarriedLeft(bool show) override;
+    virtual bool getCarriedLeftShown() const { return mShowCarriedLeft; }
+    virtual void showCarriedLeft(bool show);
 
-    void attachArrow() override;
-    void detachArrow() override;
-    void releaseArrow(float attackStrength) override;
+    virtual void attachArrow();
+    virtual void releaseArrow(float attackStrength);
 
-    osg::Group* getArrowBone() override;
-    osg::Node* getWeaponNode() override;
-    Resource::ResourceSystem* getResourceSystem() override;
+    virtual osg::Group* getArrowBone();
+    virtual osg::Node* getWeaponNode();
+    virtual Resource::ResourceSystem* getResourceSystem();
 
     // WeaponAnimation
-    void showWeapon(bool show) override { showWeapons(show); }
+    virtual void showWeapon(bool show) { showWeapons(show); }
 
     void setViewMode(ViewMode viewMode);
 
@@ -162,12 +154,12 @@ public:
     /// Get the inventory slot that the given node path leads into, or -1 if not found.
     int getSlot(const osg::NodePath& path) const;
 
-    void setVampire(bool vampire) override;
+    virtual void setVampire(bool vampire);
 
     /// Set a translation offset (in object root space) to apply to meshes when in first person mode.
     void setFirstPersonOffset(const osg::Vec3f& offset);
 
-    void updatePtr(const MWWorld::Ptr& updated) override;
+    virtual void updatePtr(const MWWorld::Ptr& updated);
 
     /// Get a list of body parts that may be used by an NPC of given race and gender.
     /// @note This is a fixed size list, one list item for each ESM::PartReferenceType, may contain nullptr body parts.

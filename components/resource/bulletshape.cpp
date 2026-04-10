@@ -6,7 +6,6 @@
 #include <BulletCollision/CollisionShapes/btBoxShape.h>
 #include <BulletCollision/CollisionShapes/btScaledBvhTriangleMeshShape.h>
 #include <BulletCollision/CollisionShapes/btCompoundShape.h>
-#include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
 
 namespace Resource
 {
@@ -21,7 +20,8 @@ BulletShape::BulletShape()
 BulletShape::BulletShape(const BulletShape &copy, const osg::CopyOp &copyop)
     : mCollisionShape(duplicateCollisionShape(copy.mCollisionShape))
     , mAvoidCollisionShape(duplicateCollisionShape(copy.mAvoidCollisionShape))
-    , mCollisionBox(copy.mCollisionBox)
+    , mCollisionBoxHalfExtents(copy.mCollisionBoxHalfExtents)
+    , mCollisionBoxTranslate(copy.mCollisionBoxTranslate)
     , mAnimatedShapes(copy.mAnimatedShapes)
 {
 }
@@ -76,9 +76,6 @@ btCollisionShape* BulletShape::duplicateCollisionShape(const btCollisionShape *s
         return new btBoxShape(*boxshape);
     }
 
-    if (shape->getShapeType() == TERRAIN_SHAPE_PROXYTYPE)
-        return new btHeightfieldTerrainShape(static_cast<const btHeightfieldTerrainShape&>(*shape));
-
     throw std::logic_error(std::string("Unhandled Bullet shape duplication: ")+shape->getName());
 }
 
@@ -109,7 +106,8 @@ BulletShapeInstance::BulletShapeInstance(osg::ref_ptr<const BulletShape> source)
     : BulletShape()
     , mSource(source)
 {
-    mCollisionBox = source->mCollisionBox;
+    mCollisionBoxHalfExtents = source->mCollisionBoxHalfExtents;
+    mCollisionBoxTranslate = source->mCollisionBoxTranslate;
 
     mAnimatedShapes = source->mAnimatedShapes;
 

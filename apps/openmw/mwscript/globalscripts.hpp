@@ -1,24 +1,17 @@
 #ifndef GAME_SCRIPT_GLOBALSCRIPTS_H
 #define GAME_SCRIPT_GLOBALSCRIPTS_H
 
-#include <boost/variant/variant.hpp>
-
 #include <string>
 #include <map>
-#include <memory>
-#include <utility>
 
 #include <stdint.h>
 
 #include "locals.hpp"
 
-#include "../mwworld/ptr.hpp"
-
 namespace ESM
 {
     class ESMWriter;
     class ESMReader;
-    struct RefNum;
 }
 
 namespace Loading
@@ -37,25 +30,21 @@ namespace MWScript
     {
         bool mRunning;
         Locals mLocals;
-        boost::variant<MWWorld::Ptr, std::pair<ESM::RefNum, std::string> > mTarget; // Used to start targeted script
+        std::string mId; // ID used to start targeted script (empty if not a targeted script)
 
         GlobalScriptDesc();
-
-        const MWWorld::Ptr* getPtrIfPresent() const; // Returns a Ptr if one has been resolved
-
-        MWWorld::Ptr getPtr(); // Resolves mTarget to a Ptr and caches the (potentially empty) result
     };
 
     class GlobalScripts
     {
             const MWWorld::ESMStore& mStore;
-            std::map<std::string, std::shared_ptr<GlobalScriptDesc> > mScripts;
+            std::map<std::string, GlobalScriptDesc> mScripts;
 
         public:
 
             GlobalScripts (const MWWorld::ESMStore& store);
 
-            void addScript (const std::string& name, const MWWorld::Ptr& target = MWWorld::Ptr());
+            void addScript (const std::string& name, const std::string& targetId = "");
 
             void removeScript (const std::string& name);
 
@@ -73,7 +62,7 @@ namespace MWScript
 
             void write (ESM::ESMWriter& writer, Loading::Listener& progress) const;
 
-            bool readRecord (ESM::ESMReader& reader, uint32_t type, const std::map<int, int>& contentFileMap);
+            bool readRecord (ESM::ESMReader& reader, uint32_t type);
             ///< Records for variables that do not exist are dropped silently.
             ///
             /// \return Known type?
@@ -81,11 +70,6 @@ namespace MWScript
             Locals& getLocals (const std::string& name);
             ///< If the script \a name has not been added as a global script yet, it is added
             /// automatically, but is not set to running state.
-
-            const Locals* getLocalsIfPresent (const std::string& name) const;
-
-            void updatePtrs(const MWWorld::Ptr& base, const MWWorld::Ptr& updated);
-            ///< Update the Ptrs stored in mTarget. Should be called after the reference has been moved to a new cell.
     };
 }
 

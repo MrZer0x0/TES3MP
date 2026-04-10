@@ -10,22 +10,22 @@ namespace DetourNavigator
     {
     public:
         template <class T>
-        explicit ObjectId(T* value) noexcept
+        explicit ObjectId(T* value) throw()
             : mValue(reinterpret_cast<std::size_t>(value))
         {
         }
 
-        std::size_t value() const noexcept
+        std::size_t value() const throw()
         {
             return mValue;
         }
 
-        friend bool operator <(const ObjectId lhs, const ObjectId rhs) noexcept
+        friend bool operator <(const ObjectId lhs, const ObjectId rhs) throw()
         {
             return lhs.mValue < rhs.mValue;
         }
 
-        friend bool operator ==(const ObjectId lhs, const ObjectId rhs) noexcept
+        friend bool operator ==(const ObjectId lhs, const ObjectId rhs) throw()
         {
             return lhs.mValue == rhs.mValue;
         }
@@ -40,7 +40,7 @@ namespace std
     template <>
     struct hash<DetourNavigator::ObjectId>
     {
-        std::size_t operator ()(const DetourNavigator::ObjectId value) const noexcept
+        std::size_t operator ()(const DetourNavigator::ObjectId value) const throw()
         {
             return value.value();
         }
