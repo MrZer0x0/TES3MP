@@ -3,6 +3,8 @@
 
 #include "../mwmechanics/trading.hpp"
 
+#include <components/widgets/imagepushbutton.hpp>
+
 #include "referenceinterface.hpp"
 #include "windowbase.hpp"
 
@@ -27,20 +29,22 @@ namespace MWGui
         public:
             TradeWindow();
 
-            void setPtr(const MWWorld::Ptr& actor) override;
+            void setPtr(const MWWorld::Ptr& actor);
 
-            void onClose() override;
-            void onFrame(float dt) override;
-            void clear() override { resetReference(); }
+            void onFrame(float dt);
+            void onClose();
+            void clear() { resetReference(); }
 
             void borrowItem (int index, size_t count);
             void returnItem (int index, size_t count);
 
+            void adjustCategoryHeader();
+
             int getMerchantServices();
 
-            bool exit() override;
+            virtual bool exit();
 
-            void resetReference() override;
+            virtual void resetReference();
 
             typedef MyGUI::delegates::CMultiDelegate0 EventHandle_TradeDone;
             EventHandle_TradeDone eventTradeDone;
@@ -54,11 +58,18 @@ namespace MWGui
             static const float sBalanceChangeInitialPause; // in seconds
             static const float sBalanceChangeInterval; // in seconds
 
-            MyGUI::Button* mFilterAll;
-            MyGUI::Button* mFilterWeapon;
-            MyGUI::Button* mFilterApparel;
-            MyGUI::Button* mFilterMagic;
-            MyGUI::Button* mFilterMisc;
+            Gui::ImagePushButton* mAllButton;
+            Gui::ImagePushButton* mWeaponButton;
+            Gui::ImagePushButton* mArmorButton;
+            Gui::ImagePushButton* mClothButton;
+            Gui::ImagePushButton* mPotionButton;
+            Gui::ImagePushButton* mIngredientButton;
+            Gui::ImagePushButton* mBookButton;
+            Gui::ImagePushButton* mToolButton;
+            Gui::ImagePushButton* mMagicButton;
+            Gui::ImagePushButton* mMiscButton;
+            
+            MyGUI::Widget* mCategories;
 
             MyGUI::EditBox* mFilterEdit;
 
@@ -88,6 +99,7 @@ namespace MWGui
             void onItemSelected (int index);
             void sellItem (MyGUI::Widget* sender, int count);
 
+            void onHeaderClicked(int sort);
             void onFilterChanged(MyGUI::Widget* _sender);
             void onNameFilterChanged(MyGUI::EditBox* _sender);
             void onOfferButtonClicked(MyGUI::Widget* _sender);
@@ -99,7 +111,7 @@ namespace MWGui
             void onBalanceButtonReleased(MyGUI::Widget* _sender, int _left, int _top, MyGUI::MouseButton _id);
             void onBalanceValueChanged(int value);
             void onRepeatClick(MyGUI::Widget* widget, MyGUI::ControllerItem* controller);
-
+            
             void addRepeatController(MyGUI::Widget* widget);
 
             void onIncreaseButtonTriggered();
@@ -109,9 +121,11 @@ namespace MWGui
 
             void updateLabels();
 
-            void onReferenceUnavailable() override;
+            virtual void onReferenceUnavailable();
 
             int getMerchantGold();
+
+            void restock();
     };
 }
 

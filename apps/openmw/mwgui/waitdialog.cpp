@@ -162,7 +162,7 @@ namespace MWGui
         else if (canRest == MWBase::World::Rest_OnlyWaiting && !mwmp::Main::get().getLocalPlayer()->waitAllowed &&
             !mwmp::Main::get().getLocalPlayer()->isUsingBed)
         {
-            MWBase::Environment::get().getWindowManager()->messageBox("You are not allowed to wait.");
+            MWBase::Environment::get().getWindowManager()->messageBox("#{setting=UI,wait.not_allowed}");
             MWBase::Environment::get().getWindowManager()->popGuiMode();
         }
         /*

@@ -208,7 +208,7 @@ namespace MWGui
 
         mCharacterSelection->setIndexSelected(selectedIndex);
         if (selectedIndex == MyGUI::ITEM_NONE)
-            mCharacterSelection->setCaption("Select Character ...");
+            mCharacterSelection->setCaption(MyGUI::LanguageManager::getInstance().replaceTags("#{setting=UI,save.select_character_placeholder}"));
 
         fillSaveList();
 

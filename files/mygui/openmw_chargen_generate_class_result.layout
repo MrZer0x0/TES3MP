@@ -19,7 +19,7 @@
             <Property key="Static" value="true"/>
         </Widget>
         <Widget type="AutoSizedTextBox" skin="SandText" position="8 183 265 23" name="ClassName" align="Left Top">
-            <Property key="Caption" value="[Class]"/>
+            <Property key="Caption" value="#{setting=UI,chargen.class_placeholder}"/>
             <Property key="TextAlign" value="Top HCenter"/>
         </Widget>
 

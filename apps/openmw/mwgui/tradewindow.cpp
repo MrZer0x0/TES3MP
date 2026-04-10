@@ -1,5 +1,6 @@
 #include "tradewindow.hpp"
 
+#include <MyGUI_Window.h>
 #include <MyGUI_Button.h>
 #include <MyGUI_InputManager.h>
 #include <MyGUI_ControllerManager.h>
@@ -38,6 +39,7 @@
 #include "containeritemmodel.hpp"
 #include "tradeitemmodel.hpp"
 #include "countdialog.hpp"
+#include "controllers.hpp"
 #include "tooltips.hpp"
 
 namespace
@@ -65,11 +67,16 @@ namespace MWGui
         , mCurrentBalance(0)
         , mCurrentMerchantOffer(0)
     {
-        getWidget(mFilterAll, "AllButton");
-        getWidget(mFilterWeapon, "WeaponButton");
-        getWidget(mFilterApparel, "ApparelButton");
-        getWidget(mFilterMagic, "MagicButton");
-        getWidget(mFilterMisc, "MiscButton");
+        getWidget(mAllButton,"AllButton"); 
+        getWidget(mWeaponButton,"WeaponButton"); 
+        getWidget(mArmorButton,"ArmorButton"); 
+        getWidget(mClothButton,"ClothButton"); 
+        getWidget(mPotionButton,"PotionButton"); 
+        getWidget(mIngredientButton,"IngredientButton"); 
+        getWidget(mBookButton,"BookButton"); 
+        getWidget(mToolButton,"ToolButton"); 
+        getWidget(mMagicButton,"MagicButton"); 
+        getWidget(mMiscButton,"MiscButton"); 
 
         getWidget(mMaxSaleButton, "MaxSaleButton");
         getWidget(mCancelButton, "CancelButton");
@@ -83,17 +90,24 @@ namespace MWGui
         getWidget(mBottomPane, "BottomPane");
         getWidget(mFilterEdit, "FilterEdit");
 
+        getWidget(mCategories,"Categories"); 
+
         getWidget(mItemView, "ItemView");
         mItemView->eventItemClicked += MyGUI::newDelegate(this, &TradeWindow::onItemSelected);
+        mItemView->getHeader()->eventItemClicked += MyGUI::newDelegate(this, &TradeWindow::onHeaderClicked);
+    
+        mAllButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mWeaponButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mArmorButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mClothButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mPotionButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mIngredientButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mBookButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mMiscButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mToolButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
+        mMagicButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
 
-        mFilterAll->setStateSelected(true);
-
-        mFilterAll->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
-        mFilterWeapon->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
-        mFilterApparel->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
-        mFilterMagic->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
-        mFilterMisc->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onFilterChanged);
-        mFilterEdit->eventEditTextChange += MyGUI::newDelegate(this, &TradeWindow::onNameFilterChanged);
+        mAllButton->setStateSelected(true);
 
         mCancelButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onCancelButtonClicked);
         mOfferButton->eventMouseButtonClick += MyGUI::newDelegate(this, &TradeWindow::onOfferButtonClicked);
@@ -108,6 +122,21 @@ namespace MWGui
         mTotalBalance->setMinValue(std::numeric_limits<int>::min()+1); // disallow INT_MIN since abs(INT_MIN) is undefined
 
         setCoord(400, 0, 400, 300);
+        adjustCategoryHeader();
+    }
+
+    void TradeWindow::restock()
+    {
+        // Restock items on the actor inventory
+        mPtr.getClass().restock(mPtr);
+
+        // Also restock any containers owned by this merchant, which are also available to buy in the trade window
+        std::vector<MWWorld::Ptr> itemSources;
+        MWBase::Environment::get().getWorld()->getContainersOwnedBy(mPtr, itemSources);
+        for (MWWorld::Ptr& source : itemSources)
+        {
+            source.getClass().restock(source);
+        }
     }
 
     void TradeWindow::setPtr(const MWWorld::Ptr& actor)
@@ -118,10 +147,10 @@ namespace MWGui
         mCurrentMerchantOffer = 0;
 
         std::vector<MWWorld::Ptr> itemSources;
-        // Important: actor goes first, so purchased items come out of the actor's pocket first
-        itemSources.push_back(actor);
         MWBase::Environment::get().getWorld()->getContainersOwnedBy(actor, itemSources);
 
+        // Important: actor goes last, so that items purchased by the merchant go into his inventory
+        itemSources.push_back(actor);
         std::vector<MWWorld::Ptr> worldItems;
         MWBase::Environment::get().getWorld()->getItemsOwnedBy(actor, worldItems);
 
@@ -132,16 +161,23 @@ namespace MWGui
 
         updateLabels();
 
+        //setTitle(actor.getClass().getName(actor));
         setTitle(actor.getClass().getName(actor));
-
-        onFilterChanged(mFilterAll);
+        onFilterChanged(mAllButton);
         mFilterEdit->setCaption("");
     }
 
     void TradeWindow::onFrame(float dt)
     {
         checkReferenceAvailable();
+        adjustCategoryHeader();
     }
+
+    void TradeWindow::onHeaderClicked(int sort)
+    {
+        mSortModel->toggleSort(sort);
+        mItemView->update();
+    }   
 
     void TradeWindow::onNameFilterChanged(MyGUI::EditBox* _sender)
     {
@@ -151,26 +187,42 @@ namespace MWGui
 
     void TradeWindow::onFilterChanged(MyGUI::Widget* _sender)
     {
-        if (_sender == mFilterAll)
+        if (_sender == mAllButton)
             mSortModel->setCategory(SortFilterItemModel::Category_All);
-        else if (_sender == mFilterWeapon)
+        else if (_sender == mWeaponButton)
             mSortModel->setCategory(SortFilterItemModel::Category_Weapon);
-        else if (_sender == mFilterApparel)
-            mSortModel->setCategory(SortFilterItemModel::Category_Apparel);
-        else if (_sender == mFilterMagic)
+        else if (_sender == mArmorButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Armor);
+        else if (_sender == mClothButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Cloth);
+        else if (_sender == mPotionButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Potion);
+        else if (_sender == mIngredientButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Ingredient);
+        else if (_sender == mMagicButton)
             mSortModel->setCategory(SortFilterItemModel::Category_Magic);
-        else if (_sender == mFilterMisc)
+        else if (_sender == mBookButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Book);
+        else if (_sender == mToolButton)
+            mSortModel->setCategory(SortFilterItemModel::Category_Tool);
+        else if (_sender == mMiscButton)
             mSortModel->setCategory(SortFilterItemModel::Category_Misc);
 
-        mFilterAll->setStateSelected(false);
-        mFilterWeapon->setStateSelected(false);
-        mFilterApparel->setStateSelected(false);
-        mFilterMagic->setStateSelected(false);
-        mFilterMisc->setStateSelected(false);
-
-        _sender->castType<MyGUI::Button>()->setStateSelected(true);
+        mAllButton->setStateSelected(false);
+        mWeaponButton->setStateSelected(false);
+        mArmorButton->setStateSelected(false);
+        mClothButton->setStateSelected(false);
+        mPotionButton->setStateSelected(false);
+        mIngredientButton->setStateSelected(false);
+        mToolButton->setStateSelected(false);
+        mBookButton->setStateSelected(false);
+        mMagicButton->setStateSelected(false);
+        mMiscButton->setStateSelected(false);
 
         mItemView->update();
+
+        _sender->castType<Gui::ImagePushButton>()->setStateSelected(true);
+        adjustCategoryHeader();
     }
 
     int TradeWindow::getMerchantServices()
@@ -278,8 +330,8 @@ namespace MWGui
             MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
 
         // were there any items traded at all?
-        const std::vector<ItemStack>& playerBought = playerItemModel->getItemsBorrowedToUs();
-        const std::vector<ItemStack>& merchantBought = mTradeModel->getItemsBorrowedToUs();
+        std::vector<ItemStack> playerBought = playerItemModel->getItemsBorrowedToUs();
+        std::vector<ItemStack> merchantBought = mTradeModel->getItemsBorrowedToUs();
         if (playerBought.empty() && merchantBought.empty())
         {
             // user notification
@@ -310,7 +362,7 @@ namespace MWGui
         }
 
         // check if the player is attempting to sell back an item stolen from this actor
-        for (const ItemStack& itemStack : merchantBought)
+        for (ItemStack& itemStack : merchantBought)
         {
             if (MWBase::Environment::get().getMechanicsManager()->isItemStolenFrom(itemStack.mBase.getCellRef().getRefId(), mPtr))
             {
@@ -356,11 +408,9 @@ namespace MWGui
             /*
                 Start of tes3mp change (major)
 
-                Don't unilaterally change the merchant's gold pool on our client and instead let the server do it
+                Do not unilaterally change the merchant gold pool on the client.
+                Instead, notify the server about the expected value.
             */
-            //mPtr.getClass().getCreatureStats(mPtr).setGoldPool(
-            //    mPtr.getClass().getCreatureStats(mPtr).getGoldPool() - mCurrentBalance);
-
             mwmp::ObjectList *objectList = mwmp::Main::get().getNetworking()->getObjectList();
             objectList->reset();
             objectList->packetOrigin = mwmp::CLIENT_GAMEPLAY;
@@ -377,6 +427,32 @@ namespace MWGui
 
         MWBase::Environment::get().getWindowManager()->playSound("Item Gold Up");
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Barter);
+    }
+
+    void TradeWindow::adjustCategoryHeader()
+    {
+        static int maxPadding = MyGUI::utility::parseInt(mCategories->getUserString("MaxPadding"));
+        static int maxSize = MyGUI::utility::parseInt(mCategories->getUserString("MaxSize"));
+        static int minMargin = MyGUI::utility::parseInt(mCategories->getUserString("MinMargin"));
+        static int minSize = MyGUI::utility::parseInt(mCategories->getUserString("MinSize"));
+        static int padding = MyGUI::utility::parseInt(mCategories->getUserString("Padding"));
+        
+        int count = mCategories->getChildCount();
+
+        int width = std::min(maxSize,std::max(static_cast<int>(((mCategories->getWidth()-(2*minMargin)-(padding*count)) / static_cast<float>(count))), minSize));
+        int sidemargin = ((mCategories->getWidth() - ((width+padding) * count))/2) + 8; 
+        
+        if (sidemargin < 0)
+            sidemargin = minMargin;
+
+        MyGUI::Widget* widget = mCategories->getChildAt(0);
+        int top = (mCategories->getHeight()-width)/2;
+        widget->setCoord(MyGUI::IntCoord(sidemargin,top,width,width));
+        for (int i = 1; i < count; i++)
+        {
+            widget = mCategories->getChildAt(i);
+            widget->setCoord(MyGUI::IntCoord(mCategories->getChildAt(i-1)->getLeft()+width+padding,top,width,width));
+        }
     }
 
     void TradeWindow::onAccept(MyGUI::EditBox *sender)
@@ -490,7 +566,7 @@ namespace MWGui
         // connected to buying and selling the same item.
         // This value has been determined by researching the limitations of the vanilla formula
         // and may not be sufficient if getBarterOffer behavior has been changed.
-        const std::vector<ItemStack>& playerBorrowed = playerTradeModel->getItemsBorrowedToUs();
+        std::vector<ItemStack> playerBorrowed = playerTradeModel->getItemsBorrowedToUs();
         for (const ItemStack& itemStack : playerBorrowed)
         {
             const int basePrice = getEffectiveValue(itemStack.mBase, itemStack.mCount);
@@ -499,7 +575,7 @@ namespace MWGui
             merchantOffer -= std::max(cap, buyingPrice);
         }
 
-        const std::vector<ItemStack>& merchantBorrowed = mTradeModel->getItemsBorrowedToUs();
+        std::vector<ItemStack> merchantBorrowed = mTradeModel->getItemsBorrowedToUs();
         for (const ItemStack& itemStack : merchantBorrowed)
         {
             const int basePrice = getEffectiveValue(itemStack.mBase, itemStack.mCount);
@@ -547,7 +623,6 @@ namespace MWGui
 
     void TradeWindow::onClose()
     {
-        // Make sure the window was actually closed and not temporarily hidden.
         if (MWBase::Environment::get().getWindowManager()->containsMode(GM_Barter))
             return;
         resetReference();

@@ -88,6 +88,9 @@
 #include "dialogue.hpp"
 #include "statswindow.hpp"
 #include "messagebox.hpp"
+#include "itemlistwidget.hpp"
+#include "itemlistwidgetheader.hpp"
+#include "spelllistwidget.hpp"
 #include "tooltips.hpp"
 #include "scrollwindow.hpp"
 #include "bookwindow.hpp"
@@ -226,6 +229,9 @@ namespace MWGui
         MyGUI::FactoryManager::getInstance().registerFactory<osgMyGUI::AdditiveLayer>("Layer");
         MyGUI::FactoryManager::getInstance().registerFactory<osgMyGUI::ScalingLayer>("Layer");
         BookPage::registerMyGUIComponents ();
+        ItemListWidget::registerComponents();
+        ItemListWidgetHeader::registerComponents();
+        SpellListWidget::registerComponents();
         ItemView::registerComponents();
         ItemChargeView::registerComponents();
         ItemWidget::registerComponents();
@@ -1095,20 +1101,41 @@ namespace MWGui
     {
         std::string tag(_tag);
         
-        std::string MyGuiPrefix = "setting=";
-        size_t MyGuiPrefixLength = MyGuiPrefix.length();
+        std::string settingPrefix = "setting=";
+        size_t settingPrefixLength = settingPrefix.length();
+        std::string gmstPrefix = "gmst=";
+        size_t gmstPrefixLength = gmstPrefix.length();
 
         std::string tokenToFind = "sCell=";
         size_t tokenLength = tokenToFind.length();
         
-        if(tag.compare(0, MyGuiPrefixLength, MyGuiPrefix) == 0)
+        if(tag.compare(0, settingPrefixLength, settingPrefix) == 0)
         {
-            tag = tag.substr(MyGuiPrefixLength, tag.length());
+            tag = tag.substr(settingPrefixLength, tag.length());
             size_t comma_pos = tag.find(',');
             std::string settingSection = tag.substr(0, comma_pos);
             std::string settingTag = tag.substr(comma_pos+1, tag.length());
             
             _result = Settings::Manager::getString(settingTag, settingSection);            
+        }
+        else if(tag.compare(0, gmstPrefixLength, gmstPrefix) == 0)
+        {
+            std::string gmstTag = tag.substr(gmstPrefixLength, tag.length());
+            size_t commaPos = gmstTag.find(',');
+            std::string gmstId = commaPos == std::string::npos ? gmstTag : gmstTag.substr(0, commaPos);
+            std::string fallback = commaPos == std::string::npos ? gmstId : gmstTag.substr(commaPos + 1, gmstTag.length());
+
+            if (!mStore)
+            {
+                _result = fallback;
+                return;
+            }
+
+            const ESM::GameSetting* setting = mStore->get<ESM::GameSetting>().find(gmstId);
+            if (setting && setting->mValue.getType() == ESM::VT_String)
+                _result = setting->mValue.getString();
+            else
+                _result = fallback;
         }
         else if (tag.compare(0, tokenLength, tokenToFind) == 0)
         {

@@ -133,7 +133,7 @@
             <Property key="Padding" value="16"/>
 
             <Widget type="AutoSizedButton" skin="MW_Button" name="TypeButton">
-                <Property key="Caption" value="Constant effect"/>
+                <Property key="Caption" value="#{gmst=sItemCastConstant,Constant effect}"/>
                 <UserString key="ToolTipType" value="Layout"/>
                 <UserString key="ToolTipLayout" value="TextToolTip"/>
                 <UserString key="Caption_Text" value="#{sEnchantmentHelp7}"/>

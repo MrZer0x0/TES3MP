@@ -6,6 +6,7 @@
 #include <MyGUI_ScrollView.h>
 #include <MyGUI_Gui.h>
 #include <MyGUI_TabControl.h>
+#include <MyGUI_LanguageManager.h>
 
 #include <SDL_video.h>
 
@@ -36,12 +37,14 @@ namespace
 
     std::string textureMipmappingToStr(const std::string& val)
     {
-        if (val == "linear")  return "Trilinear";
-        if (val == "nearest") return "Bilinear";
+        if (val == "linear")
+            return MyGUI::LanguageManager::getInstance().replaceTags("#{setting=UI,settings.video.texture_filtering_trilinear}");
+        if (val == "nearest")
+            return MyGUI::LanguageManager::getInstance().replaceTags("#{setting=UI,settings.video.texture_filtering_bilinear}");
         if (val != "none")
             Log(Debug::Warning) << "Warning: Invalid texture mipmap option: "<< val;
 
-        return "Other";
+        return MyGUI::LanguageManager::getInstance().replaceTags("#{setting=UI,settings.video.texture_filtering_other}");
     }
 
     void parseResolution (int &x, int &y, const std::string& str)
