@@ -459,6 +459,103 @@
 
                     </Widget>
 
+                    <Widget type="TabItem" skin="" position="0 28 352 308">
+                        <Property key="Caption" value="  Graphics  "/>
+                        <Widget type="HBox" skin="" position="4 4 350 24">
+                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                                <UserString key="SettingCategory" value="Shaders"/>
+                                <UserString key="SettingName" value="enable bloom"/>
+                                <UserString key="SettingType" value="CheckButton"/>
+                            </Widget>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 160 16" align="Left Top">
+                                <Property key="Caption" value="Bloom / postprocess"/>
+                            </Widget>
+                        </Widget>
+                        <Widget type="HBox" skin="" position="4 30 350 24">
+                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                                <UserString key="SettingCategory" value="Shaders"/>
+                                <UserString key="SettingName" value="enable god rays"/>
+                                <UserString key="SettingType" value="CheckButton"/>
+                            </Widget>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 90 16" align="Left Top">
+                                <Property key="Caption" value="God rays"/>
+                            </Widget>
+                        </Widget>
+                        <Widget type="HBox" skin="" position="4 56 350 24">
+                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                                <UserString key="SettingCategory" value="Shaders"/>
+                                <UserString key="SettingName" value="enable rain drops"/>
+                                <UserString key="SettingType" value="CheckButton"/>
+                            </Widget>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 90 16" align="Left Top">
+                                <Property key="Caption" value="Rain drops"/>
+                            </Widget>
+                        </Widget>
+                        <Widget type="ImageBox" skin="MW_HLine" position="0 82 360 18" align="Top HStretch"/>
+
+                        <Widget type="TextBox" skin="NormalText" position="0 104 352 18" align="Left Top" name="GraphicsMaxLightDistanceText">
+                            <Property key="Caption" value="Maximum Light Distance"/>
+                        </Widget>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 128 352 18" align="HStretch Top">
+                            <Property key="Range" value="8192"/>
+                            <Property key="Page" value="128"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingMin" value="0"/>
+                            <UserString key="SettingMax" value="8192"/>
+                            <UserString key="SettingCategory" value="Shaders"/>
+                            <UserString key="SettingName" value="maximum light distance"/>
+                            <UserString key="SettingValueType" value="Integer"/>
+                            <UserString key="SettingLabelWidget" value="GraphicsMaxLightDistanceText"/>
+                            <UserString key="SettingLabelCaption" value="Maximum Light Distance (%s)"/>
+                        </Widget>
+
+                        <Widget type="TextBox" skin="NormalText" position="0 154 352 18" align="Left Top" name="GraphicsLightFadeText">
+                            <Property key="Caption" value="Fade Start Multiplier"/>
+                        </Widget>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 178 352 18" align="HStretch Top">
+                            <Property key="Range" value="10000"/>
+                            <Property key="Page" value="100"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="Shaders"/>
+                            <UserString key="SettingName" value="light fade start"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingMin" value="0.0"/>
+                            <UserString key="SettingMax" value="1.0"/>
+                            <UserString key="SettingLabelWidget" value="GraphicsLightFadeText"/>
+                            <UserString key="SettingLabelCaption" value="Fade Start Multiplier (%s)"/>
+                        </Widget>
+
+                        <Widget type="TextBox" skin="NormalText" position="0 204 352 18" align="Left Top" name="GraphicsBoundsText">
+                            <Property key="Caption" value="Bounding Sphere Multiplier"/>
+                        </Widget>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 228 352 18" align="HStretch Top">
+                            <Property key="Range" value="500000"/>
+                            <Property key="Page" value="1000"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingMin" value="0.0"/>
+                            <UserString key="SettingMax" value="5.0"/>
+                            <UserString key="SettingCategory" value="Shaders"/>
+                            <UserString key="SettingName" value="light bounds multiplier"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingLabelWidget" value="GraphicsBoundsText"/>
+                            <UserString key="SettingLabelCaption" value="Bounding Sphere Multiplier (%s)"/>
+                        </Widget>
+
+                        <Widget type="TextBox" skin="NormalText" position="0 254 352 18" align="Left Top" name="GraphicsMinimumBrightnessText">
+                            <Property key="Caption" value="Minimum Interior Brightness"/>
+                        </Widget>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 278 352 18" align="HStretch Top">
+                            <Property key="Range" value="10000"/>
+                            <Property key="Page" value="100"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="Shaders"/>
+                            <UserString key="SettingName" value="minimum interior brightness"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingLabelWidget" value="GraphicsMinimumBrightnessText"/>
+                            <UserString key="SettingLabelCaption" value="Minimum Interior Brightness (%s)"/>
+                        </Widget>
+                    </Widget>
+
                     <Widget type="TabItem" skin="" position="4 32 360 308">
                         <Property key="Caption" value="  Lights  "/>
                         <!-- Lighting Method -->

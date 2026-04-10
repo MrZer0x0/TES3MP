@@ -171,6 +171,9 @@ namespace MWRender
 
         void setGlareTimeOfDayFade(float val);
 
+        void setGodRaysEnabled(bool enabled);
+        void setRainDropsEnabled(bool enabled);
+
         /// Enable or disable the water plane (used to remove underwater weather particles)
         void setWaterEnabled(bool enabled);
 
@@ -268,6 +271,8 @@ namespace MWRender
 
         bool mEnabled;
         bool mSunEnabled;
+        bool mGodRaysEnabled;
+        bool mRainDropsEnabled;
 
         float mPrecipitationAlpha;
 

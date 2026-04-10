@@ -30,7 +30,7 @@ vec3 calculateBloom(vec3 lightColor, float lightIntensity, float distance, float
 {
     float bloomFactor = lightIntensity * smoothstep(radius * 2.0, 0.0, distance);
     bloomFactor = pow(bloomFactor, 2.5);  // Более резкое затухание
-    return lightColor * bloomFactor * BLOOM_STRENGTH * multiplier;
+    return lightColor * bloomFactor * BLOOM_STRENGTH * multiplier * bloomEnabled;
 }
 
 // Функция для вычисления glow эффекта
@@ -63,7 +63,7 @@ void perLightSun(out vec3 diffuseOut, vec3 viewPos, vec3 viewNormal)
     
     // Bloom для яркого солнечного света
     float sunBloom = max(lambert - 0.8, 0.0) * 5.0;
-    bloomAccumulator += sunDiffuse * sunBloom * BLOOM_STRENGTH * 0.5;
+    bloomAccumulator += sunDiffuse * sunBloom * BLOOM_STRENGTH * 0.5 * bloomEnabled;
 }
 
 void perLightPoint(out vec3 ambientOut, out vec3 diffuseOut, int lightIndex, vec3 viewPos, vec3 viewNormal)
@@ -169,7 +169,7 @@ vec3 getSpecular(vec3 viewNormal, vec3 viewDirection, float shininess, vec3 matS
     // Bloom для сильных бликов (только для очень ярких) - снижено
     float specularBloom = pow(max(NdotH, 0.0), shininess * 2.0);
     if (specularBloom > 0.7) {  // Bloom только для самых ярких бликов
-        specular += specular * (specularBloom - 0.7) * BLOOM_STRENGTH * 0.3;
+        specular += specular * (specularBloom - 0.7) * BLOOM_STRENGTH * 0.3 * bloomEnabled;
     }
     
     return specular;
