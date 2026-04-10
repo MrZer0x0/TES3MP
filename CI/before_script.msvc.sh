@@ -247,7 +247,7 @@ run_cmd() {
 
 		if [ $RET -ne 0 ]; then
 			echo
-			echo "Command $CMD failed (cmake output follows):"
+			echo "Command $CMD failed (output follows):"
 			cat output.log
 		else
 			rm output.log
@@ -290,7 +290,7 @@ download() {
 			fi
 
 			if [ $RET -ne 0 ]; then
-			if [ $RET -ne 0 ]; then
+				echo "Failed!"
 				wrappedExit $RET
 			else
 				echo "Done."
@@ -1249,7 +1249,7 @@ if [ -z $VERBOSE ]; then
 	fi
 fi
 if [ $RET -ne 0 ]; then
-if [ $RET -ne 0 ]; then
+	wrappedExit $RET
 fi
 
 echo "Script completed successfully."
