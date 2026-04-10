@@ -127,16 +127,9 @@ namespace MWGui
 
     void TradeWindow::restock()
     {
-        // Restock items on the actor inventory
-        mPtr.getClass().restock(mPtr);
-
-        // Also restock any containers owned by this merchant, which are also available to buy in the trade window
-        std::vector<MWWorld::Ptr> itemSources;
-        MWBase::Environment::get().getWorld()->getContainersOwnedBy(mPtr, itemSources);
-        for (MWWorld::Ptr& source : itemSources)
-        {
-            source.getClass().restock(source);
-        }
+        // No-op in this TES3MP branch.
+        // Merchant gold/item restock is handled elsewhere, and MWWorld::Class::restock
+        // is not available here.
     }
 
     void TradeWindow::setPtr(const MWWorld::Ptr& actor)

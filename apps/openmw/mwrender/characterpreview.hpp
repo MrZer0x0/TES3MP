@@ -70,26 +70,36 @@ namespace MWRender
         int mSizeY;
     };
 
+    class UpdateCameraCallback;
+
     class InventoryPreview : public CharacterPreview
     {
     public:
 
         InventoryPreview(osg::Group* parent, Resource::ResourceSystem* resourceSystem, const MWWorld::Ptr& character);
+        ~InventoryPreview() override;
 
         void updatePtr(const MWWorld::Ptr& ptr);
+        void setItem(const MWWorld::Ptr& item);
 
         void update(); // Render preview again, e.g. after changed equipment
+        void rebuild();
         void setViewport(int sizeX, int sizeY);
 
         int getSlotSelected(int posX, int posY);
+
+        void setScale(double scale);
+        void ryp(double roll, double yaw, double pitch);
 
     protected:
         osg::ref_ptr<osg::Viewport> mViewport;
 
         void onSetup() override;
-    };
 
-    class UpdateCameraCallback;
+    private:
+        osg::ref_ptr<UpdateCameraCallback> mUpdateCameraCallback;
+        MWWorld::Ptr mItem;
+    };
 
     class RaceSelectionPreview : public CharacterPreview
     {
