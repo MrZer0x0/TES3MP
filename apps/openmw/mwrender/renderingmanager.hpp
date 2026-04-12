@@ -22,7 +22,6 @@ namespace osg
 {
     class Group;
     class PositionAttitudeTransform;
-    class Uniform;
 }
 
 namespace osgUtil
@@ -303,7 +302,6 @@ namespace MWRender
         osg::Vec3f mCurrentCameraPos;
 
         osg::ref_ptr<StateUpdater> mStateUpdater;
-        osg::ref_ptr<osg::Uniform> mUniformBloomEnabled;
 
         osg::Vec4f mAmbientColor;
         float mMinimumAmbientLuminance;

@@ -39,7 +39,7 @@ vec3 extractBrightness(vec3 color, float threshold)
 vec3 toneMap(vec3 x)
 {
     // Добавляем bloom для ярких участков
-    vec3 bloom = extractBrightness(x, 1.2) * bloomEnabled;
+    vec3 bloom = extractBrightness(x, 1.2);
     x = x + bloom;
     
 #ifdef PER_CHANEL

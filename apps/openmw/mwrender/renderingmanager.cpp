@@ -446,7 +446,6 @@ namespace MWRender
         mRootNode->getOrCreateStateSet()->addUniform(new osg::Uniform("near", mNearClip));
         mRootNode->getOrCreateStateSet()->addUniform(new osg::Uniform("far", mViewDistance));
         mRootNode->getOrCreateStateSet()->addUniform(new osg::Uniform("simpleWater", false));
-        mRootNode->getOrCreateStateSet()->addUniform(new osg::Uniform("bloomEnabled", Settings::Manager::getBool("enable bloom", "Shaders") ? 1.f : 0.f));
 
         // Hopefully, anything genuinely requiring the default alpha func of GL_ALWAYS explicitly sets it
         mRootNode->getOrCreateStateSet()->setAttribute(Shader::RemovedAlphaFunc::getInstance(GL_ALWAYS));
@@ -455,7 +454,6 @@ namespace MWRender
 
         mUniformNear = mRootNode->getOrCreateStateSet()->getUniform("near");
         mUniformFar = mRootNode->getOrCreateStateSet()->getUniform("far");
-        mUniformBloomEnabled = mRootNode->getOrCreateStateSet()->getUniform("bloomEnabled");
         updateProjectionMatrix();
     }
 
@@ -1177,21 +1175,6 @@ namespace MWRender
             else if (it->first == "Water")
             {
                 mWater->processChangedSettings(changed);
-            }
-            else if (it->first == "Shaders" && it->second == "enable bloom")
-            {
-                if (mUniformBloomEnabled)
-                    mUniformBloomEnabled->set(Settings::Manager::getBool("enable bloom", "Shaders") ? 1.f : 0.f);
-            }
-            else if (it->first == "Shaders" && it->second == "enable god rays")
-            {
-                if (mSky)
-                    mSky->setGodRaysEnabled(Settings::Manager::getBool("enable god rays", "Shaders"));
-            }
-            else if (it->first == "Shaders" && it->second == "enable rain drops")
-            {
-                if (mSky)
-                    mSky->setRainDropsEnabled(Settings::Manager::getBool("enable rain drops", "Shaders"));
             }
             else if (it->first == "Shaders" && it->second == "minimum interior brightness")
             {

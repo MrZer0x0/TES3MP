@@ -548,14 +548,6 @@ public:
             mSunGlareCallback->setTimeOfDayFade(val);
     }
 
-    void setGlareEnabled(bool enabled)
-    {
-        if (mSunFlashNode)
-            mSunFlashNode->setNodeMask(enabled ? ~0u : 0u);
-        if (mSunGlareNode)
-            mSunGlareNode->setNodeMask(enabled ? ~0u : 0u);
-    }
-
 private:
     class DummyComputeBoundCallback : public osg::Node::ComputeBoundingSphereCallback
     {
@@ -1146,8 +1138,6 @@ SkyManager::SkyManager(osg::Group* parentNode, Resource::SceneManager* sceneMana
     , mBaseWindSpeed(0.f)
     , mEnabled(true)
     , mSunEnabled(true)
-    , mGodRaysEnabled(Settings::Manager::getBool("enable god rays", "Shaders"))
-    , mRainDropsEnabled(Settings::Manager::getBool("enable rain drops", "Shaders"))
     , mPrecipitationAlpha(0.f)
 {
     osg::ref_ptr<CameraRelativeTransform> skyroot (new CameraRelativeTransform);
@@ -1199,7 +1189,6 @@ void SkyManager::create()
     atmosphereNight->addUpdateCallback(mAtmosphereNightUpdater);
 
     mSun.reset(new Sun(mEarlyRenderBinRoot, *mSceneManager->getImageManager()));
-    mSun->setGlareEnabled(mGodRaysEnabled);
 
     mMasser.reset(new Moon(mEarlyRenderBinRoot, *mSceneManager->getImageManager(), Fallback::Map::getFloat("Moons_Masser_Size")/125, Moon::Type_Masser));
     mSecunda.reset(new Moon(mEarlyRenderBinRoot, *mSceneManager->getImageManager(), Fallback::Map::getFloat("Moons_Secunda_Size")/125, Moon::Type_Secunda));
@@ -1538,7 +1527,7 @@ void SkyManager::createRain()
 
     // Note: if we ever switch to regular geometry rain, it'll need to use an AlphaFader.
     mRainNode->addCullCallback(mUnderwaterSwitch);
-    mRainNode->setNodeMask(mRainDropsEnabled ? Mask_WeatherParticles : 0u);
+    mRainNode->setNodeMask(Mask_WeatherParticles);
 
     mRootNode->addChild(mRainNode);
 }
@@ -1589,7 +1578,7 @@ bool SkyManager::hasRain() const
 
 float SkyManager::getPrecipitationAlpha() const
 {
-    if (mEnabled && mRainDropsEnabled && !mIsStorm && (hasRain() || mParticleNode))
+    if (mEnabled && !mIsStorm && (hasRain() || mParticleNode))
         return mPrecipitationAlpha;
 
     return 0.f;
@@ -1902,20 +1891,6 @@ void SkyManager::setDate(int day, int month)
 void SkyManager::setGlareTimeOfDayFade(float val)
 {
     mSun->setGlareTimeOfDayFade(val);
-}
-
-void SkyManager::setGodRaysEnabled(bool enabled)
-{
-    mGodRaysEnabled = enabled;
-    if (mCreated && mSun)
-        mSun->setGlareEnabled(enabled);
-}
-
-void SkyManager::setRainDropsEnabled(bool enabled)
-{
-    mRainDropsEnabled = enabled;
-    if (mRainNode)
-        mRainNode->setNodeMask(enabled ? Mask_WeatherParticles : 0u);
 }
 
 void SkyManager::setWaterHeight(float height)
