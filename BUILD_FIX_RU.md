@@ -1,16 +1,25 @@
-# Исправление сборки ArenaMP
+# Полный фикс сборки occlusion culling для ArenaMP
 
-Новая ошибка была вызвана несогласованным переносом occlusion culling:
+Исправляет несогласованный перенос occlusion culling, проявлявшийся ошибками C2661 в `renderingmanager.cpp`.
 
-- `renderingmanager.cpp` использовал `mOcclusionCuller`, `mTerrainOccluder`, `occlusionVisible()` и `rebuildOcclusionBuffer()`;
-- соответствующие объявления отсутствовали в `renderingmanager.hpp`;
-- `SceneOcclusionCallback` вызывался с четырьмя аргументами, но заголовок содержал старую декларацию;
-- `getPagedRefnums()` в реализации ошибочно принимал `std::vector`, тогда как ObjectPaging и Scene используют `std::set`.
+Заменяемые файлы:
 
-Исправлено:
+- `apps/openmw/mwrender/renderingmanager.cpp`
+- `apps/openmw/mwrender/renderingmanager.hpp`
+- `apps/openmw/mwrender/occlusionculling.hpp`
+- `apps/openmw/mwrender/objects.cpp`
+- `apps/openmw/mwrender/objects.hpp`
+- `apps/openmw/mwrender/objectpaging.cpp`
+- `apps/openmw/mwrender/objectpaging.hpp`
 
-1. Добавлены поля и методы occlusion в `renderingmanager.hpp`.
-2. Добавлен согласованный `occlusionculling.hpp`.
-3. `getPagedRefnums()` возвращён к `std::set<ESM::RefNum>`.
+Что синхронизировано:
 
-Скопируйте содержимое архива в корень проекта с заменой файлов.
+- конструктор `Objects(..., OcclusionCuller*)`;
+- конструктор `ObjectPaging(..., OcclusionCuller*)`;
+- callback для статических объектов ячейки;
+- callback для paged-объектов;
+- локальный заголовок `occlusionculling.hpp`;
+- поля occlusion в `RenderingManager`;
+- единая сигнатура `getPagedRefnums(..., std::set<ESM::RefNum>&)`.
+
+Распакуйте архив в корень проекта с заменой, затем сделайте новый commit и запустите новый workflow GitHub Actions.
