@@ -242,6 +242,18 @@ protected:
         stateset->addUniform(new osg::Uniform("waterWaveStrength", 1.0f));
         stateset->addUniform(new osg::Uniform("waterSurfaceRoughness", 0.22f));
         stateset->addUniform(new osg::Uniform("waterTransparency", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterWaveChoppiness", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterLargeWaveScale", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterMediumWaveScale", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterSmallWaveScale", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterPatchIntensity", 0.65f));
+        stateset->addUniform(new osg::Uniform("waterPatchScale", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterPatchContrast", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterFoamIntensity", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterCrestFoamIntensity", 0.85f));
+        stateset->addUniform(new osg::Uniform("waterShoreFoamIntensity", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterFoamThreshold", 0.38f));
+        stateset->addUniform(new osg::Uniform("waterFoamSoftness", 0.18f));
         stateset->addUniform(new osg::Uniform("rippleMapWorldScale", RipplesSurface::sWorldScaleFactor));
         stateset->addUniform(new osg::Uniform("rippleMapHalfWorldSize",
             static_cast<float>(RipplesSurface::sRTTSize) * RipplesSurface::sWorldScaleFactor * 0.5f));
@@ -284,6 +296,31 @@ protected:
 
         if (osg::Uniform* waterTransparencyUniform = stateset->getUniform("waterTransparency"))
             waterTransparencyUniform->set(std::clamp(Settings::Manager::getFloat("transparency", "Water"), 0.0f, 2.0f));
+
+        if (osg::Uniform* uniform = stateset->getUniform("waterWaveChoppiness"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("wave choppiness", "Water"), 0.0f, 2.5f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterLargeWaveScale"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("large wave scale", "Water"), 0.25f, 4.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterMediumWaveScale"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("medium wave scale", "Water"), 0.25f, 4.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterSmallWaveScale"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("small wave scale", "Water"), 0.25f, 4.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterPatchIntensity"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("water patch intensity", "Water"), 0.0f, 2.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterPatchScale"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("water patch scale", "Water"), 0.2f, 4.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterPatchContrast"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("water patch contrast", "Water"), 0.2f, 3.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterFoamIntensity"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("foam intensity", "Water"), 0.0f, 2.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterCrestFoamIntensity"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("foam crest intensity", "Water"), 0.0f, 2.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterShoreFoamIntensity"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("foam shoreline intensity", "Water"), 0.0f, 2.0f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterFoamThreshold"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("foam threshold", "Water"), 0.05f, 0.95f));
+        if (osg::Uniform* uniform = stateset->getUniform("waterFoamSoftness"))
+            uniform->set(std::clamp(Settings::Manager::getFloat("foam softness", "Water"), 0.01f, 0.5f));
 
         if (mRipples)
             stateset->setTextureAttributeAndModes(4, mRipples->getColorTexture(), osg::StateAttribute::ON);
@@ -799,8 +836,9 @@ void Water::setEnabled(bool enabled)
 
 void Water::changeCell(const MWWorld::CellStore* store)
 {
-    bool isInterior = !store->getCell()->isExterior();
-    bool wasInterior = mInterior;
+    const ESM::Cell* cell = store->getCell();
+    const bool isInterior = !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
+    const bool wasInterior = mInterior;
     if (!isInterior)
     {
         mWaterNode->setPosition(getSceneNodeCoordinates(store->getCell()->mData.mX, store->getCell()->mData.mY));

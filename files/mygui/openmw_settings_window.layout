@@ -553,6 +553,184 @@
             </Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
+            <Property key="Caption" value="  Waves  " />
+            <Widget type="TextBox" skin="SandText" position="0 4 352 16" name="WaterChoppinessLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Choppiness (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 21 352 16" name="WaterWaveChoppiness" align="HStretch Top">
+              <Property key="Range" value="251" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="wave choppiness" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.0" />
+              <UserString key="SettingMax" value="2.5" />
+              <UserString key="SettingLabelWidget" value="WaterChoppinessLabel" />
+              <UserString key="SettingLabelCaption" value="Choppiness (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 44 352 16" name="WaterLargeWaveScaleLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Large wave scale (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 61 352 16" name="WaterLargeWaveScale" align="HStretch Top">
+              <Property key="Range" value="376" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="large wave scale" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.25" />
+              <UserString key="SettingMax" value="4.0" />
+              <UserString key="SettingLabelWidget" value="WaterLargeWaveScaleLabel" />
+              <UserString key="SettingLabelCaption" value="Large wave scale (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 84 352 16" name="WaterMediumWaveScaleLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Medium wave scale (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 101 352 16" name="WaterMediumWaveScale" align="HStretch Top">
+              <Property key="Range" value="376" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="medium wave scale" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.25" />
+              <UserString key="SettingMax" value="4.0" />
+              <UserString key="SettingLabelWidget" value="WaterMediumWaveScaleLabel" />
+              <UserString key="SettingLabelCaption" value="Medium wave scale (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 124 352 16" name="WaterSmallWaveScaleLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Small wave scale (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 141 352 16" name="WaterSmallWaveScale" align="HStretch Top">
+              <Property key="Range" value="376" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="small wave scale" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.25" />
+              <UserString key="SettingMax" value="4.0" />
+              <UserString key="SettingLabelWidget" value="WaterSmallWaveScaleLabel" />
+              <UserString key="SettingLabelCaption" value="Small wave scale (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 164 352 16" name="WaterPatchIntensityLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Surface patch intensity (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 181 352 16" name="WaterPatchIntensity" align="HStretch Top">
+              <Property key="Range" value="201" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="water patch intensity" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.0" />
+              <UserString key="SettingMax" value="2.0" />
+              <UserString key="SettingLabelWidget" value="WaterPatchIntensityLabel" />
+              <UserString key="SettingLabelCaption" value="Surface patch intensity (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 204 352 16" name="WaterPatchScaleLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Surface patch scale (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 221 352 16" name="WaterPatchScale" align="HStretch Top">
+              <Property key="Range" value="381" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="water patch scale" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.2" />
+              <UserString key="SettingMax" value="4.0" />
+              <UserString key="SettingLabelWidget" value="WaterPatchScaleLabel" />
+              <UserString key="SettingLabelCaption" value="Surface patch scale (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 244 352 16" name="WaterPatchContrastLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Surface patch contrast (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 261 352 16" name="WaterPatchContrast" align="HStretch Top">
+              <Property key="Range" value="281" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="water patch contrast" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.2" />
+              <UserString key="SettingMax" value="3.0" />
+              <UserString key="SettingLabelWidget" value="WaterPatchContrastLabel" />
+              <UserString key="SettingLabelCaption" value="Surface patch contrast (%s)" />
+            </Widget>
+          </Widget>
+          <Widget type="TabItem" skin="" position="0 28 352 318">
+            <Property key="Caption" value="  Foam  " />
+            <Widget type="TextBox" skin="SandText" position="0 4 352 16" name="WaterFoamIntensityLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Foam intensity (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 21 352 16" name="WaterFoamIntensity" align="HStretch Top">
+              <Property key="Range" value="201" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="foam intensity" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.0" />
+              <UserString key="SettingMax" value="2.0" />
+              <UserString key="SettingLabelWidget" value="WaterFoamIntensityLabel" />
+              <UserString key="SettingLabelCaption" value="Foam intensity (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 52 352 16" name="WaterCrestFoamLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Crest foam (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 69 352 16" name="WaterCrestFoamIntensity" align="HStretch Top">
+              <Property key="Range" value="201" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="foam crest intensity" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.0" />
+              <UserString key="SettingMax" value="2.0" />
+              <UserString key="SettingLabelWidget" value="WaterCrestFoamLabel" />
+              <UserString key="SettingLabelCaption" value="Crest foam (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 100 352 16" name="WaterShoreFoamLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Shore foam (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 117 352 16" name="WaterShoreFoamIntensity" align="HStretch Top">
+              <Property key="Range" value="201" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="foam shoreline intensity" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.0" />
+              <UserString key="SettingMax" value="2.0" />
+              <UserString key="SettingLabelWidget" value="WaterShoreFoamLabel" />
+              <UserString key="SettingLabelCaption" value="Shore foam (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 148 352 16" name="WaterFoamThresholdLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Crest threshold (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 165 352 16" name="WaterFoamThreshold" align="HStretch Top">
+              <Property key="Range" value="181" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="foam threshold" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.05" />
+              <UserString key="SettingMax" value="0.95" />
+              <UserString key="SettingLabelWidget" value="WaterFoamThresholdLabel" />
+              <UserString key="SettingLabelCaption" value="Crest threshold (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 196 352 16" name="WaterFoamSoftnessLabel" align="Left Top HStretch">
+              <Property key="Caption" value="Foam softness (%s)" />
+            </Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 213 352 16" name="WaterFoamSoftness" align="HStretch Top">
+              <Property key="Range" value="197" />
+              <UserString key="SettingType" value="Slider" />
+              <UserString key="SettingCategory" value="Water" />
+              <UserString key="SettingName" value="foam softness" />
+              <UserString key="SettingValueType" value="Float" />
+              <UserString key="SettingMin" value="0.01" />
+              <UserString key="SettingMax" value="0.5" />
+              <UserString key="SettingLabelWidget" value="WaterFoamSoftnessLabel" />
+              <UserString key="SettingLabelCaption" value="Foam softness (%s)" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 244 352 54" align="HStretch Top">
+              <Property key="Caption" value="Foam is generated procedurally on wave crests and in a smooth shallow-water depth band. Set Foam intensity to 0 to disable it." />
+              <Property key="TextAlign" value="Left Top" />
+            </Widget>
+          </Widget>
+          <Widget type="TabItem" skin="" position="0 28 352 318">
             <Property key="Caption" value="  Lights  " />
             <!-- Lighting Method -->
             <Widget type="TextBox" skin="NormalText" position="0 4 170 18" align="Left Top">

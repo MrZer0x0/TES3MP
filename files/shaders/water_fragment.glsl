@@ -8,6 +8,18 @@
 uniform float waterWaveStrength;
 uniform float waterSurfaceRoughness;
 uniform float waterTransparency;
+uniform float waterWaveChoppiness;
+uniform float waterLargeWaveScale;
+uniform float waterMediumWaveScale;
+uniform float waterSmallWaveScale;
+uniform float waterPatchIntensity;
+uniform float waterPatchScale;
+uniform float waterPatchContrast;
+uniform float waterFoamIntensity;
+uniform float waterCrestFoamIntensity;
+uniform float waterShoreFoamIntensity;
+uniform float waterFoamThreshold;
+uniform float waterFoamSoftness;
 
 // ========================================================================
 // ОПТИМИЗИРОВАННЫЙ ШЕЙДЕР ВОДЫ v2.1 by MrZer0
@@ -42,6 +54,12 @@ const vec3 WATER_COLOR = vec3(0.10, 0.10, 0.045);
 const vec3 WATER_SHALLOW = vec3(0.055, 0.070, 0.028);
 const vec3 WATER_DEEP = vec3(0.040, 0.055, 0.020);
 const vec3 NIGHT_WATER = vec3(0.08, 0.12, 0.14);
+
+// Surface colour variation adapted to the supplied water_data.glsl palette.
+const vec3 WATER_PATCH_PHYTOPLANKTON = vec3(0.000, 0.040, -0.015);
+const vec3 WATER_PATCH_SEDIMENT = vec3(0.030, 0.040, -0.010);
+const vec3 WATER_FOAM_DAY = vec3(0.88, 0.95, 0.91);
+const vec3 WATER_FOAM_NIGHT = vec3(0.36, 0.43, 0.48);
 
 const vec3 AMBIENT_NIGHT = vec3(0.12, 0.15, 0.22);
 const vec3 AMBIENT_DIST = vec3(0.15, 0.18, 0.25);
@@ -314,6 +332,77 @@ float shorelineWaveFade(float waterDepth)
     return smoothstep(0.35, 8.5, max(waterDepth, 0.0));
 }
 
+
+// Broad moving patches break up uniform reflection and colour. This uses the
+// existing inexpensive value-noise implementation, so no extra texture is
+// required and the pattern is stable in world space.
+float waterPatchPattern(vec2 worldXY, float time)
+{
+    float scale = max(waterPatchScale, 0.05);
+    vec2 p = worldXY * (0.000055 * scale);
+    vec2 drift = WIND_DIR * time * 0.0030;
+
+    float n0 = znoise2(p + drift);
+    float n1 = znoise2(p * 2.07 - drift * 0.72 + vec2(9.2, -3.7));
+    float n2 = znoise2(p * 4.13 + drift * 0.43 + vec2(-5.1, 7.4));
+    float n = n0 * 0.58 + n1 * 0.29 + n2 * 0.13;
+
+    float contrast = clamp(waterPatchContrast, 0.2, 3.0);
+    float width = mix(0.36, 0.10, clamp((contrast - 0.2) / 2.8, 0.0, 1.0));
+    return smoothstep(0.5 - width, 0.5 + width, n);
+}
+
+vec3 applyWaterPatches(vec3 color, float patch, float shoreClear, float night)
+{
+    float amount = clamp(waterPatchIntensity, 0.0, 2.0) * (0.10 + 0.12 * (1.0 - shoreClear));
+    float greenBand = smoothstep(0.42, 0.78, patch);
+    float sedimentBand = smoothstep(0.18, 0.58, 1.0 - patch);
+    vec3 tint = WATER_PATCH_PHYTOPLANKTON * greenBand + WATER_PATCH_SEDIMENT * sedimentBand;
+    tint *= mix(1.0, 0.36, night);
+    return clamp(color + tint * amount, 0.0, 2.0);
+}
+
+float waterFoamBreakup(vec2 worldXY, float time)
+{
+    vec2 p = worldXY * 0.0075;
+    vec2 drift = WIND_DIR * time * 0.032;
+    float n0 = znoise2(p + drift);
+    float n1 = znoise2(p * 2.31 - drift * 0.61 + vec2(4.7, 8.2));
+    float n = n0 * 0.68 + n1 * 0.32;
+    return smoothstep(0.30, 0.72, n);
+}
+
+float calculateWaterFoam(vec3 worldPos, float waterDepth, vec3 normal, vec3 waveNormal,
+                         float rippleEnergy, float time)
+{
+    float softness = max(waterFoamSoftness, 0.01);
+    float slope = clamp((1.0 - normal.z) * 4.6, 0.0, 1.0);
+    float crossing = clamp(abs(waveNormal.x - waveNormal.y) * 0.45 * waterWaveChoppiness, 0.0, 0.45);
+    float crestSignal = clamp(slope + crossing + rippleEnergy * 0.22, 0.0, 1.0);
+    float crest = smoothstep(waterFoamThreshold - softness,
+                             waterFoamThreshold + softness, crestSignal);
+    crest *= waterCrestFoamIntensity;
+
+    // A depth band makes shore foam fade in and out smoothly instead of
+    // creating a white line exactly at the shoreline.
+    float shoreEnter = smoothstep(0.08, 0.85, waterDepth);
+    float shoreLeave = 1.0 - smoothstep(2.6, 9.0, waterDepth);
+    float shorePulse = 0.72 + 0.28 * sin((worldPos.x + worldPos.y) * 0.028 + time * 0.38);
+    float shore = shoreEnter * shoreLeave * shorePulse * waterShoreFoamIntensity;
+
+    float breakup = waterFoamBreakup(worldPos.xy, time);
+    float foam = (crest + shore) * mix(0.48, 1.0, breakup) * waterFoamIntensity;
+    return clamp(foam, 0.0, 1.0);
+}
+
+vec3 applyWaterFoam(vec3 color, float foam, float shadow, float sunFade, float night)
+{
+    vec3 foamColor = mix(WATER_FOAM_DAY, WATER_FOAM_NIGHT, night);
+    foamColor *= mix(0.58, 1.0, clamp(shadow, 0.0, 1.0));
+    foamColor *= 0.82 + clamp(sunFade, 0.0, 1.5) * 0.12;
+    return mix(color, foamColor, foam * 0.78) + foamColor * foam * 0.08;
+}
+
 // ========================================================================
 // ПОВЕРХНОСТНОЕ НАТЯЖЕНИЕ (новая фича для режима без рефракции)
 // ========================================================================
@@ -461,6 +550,8 @@ void main(void) {
     }
     
     float wTime = osg_SimulationTime * 3.14;
+    float patchPattern = waterPatchPattern(worldPos.xy, wTime);
+    float patchSigned = (patchPattern - 0.5) * 2.0;
     
     // ========================================================================
     // LOD СИСТЕМА (ключевая оптимизация)
@@ -476,18 +567,18 @@ void main(void) {
     // ВОЛНЫ НОРМАЛЕЙ (с LOD - экономия до 2 texture lookups)
     // ========================================================================
     
-    vec3 n0 = texture2D(normalMap, waveCoords(UV, 0.05, 0.02, wTime, 
+    vec3 n0 = texture2D(normalMap, waveCoords(UV, 0.05 * waterLargeWaveScale, 0.02, wTime, 
               vec2(-0.0075, -0.0025), vec2(0.0))).rgb * 2.0 - 1.0;
     
-    vec3 n1 = texture2D(normalMap, waveCoords(UV, 0.1, 0.04, wTime,
+    vec3 n1 = texture2D(normalMap, waveCoords(UV, 0.1 * waterLargeWaveScale, 0.04, wTime,
               vec2(0.01, 0.0075), n0.xy)).rgb * 2.0 - 1.0;
     
     // Средние и мелкие волны семплируются всегда, а их вклад плавно затухает по LOD.
     // Это убирает резкую видимую границу между зонами качества волн.
-    vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
+    vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25 * waterMediumWaveScale, 0.035, wTime,
              vec2(-0.02, -0.015), n1.xy)).rgb * 2.0 - 1.0;
 
-    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
+    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5 * waterSmallWaveScale, 0.045, wTime,
              vec2(0.015, 0.02), n2.xy)).rgb * 2.0 - 1.0;
     
     // ========================================================================
@@ -516,11 +607,11 @@ void main(void) {
     vec2 rippleXY = rain.xy * rain.w * bump * 5.35 + actorRipple * bump * 3.40;
     float rippleEnergy = clamp(abs(rain.w) * 1.25 + length(actorRipple) * 2.40, 0.0, 1.0);
 
-    vec3 baseNormal = vec3(-waterN.xy * bump, waterN.z);
+    vec3 baseNormal = vec3(-waterN.xy * bump * waterWaveChoppiness, waterN.z);
     baseNormal = fastNormalize(baseNormal);
 
     // Рябь делаем заметнее, но не даём ей слишком сильно дёргать отражение
-    vec3 normal = vec3(-(waterN.xy + rippleXY) * bump * waterWaveStrength, waterN.z);
+    vec3 normal = vec3(-(waterN.xy + rippleXY) * bump * waterWaveStrength * waterWaveChoppiness, waterN.z);
     normal = fastNormalize(normal);
     
     // ========================================================================
@@ -556,9 +647,11 @@ void main(void) {
     float ior = (camPos.z > 0.0) ? 1.333 : (1.0 / 1.333);
     float fBias = (camPos.z > 0.0) ? 0.0 : 0.08;
     float fresnel = clamp(fresnelDielectric(V, normal, ior) + fBias, 0.0, 1.0);
-    fresnel *= mix(1.18, 0.72, waterSurfaceRoughness);
+    float localRoughness = clamp(waterSurfaceRoughness + patchSigned * 0.09 * waterPatchIntensity, 0.02, 1.0);
+    fresnel *= mix(1.18, 0.72, localRoughness);
     
     vec2 screenOff = (baseNormal.xy * 0.82 + rippleXY * 0.18) * REFL_BUMP;
+    screenOff *= mix(0.88, 1.12, clamp(patchPattern * waterPatchIntensity, 0.0, 1.0));
     
     // ========================================================================
     // REFRACTION MODE
@@ -668,6 +761,11 @@ void main(void) {
 
         finalCol += vec3(isNight * 0.15 * max(dot(normal, L), 0.0));
         finalCol += AMBIENT_DIST * distF * DIST_BOOST * 0.3;
+        finalCol = applyWaterPatches(finalCol, patchPattern, shoreClear, isNight);
+        float foamMask = calculateWaterFoam(worldPos, waterDepth, normal, waterN, rippleEnergy, wTime);
+        if (camPos.z < 0.0)
+            foamMask *= 0.12;
+        finalCol = applyWaterFoam(finalCol, foamMask, shadow, sunFade, isNight);
         finalCol = applySurfaceShadow(finalCol, shadow, fFinal, shoreClear);
 
         vec3 tint = dayTint(timeOfDay);
@@ -727,6 +825,11 @@ void main(void) {
         finalCol += vec3(rippleHighlight);
         finalCol += vec3(isNight * 0.15 * max(dot(normal, L), 0.0));
         finalCol += AMBIENT_DIST * distF * DIST_BOOST * 0.3;
+        finalCol = applyWaterPatches(finalCol, patchPattern, shoreClear, isNight);
+        float foamMask = calculateWaterFoam(worldPos, waterDepthNoRefr, normal, waterN, rippleEnergy, wTime);
+        if (camPos.z < 0.0)
+            foamMask *= 0.12;
+        finalCol = applyWaterFoam(finalCol, foamMask, shadow, sunFade, isNight);
         finalCol = applySurfaceShadow(finalCol, shadow, fFinal, shoreClear);
 
         vec3 tint = dayTint(timeOfDay);
@@ -741,6 +844,7 @@ void main(void) {
         float alpha = clamp(1.0 - fFinal * 0.52, minAlpha, maxAlphaLimit);
         alpha = mix(alpha, alpha * 0.66, shoreClear);
         alpha = min(alpha + clamp(waterDepthNoRefr * 0.024, 0.0, 0.28) + murkDepth * 0.10, maxAlphaLimit);
+        alpha = max(alpha, foamMask * 0.92);
         gl_FragData[0].w = alpha;
     }
 

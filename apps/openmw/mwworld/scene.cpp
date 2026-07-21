@@ -761,6 +761,11 @@ namespace MWWorld
     {
         mCurrentCell = cell;
 
+        // Keep shader interior state synchronized on both directions of a transition.
+        // Previously it was set when entering an interior but never cleared when returning outside,
+        // which permanently disabled underwater caustics until restarting the client.
+        mRendering.updateCurrentCellState(cell->getCell());
+
         mRendering.enableTerrain(cell->isExterior());
 
         MWBase::World *world = MWBase::Environment::get().getWorld();

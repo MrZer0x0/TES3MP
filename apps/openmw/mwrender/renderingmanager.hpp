@@ -131,6 +131,10 @@ namespace MWRender
         void setSunDirection(const osg::Vec3f& direction);
         void setSunColour(const osg::Vec4f& diffuse, const osg::Vec4f& specular);
 
+        /// Update shader state that depends on the player's current cell.
+        /// Unlike configureAmbient(), this is safe for exterior cells and must be called on every cell transition.
+        void updateCurrentCellState(const ESM::Cell* cell);
+
         void configureAmbient(const ESM::Cell* cell);
         void configureFog(const ESM::Cell* cell);
         void configureFog(float fogDepth, float underwaterFog, float dlFactor, float dlOffset, const osg::Vec4f& colour);

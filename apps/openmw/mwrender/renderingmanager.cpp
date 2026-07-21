@@ -648,10 +648,17 @@ namespace MWRender
         mSky->setMoonColour(red);
     }
 
+    void RenderingManager::updateCurrentCellState(const ESM::Cell* cell)
+    {
+        // This state follows the player's current cell, not whichever neighbouring cell happens to be loaded last.
+        // Quasi-exteriors use exterior lighting and must keep outdoor water effects enabled.
+        const bool isInterior = cell && !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
+        mStateUpdater->setInterior(isInterior);
+    }
+
     void RenderingManager::configureAmbient(const ESM::Cell *cell)
     {
-        // Authoritative cell flag; do not infer interiors from sun direction in shaders.
-        mStateUpdater->setInterior(!cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx));
+        updateCurrentCellState(cell);
         bool needsAdjusting = false;
         if (mResourceSystem->getSceneManager()->getLightingMethod() != SceneUtil::LightingMethod::FFP)
             needsAdjusting = !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
@@ -1302,6 +1309,8 @@ namespace MWRender
                     mSceneRoot->addUpdateCallback(mStateUpdater);
                     mStateUpdater->setFogEnd(mViewDistance);
                     updateAmbient();
+                    if (MWMechanics::getPlayer().isInCell())
+                        updateCurrentCellState(MWMechanics::getPlayer().getCell()->getCell());
 
                     mViewer->startThreading();
                 }
