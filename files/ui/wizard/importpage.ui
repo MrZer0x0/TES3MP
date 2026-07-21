@@ -51,19 +51,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QCheckBox" name="groundcoverCheckBox">
-     <property name="toolTip">
-      <string>Grass and groundcover plugins are written as groundcover= entries instead of content= entries.</string>
-     </property>
-     <property name="text">
-      <string>Import plugins with &quot;grass&quot; or &quot;groundcover&quot; in the filename as groundcover</string>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>

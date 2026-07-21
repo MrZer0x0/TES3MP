@@ -17,7 +17,7 @@
    <string>Select Existing Installation</string>
   </property>
   <property name="subTitle">
-   <string>Select the Morrowind installation folder or its Data Files folder.</string>
+   <string>Select an existing installation for OpenMW to use or modify.</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -48,7 +48,7 @@
      <item>
       <widget class="QPushButton" name="browseButton">
        <property name="text">
-        <string>Select folder...</string>
+        <string>Browse...</string>
        </property>
        <property name="icon">
         <iconset theme="folder">

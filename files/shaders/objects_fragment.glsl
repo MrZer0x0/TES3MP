@@ -188,8 +188,7 @@ void main()
     
     vec3 lighting;
 #if !PER_PIXEL_LIGHTING
-    lighting = passLighting * max(lightAmbientIntensity, 0.0)
-        + shadowDiffuseLighting * shadowing * max(lightDirectIntensity, 0.0);
+    lighting = passLighting + shadowDiffuseLighting * shadowing;
 #else
     vec3 diffuseLight, ambientLight;
     doLighting(passViewPos, normalize(viewNormal), shadowing, diffuseLight, ambientLight);

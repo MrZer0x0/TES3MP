@@ -8,7 +8,6 @@ varying vec4  position;
 varying float linearDepth;
 uniform float osg_SimulationTime;
 uniform mat4 osg_ViewMatrixInverse;
-uniform bool isInterior;
 
 #include "shadows_vertex.glsl"
 
@@ -33,6 +32,8 @@ void main(void)
     // Проверяем, находится ли камера под водой (интерьер)
     // Волны по вертикали применяются только в экстерьере
     // ========================================================================
+    
+    bool isInterior = (campos.z < -1.0);
     
     if(euclideanDepth < 600000.0 && !isInterior) {
     

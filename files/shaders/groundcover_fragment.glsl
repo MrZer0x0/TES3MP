@@ -33,10 +33,6 @@ varying vec3 passWorldPos;
 
 uniform float osg_SimulationTime;
 uniform mat4 osg_ViewMatrixInverse;
-uniform bool isInterior;
-uniform bool isInventoryPreview;
-uniform float waterCausticsIntensity;
-uniform float waterUnderwaterTint;
 
 const float MAX_CAUSTICS_DISTANCE = 2500.0;
 const float CAUSTICS_FADE_START = 1500.0;
@@ -85,8 +81,7 @@ void main()
 
     vec3 lighting;
 #if !PER_PIXEL_LIGHTING
-    lighting = passLighting * max(lightAmbientIntensity, 0.0)
-        + shadowDiffuseLighting * shadowing * max(lightDirectIntensity, 0.0);
+    lighting = passLighting + shadowDiffuseLighting * shadowing;
 #else
     vec3 diffuseLight, ambientLight;
     doLighting(passViewPos, normalize(viewNormal), shadowing, diffuseLight, ambientLight);
@@ -104,6 +99,11 @@ void main()
     float cameraWaterH = zDoWaveSimple(cameraPos.xy, osg_SimulationTime);
     bool cameraUnderwater = cameraPos.z < cameraWaterH;
 
+    vec3 sunPos = lcalcPosition(0);
+    vec3 sunDir = normalize(sunPos);
+    vec3 sunWDir = (osg_ViewMatrixInverse * vec4(sunDir, 0.0)).xyz;
+    bool isInterior = sunWDir.y > 0.0;
+
     float waterH = zDoWaveSimple(passWorldPos.xy, osg_SimulationTime);
     float waterDepth = max(-passWorldPos.z + waterH, 0.0);
 
@@ -112,15 +112,15 @@ void main()
     if (distanceToFragment > CAUSTICS_FADE_START)
         causticsFade = 1.0 - smoothstep(CAUSTICS_FADE_START, MAX_CAUSTICS_DISTANCE, distanceToFragment);
 
-    if (!isInterior && !isInventoryPreview && passWorldPos.z < waterH && waterDepth > 2.0 && distanceToFragment < MAX_CAUSTICS_DISTANCE) {
+    if (!isInterior && passWorldPos.z < waterH && waterDepth > 2.0 && distanceToFragment < MAX_CAUSTICS_DISTANCE) {
         float causticsIntensity = zcaustics(passWorldPos.xy * 0.012, osg_SimulationTime * 0.5) * 1.70;
         float causticsBlend = clamp(waterDepth * 0.018, 0.0, 0.72) / (1.0 + waterDepth / 700.0);
         causticsBlend *= causticsFade;
-        gl_FragData[0].xyz *= mix(1.0, 0.65 + causticsIntensity * waterCausticsIntensity, causticsBlend);
+        gl_FragData[0].xyz *= mix(1.0, 0.65 + causticsIntensity, causticsBlend);
     }
 
-    if (cameraUnderwater && !isInterior && !isInventoryPreview && waterDepth > 0.0)
-        gl_FragData[0].xyz = mix(gl_FragData[0].xyz, applyUnderwaterMedium(gl_FragData[0].xyz, waterDepth, isInterior), waterUnderwaterTint);
+    if (cameraUnderwater && !isInterior && waterDepth > 0.0)
+        gl_FragData[0].xyz = applyUnderwaterMedium(gl_FragData[0].xyz, waterDepth, isInterior);
 
 #if @radialFog
     float fogValue = clamp((euclideanDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
