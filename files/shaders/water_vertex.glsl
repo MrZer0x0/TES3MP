@@ -9,11 +9,6 @@ varying float linearDepth;
 uniform float osg_SimulationTime;
 uniform mat4 osg_ViewMatrixInverse;
 uniform bool isInterior;
-uniform float waterWaveStrength;
-uniform float waterWaveChoppiness;
-uniform float waterLargeWaveScale;
-uniform float waterMediumWaveScale;
-uniform float waterSmallWaveScale;
 
 #include "shadows_vertex.glsl"
 
@@ -25,33 +20,35 @@ void main(void)
     vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
     float euclideanDepth = length(viewPos.xyz);
     
-    float frequency = 2.0 * 3.1415 / 0.1;
-    float phase = 0.01 * frequency;
+    float frequency = 2.0*3.1415/0.1;
 
-    // Three travelling wave trains replace the old single-direction sine.
-    // All layers are kept below the cell water level, so shore geometry does
-    // not flicker through upward-displaced vertices. The distance fade avoids
-    // a visible hard edge at the geometry-wave limit.
-    if (euclideanDepth < 600000.0 && !isInterior)
-    {
+    // ========================================================================
+    // УЛУЧШЕНИЕ: Скорость волн уменьшена в 2 раза (0.02 → 0.01)
+    // ========================================================================
+    float phase = 0.01 * frequency;  // было 0.02
+    
+    
+    // ========================================================================
+    // УЛУЧШЕНИЕ 2: Убрано волнение по вертикали в интерьере
+    // Проверяем, находится ли камера под водой (интерьер)
+    // Волны по вертикали применяются только в экстерьере
+    // ========================================================================
+    
+    if(euclideanDepth < 600000.0 && !isInterior) {
+    
         glvertice.xy *= 0.03;
 
-        float t = osg_SimulationTime * phase;
-        float largeWave = 0.5 + 0.5 * sin(
-            dot(vec2(0.63, 0.38), glvertice.xy) * frequency * 0.58 * waterLargeWaveScale + t * 0.72);
-        float mediumWave = 0.5 + 0.5 * sin(
-            dot(vec2(-0.31, 0.95), glvertice.xy) * frequency * 1.13 * waterMediumWaveScale + t * 1.07 + 1.7);
-        float smallWave = 0.5 + 0.5 * sin(
-            dot(vec2(0.91, -0.42), glvertice.xy) * frequency * 2.05 * waterSmallWaveScale + t * 1.43 + 3.1);
-
-        largeWave = pow(largeWave, mix(1.55, 3.10, clamp(waterWaveChoppiness * 0.4, 0.0, 1.0)));
-        mediumWave = pow(mediumWave, 2.05);
-        smallWave = pow(smallWave, 1.65);
-
-        float waveShape = largeWave * 0.58 + mediumWave * 0.28 + smallWave * 0.14;
-        float distanceFade = 1.0 - smoothstep(420000.0, 600000.0, euclideanDepth);
-        float amplitude = 6.25 * waterWaveStrength * waterWaveChoppiness * distanceFade;
-        glvertice.z -= amplitude * waveShape;
+        float theta = dot(vec2(0.6,0.4), vec2(glvertice.xy));
+        float sinres = sin(theta * frequency + osg_SimulationTime * phase);
+        float h = pow((sinres + 1.0) * 0.5, 2.5);
+        
+        float g = 70.0 * 9.8;
+        
+        // ========================================================================
+        // УЛУЧШЕНИЕ 3: Амплитуда уменьшена в 2 раза (12.5 → 6.25)
+        // Верхняя точка - это реальный уровень воды, волны идут только вниз
+        // ========================================================================
+        glvertice.z -= 6.25/sqrt(g) * sqrt(h * g);  // было 12.5
     }
     
     if(campos.z < -1.0)
