@@ -2,6 +2,7 @@
 #version 120
 
 #include "water_waves.glsl"
+#include "helpsettings.glsl"
 
 // runtime refraction toggle via uniform useRefraction
 uniform float waterWaveStrength;
@@ -755,6 +756,9 @@ void main(void) {
 #endif
     
     gl_FragData[0].xyz = mix(gl_FragData[0].xyz, gl_Fog.color.xyz, fogVal);
+
+    // Keep water in the same HDR/colour-grading space as terrain and objects.
+    gl_FragData[0].xyz = toneMap(preLight(gl_FragData[0].xyz));
 
     applyShadowDebugOverlay();
 }

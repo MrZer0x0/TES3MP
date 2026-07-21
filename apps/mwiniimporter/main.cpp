@@ -66,6 +66,7 @@ int wmain(int argc, wchar_t *wargv[]) {
             ("cfg,c", bpo::value<std::string>(), "openmw.cfg file")
             ("output,o", bpo::value<std::string>()->default_value(""), "openmw.cfg file")
             ("game-files,g", "import esm and esp files")
+            ("groundcover-from-content", "import plugins with grass/groundcover in their filename as groundcover")
             ("no-archives,A", "disable bsa archives import")
             ("encoding,e", bpo::value<std::string>()-> default_value("win1252"),
                 "Character encoding used in OpenMW game messages:\n"
@@ -121,11 +122,11 @@ int wmain(int argc, wchar_t *wargv[]) {
         importer.mergeFallback(cfg, ini);
 
         if(vm.count("game-files")) {
-            importer.importGameFiles(cfg, ini, iniFile);
+            importer.importGameFiles(cfg, ini, iniFile, vm.count("groundcover-from-content") != 0);
         }
 
         if(!vm.count("no-archives")) {
-            importer.importArchives(cfg, ini);
+            importer.importArchives(cfg, ini, iniFile);
         }
 
         std::cout << "write to: " << outputFile << std::endl;

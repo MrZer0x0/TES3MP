@@ -495,7 +495,9 @@ void Config::GameSettings::setGroundcoverList(const QStringList& fileNames)
 {
     remove(sGroundcoverKey);
     for (const QString& fileName : fileNames)
+    {
         setMultiValue(sGroundcoverKey, fileName);
+    }
 }
 
 QStringList Config::GameSettings::getGroundcoverList() const

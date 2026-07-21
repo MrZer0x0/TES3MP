@@ -1,0 +1,15 @@
+HDR_LIGHTING_SHADOWS_PORT_RU.md
+files/settings-default.cfg
+files/mygui/openmw_settings_window.layout
+files/shaders/groundcover_fragment.glsl
+files/shaders/water_fragment.glsl
+files/shaders/HDR.glsl
+files/shaders/objects_fragment.glsl
+files/shaders/terrain_fragment.glsl
+files/shaders/lighting.glsl
+files/shaders/shadows_fragment.glsl
+components/sceneutil/shadow.cpp
+components/sceneutil/shadow.hpp
+apps/openmw/mwgui/settingswindow.cpp
+apps/openmw/mwgui/settingswindow.hpp
+apps/openmw/mwrender/renderingmanager.cpp

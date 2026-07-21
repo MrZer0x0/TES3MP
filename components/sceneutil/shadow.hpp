@@ -26,6 +26,8 @@ namespace SceneUtil
         void enableIndoorMode();
 
         void enableOutdoorMode();
+
+        void processChangedSettings(unsigned int outdoorShadowCastingMask, unsigned int indoorShadowCastingMask);
     protected:
         bool mEnableShadows;
 
@@ -35,6 +37,7 @@ namespace SceneUtil
 
         unsigned int mOutdoorShadowCastingMask;
         unsigned int mIndoorShadowCastingMask;
+        bool mIndoorMode = false;
     };
 }
 

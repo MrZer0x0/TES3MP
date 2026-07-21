@@ -9,6 +9,7 @@
 
 #include <SDL_video.h>
 
+#include <algorithm>
 #include <iomanip>
 #include <numeric>
 #include <array>
@@ -247,6 +248,8 @@ namespace MWGui
         getWidget(mControllerSwitch, "ControllerButton");
         getWidget(mWaterTextureSize, "WaterTextureSize");
         getWidget(mWaterReflectionDetail, "WaterReflectionDetail");
+        getWidget(mHdrTonemapper, "HdrTonemapper");
+        getWidget(mShadowMapResolution, "ShadowMapResolution");
         getWidget(mLightingMethodButton, "LightingMethodButton");
         getWidget(mLightsResetButton, "LightsResetButton");
         getWidget(mMaxLights, "MaxLights");
@@ -274,6 +277,8 @@ namespace MWGui
 
         mWaterTextureSize->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWaterTextureSizeChanged);
         mWaterReflectionDetail->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWaterReflectionDetailChanged);
+        mHdrTonemapper->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onHdrTonemapperChanged);
+        mShadowMapResolution->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onShadowMapResolutionChanged);
 
         mLightingMethodButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onLightingMethodButtonChanged);
         mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
@@ -325,6 +330,13 @@ namespace MWGui
         int waterReflectionDetail = Settings::Manager::getInt("reflection detail", "Water");
         waterReflectionDetail = std::min(5, std::max(0, waterReflectionDetail));
         mWaterReflectionDetail->setIndexSelected(waterReflectionDetail);
+
+        mHdrTonemapper->setIndexSelected(std::clamp(Settings::Manager::getInt("tonemapper", "Post Processing"), 0, 3));
+        const int shadowResolution = Settings::Manager::getInt("shadow map resolution", "Shadows");
+        if (shadowResolution >= 4096) mShadowMapResolution->setIndexSelected(3);
+        else if (shadowResolution >= 2048) mShadowMapResolution->setIndexSelected(2);
+        else if (shadowResolution >= 1024) mShadowMapResolution->setIndexSelected(1);
+        else mShadowMapResolution->setIndexSelected(0);
 
         updateMaxLightsComboBox(mMaxLights);
 
@@ -413,6 +425,23 @@ namespace MWGui
     {
         unsigned int level = std::min((unsigned int)5, (unsigned int)pos);
         Settings::Manager::setInt("reflection detail", "Water", level);
+        apply();
+    }
+
+    void SettingsWindow::onHdrTonemapperChanged(MyGUI::ComboBox* _sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        Settings::Manager::setInt("tonemapper", "Post Processing", static_cast<int>(std::min<size_t>(pos, 3)));
+        apply();
+    }
+
+    void SettingsWindow::onShadowMapResolutionChanged(MyGUI::ComboBox* _sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        const int resolution = 512 << static_cast<int>(std::min<size_t>(pos, 3));
+        Settings::Manager::setInt("shadow map resolution", "Shadows", resolution);
         apply();
     }
 
@@ -746,6 +775,10 @@ namespace MWGui
 
     void SettingsWindow::onOpen()
     {
+        configureWidgets(mMainWidget, false);
+        mHdrTonemapper->setIndexSelected(std::clamp(Settings::Manager::getInt("tonemapper", "Post Processing"), 0, 3));
+        const int shadowResolution = Settings::Manager::getInt("shadow map resolution", "Shadows");
+        mShadowMapResolution->setIndexSelected(shadowResolution >= 4096 ? 3 : shadowResolution >= 2048 ? 2 : shadowResolution >= 1024 ? 1 : 0);
         highlightCurrentResolution();
         updateControlsBox();
         updateLightSettings();

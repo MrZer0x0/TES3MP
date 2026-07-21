@@ -1,45 +1,24 @@
 #include "lighting_util.glsl"
 #include "lighting_pbr_compat.glsl"
 
-// Bloom и glow параметры (можно настроить через uniforms или defines)
-#ifndef BLOOM_STRENGTH
-#define BLOOM_STRENGTH 0.15  // Снижено для интерьеров
-#endif
+const float POINT_BLOOM_MULTIPLIER = 0.30;
+const float POINT_GLOW_MULTIPLIER = 0.50;
 
-#ifndef GLOW_INTENSITY
-#define GLOW_INTENSITY 0.4  // Снижено для интерьеров
-#endif
-
-#ifndef GLOW_RADIUS
-#define GLOW_RADIUS 1.8  // Уменьшен радиус
-#endif
-
-// Отдельные настройки для точечных источников
-#ifndef POINT_BLOOM_MULTIPLIER
-#define POINT_BLOOM_MULTIPLIER 0.3  // Дополнительное снижение bloom для факелов/свечей
-#endif
-
-#ifndef POINT_GLOW_MULTIPLIER
-#define POINT_GLOW_MULTIPLIER 0.5  // Дополнительное снижение glow для факелов/свечей
-#endif
-
-// Переменная для накопления bloom эффекта
 vec3 bloomAccumulator = vec3(0.0);
 
-// Функция для вычисления bloom вклада от источника света
 vec3 calculateBloom(vec3 lightColor, float lightIntensity, float distance, float radius, float multiplier)
 {
     float bloomFactor = lightIntensity * smoothstep(radius * 2.0, 0.0, distance);
-    bloomFactor = pow(bloomFactor, 2.5);  // Более резкое затухание
-    return lightColor * bloomFactor * BLOOM_STRENGTH * multiplier;
+    bloomFactor = pow(max(bloomFactor, 0.0), 2.5);
+    return lightColor * bloomFactor * max(hdrBloomIntensity, 0.0) * multiplier;
 }
 
-// Функция для вычисления glow эффекта
 vec3 calculateGlow(vec3 lightColor, float distance, float radius, float multiplier)
 {
-    float glowFactor = smoothstep(radius * GLOW_RADIUS, 0.0, distance);
-    glowFactor = pow(glowFactor, 2.0);  // Более мягкое затухание
-    return lightColor * glowFactor * GLOW_INTENSITY * 0.2 * multiplier;
+    float effectiveRadius = radius * max(lightGlowRadius, 0.1);
+    float glowFactor = smoothstep(effectiveRadius, 0.0, distance);
+    glowFactor = pow(max(glowFactor, 0.0), 2.0);
+    return lightColor * glowFactor * max(lightGlowIntensity, 0.0) * 0.20 * multiplier;
 }
 
 void perLightSun(out vec3 diffuseOut, vec3 viewPos, vec3 viewNormal)
@@ -59,12 +38,11 @@ void perLightSun(out vec3 diffuseOut, vec3 viewPos, vec3 viewNormal)
     lambert *= clamp(-8.0 * (1.0 - 0.3) * eyeCosine + 1.0, 0.3, 1.0);
 #endif
 
-    vec3 sunDiffuse = lcalcDiffuse(0).xyz * lambert * 0.7;
+    vec3 sunDiffuse = lcalcDiffuse(0).xyz * lambert * 0.7 * max(lightDirectIntensity, 0.0);
     diffuseOut = sunDiffuse;
-    
-    // Bloom для яркого солнечного света
+
     float sunBloom = max(lambert - 0.8, 0.0) * 5.0;
-    bloomAccumulator += sunDiffuse * sunBloom * BLOOM_STRENGTH * 0.5;
+    bloomAccumulator += sunDiffuse * sunBloom * max(hdrBloomIntensity, 0.0) * 0.5;
 }
 
 void perLightPoint(out vec3 ambientOut, out vec3 diffuseOut, int lightIndex, vec3 viewPos, vec3 viewNormal)
@@ -72,12 +50,9 @@ void perLightPoint(out vec3 ambientOut, out vec3 diffuseOut, int lightIndex, vec
     vec3 lightPos = lcalcPosition(lightIndex) - viewPos;
     float lightDistance = length(lightPos);
 
-// cull non-FFP point lighting by radius, light is guaranteed to not fall outside this bound with our cutoff
 #if !@lightingMethodFFP
     float radius = lcalcRadius(lightIndex);
-
-    // Расширяем радиус проверки для glow эффекта
-    if (lightDistance > radius * GLOW_RADIUS * 2.0)
+    if (lightDistance > radius * max(lightGlowRadius, 0.1) * 2.0)
     {
         ambientOut = vec3(0.0);
         diffuseOut = vec3(0.0);
@@ -86,11 +61,10 @@ void perLightPoint(out vec3 ambientOut, out vec3 diffuseOut, int lightIndex, vec
 #endif
 
     lightPos = normalize(lightPos);
-
     float illumination = lcalcIllumination(lightIndex, lightDistance);
     vec3 lightDiffuse = lcalcDiffuse(lightIndex);
-    
-    ambientOut = lcalcAmbient(lightIndex) * illumination;
+
+    ambientOut = lcalcAmbient(lightIndex) * illumination * max(lightAmbientIntensity, 0.0);
     float lambert = dot(viewNormal.xyz, lightPos) * illumination;
 
 #ifndef GROUNDCOVER
@@ -105,17 +79,11 @@ void perLightPoint(out vec3 ambientOut, out vec3 diffuseOut, int lightIndex, vec
     lambert *= clamp(-8.0 * (1.0 - 0.3) * eyeCosine + 1.0, 0.3, 1.0);
 #endif
 
-    // Основное освещение
-    diffuseOut = lightDiffuse * lambert * 0.6;
-    
+    diffuseOut = lightDiffuse * lambert * 0.6 * max(lightDirectIntensity, 0.0);
+
 #if !@lightingMethodFFP
-    // Добавляем glow эффект (мягкое свечение вокруг источника) - снижено для интерьеров
-    vec3 glowContribution = calculateGlow(lightDiffuse, lightDistance, radius, POINT_GLOW_MULTIPLIER);
-    diffuseOut += glowContribution;
-    
-    // Bloom от точечных источников света - снижено для интерьеров
-    vec3 bloomContribution = calculateBloom(lightDiffuse, illumination * lambert, lightDistance, radius, POINT_BLOOM_MULTIPLIER);
-    bloomAccumulator += bloomContribution;
+    diffuseOut += calculateGlow(lightDiffuse, lightDistance, radius, POINT_GLOW_MULTIPLIER);
+    bloomAccumulator += calculateBloom(lightDiffuse, illumination * lambert, lightDistance, radius, POINT_BLOOM_MULTIPLIER);
 #endif
 }
 
@@ -126,14 +94,11 @@ void doLighting(vec3 viewPos, vec3 viewNormal, out vec3 diffuseLight, out vec3 a
 #endif
 {
     vec3 ambientOut, diffuseOut;
-    
-    // Сброс аккумулятора bloom
     bloomAccumulator = vec3(0.0);
 
     perLightSun(diffuseOut, viewPos, viewNormal);
-    ambientLight = gl_LightModel.ambient.xyz;
+    ambientLight = gl_LightModel.ambient.xyz * max(lightAmbientIntensity, 0.0);
 #if PER_PIXEL_LIGHTING
-    // Ambient lift для осветления теней - делаем тени менее глубокими
     float ambientLift = 0.15;
     diffuseLight = diffuseOut * max(shadowing, ambientLift);
 #else
@@ -151,8 +116,7 @@ void doLighting(vec3 viewPos, vec3 viewNormal, out vec3 diffuseLight, out vec3 a
         ambientLight += ambientOut;
         diffuseLight += diffuseOut;
     }
-    
-    // Добавляем накопленный bloom к финальному освещению
+
     diffuseLight += bloomAccumulator;
 }
 
@@ -161,5 +125,5 @@ vec3 getSpecular(vec3 viewNormal, vec3 viewDirection, float shininess, vec3 matS
     vec3 lightDir = normalize(lcalcPosition(0));
     vec3 viewDir = normalize(-viewDirection);
     return pbrSunSpecular(normalize(viewNormal), viewDir, lightDir, shininess,
-        lcalcSpecular(0).xyz * matSpec);
+        lcalcSpecular(0).xyz * matSpec) * max(lightSpecularIntensity, 0.0);
 }
