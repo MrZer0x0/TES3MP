@@ -6,6 +6,7 @@
 // runtime refraction toggle via uniform useRefraction
 uniform float waterWaveStrength;
 uniform float waterSurfaceRoughness;
+uniform float waterTransparency;
 
 // ========================================================================
 // ОПТИМИЗИРОВАННЫЙ ШЕЙДЕР ВОДЫ v2.1 by MrZer0
@@ -304,7 +305,12 @@ vec3 applySurfaceShadow(vec3 color, float shadow, float fresnel, float shoreClea
 
 float shorelineTransparency(float waterDepth)
 {
-    return 1.0 - smoothstep(0.0, 5.5, max(waterDepth, 0.0));
+    return 1.0 - smoothstep(0.0, 7.5, max(waterDepth, 0.0));
+}
+
+float shorelineWaveFade(float waterDepth)
+{
+    return smoothstep(0.35, 8.5, max(waterDepth, 0.0));
 }
 
 // ========================================================================
@@ -475,19 +481,13 @@ void main(void) {
     vec3 n1 = texture2D(normalMap, waveCoords(UV, 0.1, 0.04, wTime,
               vec2(0.01, 0.0075), n0.xy)).rgb * 2.0 - 1.0;
     
-    // Средние волны - только если не слишком далеко
-    vec3 n2 = vec3(0.0, 0.0, 1.0);
-    if (lodMid < 0.95) {
-        n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
+    // Средние и мелкие волны семплируются всегда, а их вклад плавно затухает по LOD.
+    // Это убирает резкую видимую границу между зонами качества волн.
+    vec3 n2 = texture2D(normalMap, waveCoords(UV, 0.25, 0.035, wTime,
              vec2(-0.02, -0.015), n1.xy)).rgb * 2.0 - 1.0;
-    }
-    
-    // Мелкие волны - только вблизи
-    vec3 n3 = vec3(0.0, 0.0, 1.0);
-    if (lodFar < 0.5) {
-        n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
+
+    vec3 n3 = texture2D(normalMap, waveCoords(UV, 0.5, 0.045, wTime,
              vec2(0.015, 0.02), n2.xy)).rgb * 2.0 - 1.0;
-    }
     
     // ========================================================================
     // ДОЖДЬ (только вблизи) - НОВАЯ АСИНХРОННАЯ СИСТЕМА
@@ -509,8 +509,8 @@ void main(void) {
     float bump = mix(BUMP, BUMP_RAIN, rainIntensity);
     
     vec3 waterN = n0 * bigW.x + n1 * bigW.y;
-    if (lodMid < 0.95) waterN += n2 * midW.x;
-    if (lodFar < 0.5) waterN += n3 * smallW.x;
+    waterN += n2 * midW.x;
+    waterN += n3 * smallW.x;
     
     vec2 rippleXY = rain.xy * rain.w * bump * 5.35 + actorRipple * bump * 3.40;
     float rippleEnergy = clamp(abs(rain.w) * 1.25 + length(actorRipple) * 2.40, 0.0, 1.0);
@@ -577,6 +577,9 @@ void main(void) {
         float depthDist = mix(depthUndist, depthDistSample, refrValid);
         float waterDepth = max(depthDist - surfDepth, 0.0);
         float shoreClear = shorelineTransparency(waterDepth);
+        float shoreWaveFade = shorelineWaveFade(waterDepth);
+        float transparency01 = clamp(waterTransparency * 0.5, 0.0, 1.0);
+        normal = fastNormalize(vec3(normal.xy * mix(0.45, 1.0, shoreWaveFade), normal.z));
 
         if (waterDepth < 10.0 && L.z > 0.0) {
             float shore = clamp(waterDepth * 0.1, 0.0, 1.0);
@@ -590,10 +593,11 @@ void main(void) {
                 cos(worldPos.y * 0.05 + wTime + turb)
             ) * breaker * (0.18 + 0.10 * shoreClear);
 
-            normal.xy += wave * (1.0 - shore);
+            normal.xy += wave * (1.0 - shore) * shoreWaveFade;
             normal = fastNormalize(normal);
         }
 
+        screenOff *= mix(0.35, 1.0, shoreWaveFade);
         vec3 refl = texture2D(reflectionMap, screenCoords + screenOff * 0.85).rgb;
         vec2 finalRefractCoords = mix(screenCoords, refractedCoords, refrValid);
         vec2 refractBlurDir = vec2(screenOff.x * 0.65, max(abs(screenOff.y), 0.001) * 0.85 + 0.0012);
@@ -605,15 +609,15 @@ void main(void) {
             refr = underwaterViewTint(refrSoft, underwaterDepth, isNight);
             refl = underwaterViewTint(refl, max(underwaterDepth * 0.28, 0.8), isNight) * 0.70;
         } else {
-            float absorb = 1.0 - exp(-waterDepth * 0.11);
-            float absorptionStrength = mix(0.88, 0.30, shoreClear);
-            refr = mix(refr, waterColorDepth(waterDepth, lightCol, isNight),
-                   clamp(absorb * absorptionStrength + 0.10, 0.0, 0.95));
-            refr *= mix(0.88, 1.02, shoreClear);
+            float absorb = 1.0 - exp(-waterDepth * mix(0.13, 0.05, transparency01));
+            float absorptionStrength = mix(1.05, 0.34, transparency01) * mix(0.88, 0.30, shoreClear);
+            float transparencyBlend = clamp(absorb * absorptionStrength + mix(0.12, 0.03, transparency01), 0.0, 0.95);
+            refr = mix(refr, waterColorDepth(waterDepth, lightCol, isNight), transparencyBlend);
+            refr *= mix(0.90, 1.06, shoreClear) * mix(0.96, 1.08, transparency01);
         }
 
         vec3 lN = n0 * bigW.x * 0.5 + n1 * bigW.y * 0.5;
-        if (lodMid < 0.95) lN += n2 * midW.x * 0.2;
+        lN += n2 * midW.x * 0.2;
         lN = fastNormalize(vec3(-lN.x * bump, -lN.y * bump, lN.z));
 
         float sunH = L.z;
@@ -675,6 +679,10 @@ void main(void) {
         float depthUndist = linearizeDepth(texture2D(refractionDepthMap, screenCoords).x);
         float waterDepthNoRefr = max(depthUndist - surfDepth, 0.0);
         float shoreClear = shorelineTransparency(waterDepthNoRefr);
+        float shoreWaveFade = shorelineWaveFade(waterDepthNoRefr);
+        float transparency01 = clamp(waterTransparency * 0.5, 0.0, 1.0);
+        normal = fastNormalize(vec3(normal.xy * mix(0.45, 1.0, shoreWaveFade), normal.z));
+        screenOff *= mix(0.35, 1.0, shoreWaveFade);
 
         vec3 refl = texture2D(reflectionMap, screenCoords + screenOff).rgb;
         float fakeDepth = mix(4.0, 16.0, clamp(1.0 - abs(dot(V, vec3(0.0, 0.0, 1.0))), 0.0, 1.0));
@@ -688,14 +696,14 @@ void main(void) {
         float fFinal = mix(fresnel, fresnel * 0.85, isNight);
         vec3 nightReflBoost = refl * isNight * 0.25;
 
-        float opacityBoost = 0.74;
+        float opacityBoost = mix(0.88, 0.54, transparency01);
         float viewAngle = abs(dot(V, vec3(0.0, 0.0, 1.0)));
         opacityBoost += viewAngle * 0.08;
         opacityBoost = min(opacityBoost, 0.88);
 
         float murkDepth = clamp(1.0 - exp(-waterDepthNoRefr * 0.10), 0.0, 0.32);
         vec3 noRefrMurkTint = mix(WATER_SHALLOW * vec3(0.92, 0.98, 0.88), WATER_DEEP * vec3(1.02, 1.05, 0.92), smoothstep(2.0, 22.0, waterDepthNoRefr));
-        vec3 murkyWaterCol = mix(waterCol, waterCol * vec3(0.90, 0.96, 0.86) + noRefrMurkTint * 0.42, 0.28 + murkDepth * 0.52);
+        vec3 murkyWaterCol = mix(waterCol, waterCol * vec3(0.90, 0.96, 0.86) + noRefrMurkTint * 0.42, (0.28 + murkDepth * 0.52) * mix(1.0, 0.55, transparency01));
 
         vec3 finalCol = mix(refl * 0.70 + AMBIENT_NIGHT * NIGHT_BOOST * isNight + nightReflBoost,
                        murkyWaterCol + AMBIENT_NIGHT * NIGHT_BOOST * isNight,

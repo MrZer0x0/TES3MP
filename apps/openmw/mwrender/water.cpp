@@ -239,6 +239,9 @@ protected:
         stateset->addUniform(new osg::Uniform("playerPos", osg::Vec3f(0.f, 0.f, 0.f)));
         stateset->addUniform(new osg::Uniform("useRefraction", Settings::Manager::getBool("refraction", "Water") ? 1.0f : 0.0f));
         stateset->addUniform(new osg::Uniform("useActorRipples", mRipples ? 1.0f : 0.0f));
+        stateset->addUniform(new osg::Uniform("waterWaveStrength", 1.0f));
+        stateset->addUniform(new osg::Uniform("waterSurfaceRoughness", 0.22f));
+        stateset->addUniform(new osg::Uniform("waterTransparency", 1.0f));
         stateset->addUniform(new osg::Uniform("rippleMapWorldScale", RipplesSurface::sWorldScaleFactor));
         stateset->addUniform(new osg::Uniform("rippleMapHalfWorldSize",
             static_cast<float>(RipplesSurface::sRTTSize) * RipplesSurface::sWorldScaleFactor * 0.5f));
@@ -272,6 +275,15 @@ protected:
 
         if (osg::Uniform* useActorRipplesUniform = stateset->getUniform("useActorRipples"))
             useActorRipplesUniform->set(mRipples ? 1.0f : 0.0f);
+
+        if (osg::Uniform* waterWaveStrengthUniform = stateset->getUniform("waterWaveStrength"))
+            waterWaveStrengthUniform->set(std::clamp(Settings::Manager::getFloat("wave strength", "Water"), 0.0f, 2.5f));
+
+        if (osg::Uniform* waterSurfaceRoughnessUniform = stateset->getUniform("waterSurfaceRoughness"))
+            waterSurfaceRoughnessUniform->set(std::clamp(Settings::Manager::getFloat("surface roughness", "Water"), 0.02f, 1.0f));
+
+        if (osg::Uniform* waterTransparencyUniform = stateset->getUniform("waterTransparency"))
+            waterTransparencyUniform->set(std::clamp(Settings::Manager::getFloat("transparency", "Water"), 0.0f, 2.0f));
 
         if (mRipples)
             stateset->setTextureAttributeAndModes(4, mRipples->getColorTexture(), osg::StateAttribute::ON);
