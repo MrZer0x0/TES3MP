@@ -1,42 +1,20 @@
-# Полный фикс сборки ArenaMP: вода, ripple и occlusion
+# Исправление сборки лаунчера ArenaMP
 
-Пакет подготовлен по журналу GitHub Actions, где сборка остановилась в `water.cpp` на ошибке:
+Исправлена неполная интеграция groundcover в Zero Custom launcher.
 
-```text
-error C2039: 'setRipples': is not a member of 'MWRender::RippleSimulation'
-```
+Заменяемые файлы:
+- `components/config/launchersettings.hpp`
+- `components/config/launchersettings.cpp`
+- `components/config/gamesettings.hpp`
+- `components/config/gamesettings.cpp`
+- `files/ui/datafilespage.ui`
 
-## Исправлено
+Добавлено:
+- checkbox `groundcoverCheckBox`;
+- хранение списка groundcover отдельно от обычного content;
+- `setGroundcoverList` / `getGroundcoverList`;
+- `getGroundcoverFiles` / `isGroundcoverEnabled`;
+- четырёхпараметрический `setContentList`;
+- корректное копирование и удаление профилей groundcover.
 
-1. Восстановлен полный интерфейс `RippleSimulation`:
-   - `setRipples(Ripples*)`;
-   - передача событий движения игрока и NPC в динамическую ripple-карту;
-   - лимит и повторное использование старых частиц;
-   - безопасная обработка idle-таймера эмиттеров.
-2. Возвращены потерянные `ripples.cpp/.hpp` и GLSL-проходы симуляции волн.
-3. Полностью синхронизирован occlusion-порт:
-   - `RenderingManager`, `Objects`, `ObjectPaging`;
-   - MWRender/SceneUtil callbacks;
-   - `TerrainOccluder`;
-   - Intel Masked Occlusion Culling.
-4. Исправлены CMake-регистрации исходников и линковка `maskedoc`.
-5. В список копируемых ресурсов добавлены water/ripple/PBR/OpenMW-шейдеры.
-6. Сохранена оптимизация с кэшированием обратной матрицы камеры один раз за кадр.
-
-## Установка
-
-Распаковать ZIP непосредственно в корень репозитория с заменой файлов. Затем создать новый commit, выполнить push и запустить новый workflow. Не запускать повторно старый job: он использует прежний SHA.
-
-Предыдущие отдельные occlusion-фиксы поверх этого пакета применять не нужно — пакет уже включает согласованную версию связанных файлов.
-
-## Выполненная статическая проверка
-
-- все четыре вызова `setRipples` имеют объявление и реализацию;
-- все новые C++-модули зарегистрированы в CMake и присутствуют в пакете;
-- `components` связан с целью `maskedoc`, а сама цель подключена до `components`;
-- все файлы из `SHADER_FILES` реально присутствуют;
-- сигнатуры конструкторов `Objects` и `ObjectPaging` согласованы с `RenderingManager`;
-- `getPagedRefnums` использует единый тип `std::set<ESM::RefNum>`;
-- изменённые файлы ArenaMP проходят `git diff --check`; исходные third-party файлы `extern/maskedoc` сохранены без форматирования.
-
-Полную проверку MSVC/Ninja можно окончательно подтвердить только новым запуском GitHub Actions.
+Основной `settings-default.cfg` не изменяется.
