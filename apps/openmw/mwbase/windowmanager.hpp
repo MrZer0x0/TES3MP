@@ -238,6 +238,7 @@ namespace MWBase
             virtual bool getWorldMouseOver() = 0;
 
             virtual float getScalingFactor() = 0;
+            virtual void setScalingFactor(float factor) = 0;
 
             virtual bool toggleFogOfWar() = 0;
 

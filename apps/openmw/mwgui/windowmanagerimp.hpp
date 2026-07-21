@@ -275,6 +275,7 @@ namespace MWGui
     bool getWorldMouseOver() override;
 
     float getScalingFactor() override;
+    void setScalingFactor(float factor) override;
 
     bool toggleFogOfWar() override;
     bool toggleFullHelp() override; ///< show extra info in item tooltips (owner, script)

@@ -20,11 +20,11 @@
         
        
             <Widget type="AutoSizedButton" skin="MW_Button" position="8 300 40 30" name="PrevGenderButton">
-                <Property key="Caption" value=" < "/>
+                <Property key="Caption" value=" &lt; "/>
          </Widget>
          
             <Widget type="AutoSizedButton" skin="MW_Button" position="214 300 40 30" name="NextGenderButton">
-                <Property key="Caption" value=" > "/>
+                <Property key="Caption" value=" &gt; "/>
          </Widget>
          
           
@@ -34,11 +34,11 @@
         <!-- Face choice -->
 
        <Widget type="AutoSizedButton" skin="MW_Button" position="8 340 40 30" name="PrevFaceButton">
-                <Property key="Caption" value=" < "/>
+                <Property key="Caption" value=" &lt; "/>
          </Widget>
          
             <Widget type="AutoSizedButton" skin="MW_Button" position="214 340 40 30" name="NextFaceButton">
-                <Property key="Caption" value=" > "/>
+                <Property key="Caption" value=" &gt; "/>
          </Widget>
 
         <Widget type="TextBox" skin="HeaderText" position="48 340 160 18" name="FaceChoiceT"/>
@@ -47,11 +47,11 @@
         <!-- Hair choice -->
 
              <Widget type="AutoSizedButton" skin="MW_Button" position="8 380 40 30" name="PrevHairButton">
-                <Property key="Caption" value=" < "/>
+                <Property key="Caption" value=" &lt; "/>
          </Widget>
          
             <Widget type="AutoSizedButton" skin="MW_Button" position="214 380 40 30" name="NextHairButton">
-                <Property key="Caption" value=" > "/>
+                <Property key="Caption" value=" &gt; "/>
          </Widget>
 
         <Widget type="TextBox" skin="HeaderText" position="48 380 160 18" name="HairChoiceT"/>

@@ -72,8 +72,6 @@ namespace Config
 
         void setContentList(const QStringList& fileNames);
         QStringList getContentList() const;
-        void setGroundcoverList(const QStringList& fileNames);
-        QStringList getGroundcoverList() const;
 
         void clear();
 
@@ -88,7 +86,6 @@ namespace Config
         QString mDataLocal;
 
         static const char sContentKey[];
-        static const char sGroundcoverKey[];
 
         static bool isOrderedLine(const QString& line) ;
     };

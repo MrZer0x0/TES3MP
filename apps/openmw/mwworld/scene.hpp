@@ -8,7 +8,6 @@
 #include "globals.hpp"
 
 #include <set>
-#include <vector>
 #include <memory>
 #include <unordered_map>
 
@@ -90,7 +89,7 @@ namespace MWWorld
 
             osg::Vec3f mLastPlayerPos;
 
-            std::vector<ESM::RefNum> mPagedRefs;
+            std::set<ESM::RefNum> mPagedRefs;
 
             void insertCell (CellStore &cell, Loading::Listener* loadingListener, bool test = false);
             osg::Vec2i mCurrentGridCenter;
@@ -152,7 +151,7 @@ namespace MWWorld
             void addObjectToScene (const Ptr& ptr);
             ///< Add an object that already exists in the world model to the scene.
 
-            void removeObjectFromScene (const Ptr& ptr, bool keepActive = false);
+            void removeObjectFromScene (const Ptr& ptr);
             ///< Remove an object from the scene, but not from the world model.
 
             void removeFromPagedRefs(const Ptr &ptr);

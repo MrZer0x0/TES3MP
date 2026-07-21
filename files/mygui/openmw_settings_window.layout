@@ -349,7 +349,22 @@
                             <Property key="TextAlign" value="Right"/>
                         </Widget>
                     </Widget>
-                    <Widget type="TabItem" skin="" position="0 28 352 268">
+                    
+                        <Widget type="TextBox" skin="SandText" position="8 214 160 18" align="Left Top" name="GuiScalingFactorLabel">
+                            <Property key="Caption" value="GUI scale (%s)"/>
+                        </Widget>
+                        <Widget type="ScrollBar" skin="MW_HScroll" position="8 236 330 18" align="HStretch Top" name="GuiScalingFactor">
+                            <Property key="Range" value="251"/>
+                            <UserString key="SettingType" value="Slider"/>
+                            <UserString key="SettingCategory" value="GUI"/>
+                            <UserString key="SettingName" value="scaling factor"/>
+                            <UserString key="SettingValueType" value="Float"/>
+                            <UserString key="SettingMin" value="0.5"/>
+                            <UserString key="SettingMax" value="3.0"/>
+                            <UserString key="SettingLabelWidget" value="GuiScalingFactorLabel"/>
+                            <UserString key="SettingLabelCaption" value="GUI scale (%s)"/>
+                        </Widget>
+<Widget type="TabItem" skin="" position="0 28 352 268">
                         <Property key="Caption" value="  Detail  "/>
                         <Widget type="TextBox" skin="NormalText" position="4 4 300 24" align="Left Top">
                             <Property key="Caption" value="Texture Filtering"/>
@@ -432,13 +447,12 @@
                                 </Widget>
                             </Widget>
                             <Widget type="HBox" skin="" position="4 28 350 24">
-                                <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 105 24" align="Left Top" name="WaterTextureSize">
-                                    <Property key="AddItem" value="Extra Low"/>
+                                <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 85 24" align="Left Top" name="WaterTextureSize">
                                     <Property key="AddItem" value="Low"/>
                                     <Property key="AddItem" value="Medium"/>
                                     <Property key="AddItem" value="High"/>
                                 </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="84 4 110 16" align="Left Top">
+                                <Widget type="AutoSizedTextBox" skin="SandText" position="64 4 90 16" align="Left Top">
                                     <Property key="Caption" value="Texture quality"/>
                                 </Widget>
                             </Widget>
@@ -454,6 +468,22 @@
                                 <Widget type="AutoSizedTextBox" skin="SandText" position="64 4 90 16" align="Left Top">
                                     <Property key="Caption" value="Reflection shader detail"/>
                                 </Widget>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="4 88 300 18" name="WaterCausticsLabel"><Property key="Caption" value="Caustics intensity (%s)"/></Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="4 108 300 18" name="WaterCausticsIntensity">
+                                <Property key="Range" value="301"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Water"/><UserString key="SettingName" value="caustics intensity"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="3.0"/><UserString key="SettingLabelWidget" value="WaterCausticsLabel"/><UserString key="SettingLabelCaption" value="Caustics intensity (%s)"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="4 132 300 18" name="WaterTintLabel"><Property key="Caption" value="Underwater tint (%s)"/></Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="4 152 300 18" name="WaterUnderwaterTint">
+                                <Property key="Range" value="201"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Water"/><UserString key="SettingName" value="underwater tint"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="2.0"/><UserString key="SettingLabelWidget" value="WaterTintLabel"/><UserString key="SettingLabelCaption" value="Underwater tint (%s)"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="4 176 300 18" name="WaterWaveLabel"><Property key="Caption" value="Wave strength (%s)"/></Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="4 196 300 18" name="WaterWaveStrength">
+                                <Property key="Range" value="251"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Water"/><UserString key="SettingName" value="wave strength"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="2.5"/><UserString key="SettingLabelWidget" value="WaterWaveLabel"/><UserString key="SettingLabelCaption" value="Wave strength (%s)"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="4 220 300 18" name="WaterRoughnessLabel"><Property key="Caption" value="Surface roughness (%s)"/></Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="4 240 300 18" name="WaterSurfaceRoughness">
+                                <Property key="Range" value="99"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Water"/><UserString key="SettingName" value="surface roughness"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.02"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="WaterRoughnessLabel"/><UserString key="SettingLabelCaption" value="Surface roughness (%s)"/>
                             </Widget>
                         </Widget>
 

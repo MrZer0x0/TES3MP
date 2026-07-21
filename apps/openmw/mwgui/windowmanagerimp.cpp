@@ -1148,6 +1148,8 @@ namespace MWGui
                 mSubtitlesEnabled = Settings::Manager::getBool ("subtitles", "GUI");
             else if (setting.first == "GUI" && setting.second == "menu transparency")
                 setMenuTransparency(Settings::Manager::getFloat("menu transparency", "GUI"));
+            else if (setting.first == "GUI" && setting.second == "scaling factor")
+                setScalingFactor(Settings::Manager::getFloat("scaling factor", "GUI"));
             else if (setting.first == "Video" && (
                     setting.second == "resolution x"
                     || setting.second == "resolution y"
@@ -1418,6 +1420,18 @@ namespace MWGui
     float WindowManager::getScalingFactor()
     {
         return mScalingFactor;
+    }
+
+    void WindowManager::setScalingFactor(float factor)
+    {
+        factor = std::clamp(factor, 0.5f, 3.0f);
+        if (std::abs(factor - mScalingFactor) < 0.001f)
+            return;
+        mScalingFactor = factor;
+        mGuiPlatform->getRenderManagerPtr()->setScalingFactor(factor);
+        const int width = Settings::Manager::getInt("resolution x", "Video");
+        const int height = Settings::Manager::getInt("resolution y", "Video");
+        windowResized(width, height);
     }
 
     void WindowManager::executeInConsole (const std::string& path)

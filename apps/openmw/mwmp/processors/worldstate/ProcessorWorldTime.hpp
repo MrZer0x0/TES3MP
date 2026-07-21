@@ -1,8 +1,6 @@
 #ifndef OPENMW_PROCESSORWORLDTIME_HPP
 #define OPENMW_PROCESSORWORLDTIME_HPP
 
-#include <cmath>
-
 #include <apps/openmw/mwbase/world.hpp>
 #include <apps/openmw/mwbase/environment.hpp>
 
@@ -23,12 +21,7 @@ namespace mwmp
             MWBase::World *world = MWBase::Environment::get().getWorld();
 
             if (worldstate.time.hour != -1)
-            {
-                if (std::isfinite(worldstate.time.hour))
-                    world->setGlobalFloat("gamehour", worldstate.time.hour);
-                else
-                    LOG_APPEND(TimedLog::LOG_WARN, "Ignoring invalid world time hour %f", worldstate.time.hour);
-            }
+                world->setGlobalFloat("gamehour", worldstate.time.hour);
 
             if (worldstate.time.day != -1)
                 world->setGlobalInt("day", worldstate.time.day);
@@ -43,12 +36,7 @@ namespace mwmp
                 world->setGlobalFloat("timescale", worldstate.time.timeScale);
 
             if (worldstate.time.daysPassed != -1)
-            {
-                if (worldstate.time.daysPassed >= 0)
-                    world->setGlobalInt("dayspassed", worldstate.time.daysPassed);
-                else
-                    LOG_APPEND(TimedLog::LOG_WARN, "Ignoring invalid world time daysPassed %i", worldstate.time.daysPassed);
-            }
+                world->setGlobalInt("dayspassed", worldstate.time.daysPassed);
         }
     };
 }

@@ -36,6 +36,10 @@ varying vec3 passNormal;
 
 uniform float osg_SimulationTime;
 uniform mat4 osg_ViewMatrixInverse;
+uniform bool isInterior;
+uniform bool isInventoryPreview;
+uniform float waterCausticsIntensity;
+uniform float waterUnderwaterTint;
 
 #include "helpsettings.glsl"
 #include "vertexcolors.glsl"
@@ -138,11 +142,7 @@ void main()
     float cameraWaterH = zDoWaveSimple(cameraPos.xy, osg_SimulationTime);
     bool cameraUnderwater = cameraPos.z < cameraWaterH;
     
-    // Check if we're in interior
-    vec3 sunPos = lcalcPosition(0);
-    vec3 sunDir = normalize(sunPos);
-    vec3 sunWDir = (osg_ViewMatrixInverse * vec4(sunDir, 0.0)).xyz;
-    bool isInterior = sunWDir.y > 0.0;
+    // isInterior is supplied from the authoritative active-cell state.
     
     vec3 wPos = (osg_ViewMatrixInverse * vec4(passViewPos, 1.0)).xyz;
     float waterH = zDoWaveSimple(wPos.xy, osg_SimulationTime);
@@ -163,21 +163,21 @@ void main()
 
     // OPTIMIZED: Simplified caustics calculation with depth check and distance fade
 #if (TERRAIN_CAUSTICS == 1)
-    if (!isInterior && wPos.z < waterH && waterDepth > 5.0 && distanceToFragment < MAX_CAUSTICS_DISTANCE) {
+    if (!isInterior && !isInventoryPreview && wPos.z < waterH && waterDepth > 5.0 && distanceToFragment < MAX_CAUSTICS_DISTANCE) {
         float causticsIntensity = zcaustics(wPos.xy * 0.01, osg_SimulationTime * 0.5) * 2.15;
         float causticsBlend = clamp(waterDepth * 0.0105, 0.0, 0.95) / (1.0 + waterDepth / 1100.0);
         
         // Применяем плавное затухание по дистанции
         causticsBlend *= causticsFade;
         
-        gl_FragData[0].xyz *= mix(1.0, 0.5 + causticsIntensity, causticsBlend);
+        gl_FragData[0].xyz *= mix(1.0, 0.5 + causticsIntensity * waterCausticsIntensity, causticsBlend);
     }
 #endif
 
     // Применяем attenuation ТОЛЬКО если камера под водой
-    if (cameraUnderwater && !isInterior && waterDepth > 0.0) {
+    if (cameraUnderwater && !isInterior && !isInventoryPreview && waterDepth > 0.0) {
 #if (ATTENUATION == 1)
-        gl_FragData[0].xyz = applyUnderwaterMedium(gl_FragData[0].xyz, waterDepth, isInterior);
+        gl_FragData[0].xyz = mix(gl_FragData[0].xyz, applyUnderwaterMedium(gl_FragData[0].xyz, waterDepth, isInterior), waterUnderwaterTint);
 #endif
     }
 

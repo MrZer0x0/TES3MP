@@ -783,7 +783,7 @@ void ObjectList::rotateObjects(MWWorld::CellStore* cellStore)
                                ptrFound.getCellRef().getRefNum(), ptrFound.getCellRef().getMpNum());
 
             MWBase::Environment::get().getWorld()->rotateObject(ptrFound,
-                                                                baseObject.position.rot[0], baseObject.position.rot[1], baseObject.position.rot[2]);
+                                                                baseObject.position.rot[0], baseObject.position.rot[1], baseObject.position.rot[2], MWBase::RotationFlag_none);
         }
     }
 }
@@ -881,14 +881,6 @@ void ObjectList::setGoldPoolsForObjects(MWWorld::CellStore* cellStore)
 
                 LOG_APPEND(TimedLog::LOG_VERBOSE, "-- Setting last gold restock time to %f hours and %i days passed",
                     baseObject.lastGoldRestockHour, baseObject.lastGoldRestockDay);
-
-                if (!MWWorld::TimeStamp::isValid(baseObject.lastGoldRestockHour, baseObject.lastGoldRestockDay))
-                {
-                    LOG_MESSAGE_SIMPLE(TimedLog::LOG_WARN, "Ignoring invalid restock timestamp on %s %i-%i",
-                        ptrFound.getCellRef().getRefId().c_str(), ptrFound.getCellRef().getRefNum(), ptrFound.getCellRef().getMpNum());
-                    continue;
-                }
-
                 ptrFound.getClass().getCreatureStats(ptrFound).setLastRestockTime(MWWorld::TimeStamp(baseObject.lastGoldRestockHour,
                     baseObject.lastGoldRestockDay));
             }

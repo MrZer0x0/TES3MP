@@ -15,7 +15,6 @@
 #include "rendermode.hpp"
 
 #include <deque>
-#include <vector>
 #include <memory>
 
 namespace osg
@@ -49,7 +48,6 @@ namespace ESM
 namespace Terrain
 {
     class World;
-    class TerrainOccluder;
 }
 
 namespace Fallback
@@ -62,7 +60,6 @@ namespace SceneUtil
     class ShadowManager;
     class WorkQueue;
     class UnrefQueue;
-    class OcclusionCuller;
 }
 
 namespace DetourNavigator
@@ -239,12 +236,9 @@ namespace MWRender
         void setActiveGrid(const osg::Vec4i &grid);
 
         bool pagingEnableObject(int type, const MWWorld::ConstPtr& ptr, bool enabled);
-
-        bool occlusionVisible(const MWWorld::ConstPtr& ptr) const;
-        void rebuildOcclusionBuffer(const osg::Vec3f& eyePoint);
         void pagingBlacklistObject(int type, const MWWorld::ConstPtr &ptr);
         bool pagingUnlockCache();
-        void getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum> &out);
+        void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
 
     private:
         void updateProjectionMatrix();
@@ -287,8 +281,6 @@ namespace MWRender
         std::unique_ptr<Terrain::World> mGroundcoverWorld;
         std::unique_ptr<TerrainStorage> mTerrainStorage;
         std::unique_ptr<ObjectPaging> mObjectPaging;
-        osg::ref_ptr<SceneUtil::OcclusionCuller> mOcclusionCuller;
-        std::unique_ptr<Terrain::TerrainOccluder> mTerrainOccluder;
         std::unique_ptr<Groundcover> mGroundcover;
         std::unique_ptr<SkyManager> mSky;
         std::unique_ptr<FogManager> mFog;

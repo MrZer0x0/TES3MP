@@ -464,6 +464,9 @@ namespace MWMechanics
 
     void Actors::updateActor (const MWWorld::Ptr& ptr, float duration)
     {
+        // Trial implementation of openMW 0.50 useCache change to stealth behaviour
+        ptr.getClass().getCreatureStats(ptr).updateAwareness(duration);
+
         // magic effects
         adjustMagicEffects (ptr);
         if (ptr.getClass().getCreatureStats(ptr).needToRecalcDynamicStats())
@@ -1855,29 +1858,24 @@ namespace MWMechanics
         }
     }
 
-    void Actors::updateCombatMusic()
+    void Actors::updateCombatMusic ()
     {
         MWWorld::Ptr player = getPlayer();
         const osg::Vec3f playerPos = player.getRefData().getPosition().asVec3();
         bool hasHostiles = false; // need to know this to play Battle music
-        bool aiActive = MWBase::Environment::get().getMechanicsManager()->isAIActive();
 
-        if (aiActive)
+        for(PtrActorMap::iterator iter(mActors.begin()); iter != mActors.end(); ++iter)
         {
-            for (PtrActorMap::iterator iter(mActors.begin()); iter != mActors.end(); ++iter)
-            {
-                if (iter->first == player) continue;
+            if (iter->first == player) continue;
 
-                bool inProcessingRange = (playerPos - iter->first.getRefData().getPosition().asVec3()).length2() <= mActorsProcessingRange * mActorsProcessingRange;
-                if (inProcessingRange)
-                {
-                    MWMechanics::CreatureStats& stats = iter->first.getClass().getCreatureStats(iter->first);
-                    if (!stats.isDead() && stats.getAiSequence().isInCombat())
-                    {
-                        hasHostiles = true;
-                        break;
-                    }
-                }
+            bool inProcessingRange = (playerPos - iter->first.getRefData().getPosition().asVec3()).length2() <= mActorsProcessingRange*mActorsProcessingRange;
+            if (!inProcessingRange) continue;
+
+            MWMechanics::CreatureStats& stats = iter->first.getClass().getCreatureStats(iter->first);
+            if (!stats.isDead() && stats.getAiSequence().isInCombat())
+            {
+                hasHostiles = true;
+                break;
             }
         }
 
@@ -1885,7 +1883,7 @@ namespace MWMechanics
         static int currentMusic = 0;
 
         if (currentMusic != 1 && !hasHostiles && !(player.getClass().getCreatureStats(player).isDead() &&
-            MWBase::Environment::get().getSoundManager()->isMusicPlaying()))
+        MWBase::Environment::get().getSoundManager()->isMusicPlaying()))
         {
             MWBase::Environment::get().getSoundManager()->playPlaylist(std::string("Explore"));
             currentMusic = 1;

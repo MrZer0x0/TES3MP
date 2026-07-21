@@ -1359,8 +1359,7 @@ namespace MWWorld
                 if (!currCellActive && newCellActive)
                 {
                     newPtr = currCell->moveTo(ptr, newCell);
-                    if (newPtr.getRefData().isEnabled())
-                        mWorldScene->addObjectToScene(newPtr);
+                    mWorldScene->addObjectToScene(newPtr);
 
                     std::string script = newPtr.getClass().getScript(newPtr);
                     if (!script.empty())
@@ -1371,7 +1370,7 @@ namespace MWWorld
                 }
                 else if (!newCellActive && currCellActive)
                 {
-                    mWorldScene->removeObjectFromScene(ptr, true);
+                    mWorldScene->removeObjectFromScene(ptr);
                     mLocalScripts.remove(ptr);
                     removeContainerScripts (ptr);
                     haveToMove = false;
@@ -1471,15 +1470,15 @@ namespace MWWorld
 
     void World::scaleObject (const Ptr& ptr, float scale)
     {
-        if (scale == ptr.getCellRef().getScale())
-            return;
-
         if (mPhysics->getActor(ptr))
             mNavigator->removeAgent(getPathfindingHalfExtents(ptr));
 
-        ptr.getCellRef().setScale(scale);
-        mRendering->pagingBlacklistObject(mStore.find(ptr.getCellRef().getRefId()), ptr);
-        mWorldScene->removeFromPagedRefs(ptr);
+        if (scale != ptr.getCellRef().getScale())
+        {
+            ptr.getCellRef().setScale(scale);
+            mRendering->pagingBlacklistObject(mStore.find(ptr.getCellRef().getRefId()), ptr);
+            mWorldScene->removeFromPagedRefs(ptr);
+        }
 
         if(ptr.getRefData().getBaseNode() != nullptr)
             mWorldScene->updateObjectScale(ptr);
@@ -1494,8 +1493,7 @@ namespace MWWorld
     {
         const float pi = static_cast<float>(osg::PI);
 
-        const ESM::Position oldPos = ptr.getRefData().getPosition();
-        ESM::Position pos = oldPos;
+        ESM::Position pos = ptr.getRefData().getPosition();
         float *objRot = pos.rot;
         if (flags & MWBase::RotationFlag_adjust)
         {
@@ -1524,11 +1522,6 @@ namespace MWWorld
             wrap(objRot[1]);
             wrap(objRot[2]);
         }
-
-        if (oldPos.rot[0] == pos.rot[0]
-            && oldPos.rot[1] == pos.rot[1]
-            && oldPos.rot[2] == pos.rot[2])
-            return;
 
         ptr.getRefData().setPosition(pos);
 
@@ -3030,18 +3023,12 @@ namespace MWWorld
     {
         const Scene::CellStoreCollection& activeCells = mWorldScene->getActiveCells();
 
-        // Use post-increment: capture `current` before unloadCell erases it from the set,
-        // which would invalidate `it` and cause undefined behavior on ++it.
-        auto it = activeCells.begin();
-        while (it != activeCells.end())
+        for (auto it = activeCells.begin(); it != activeCells.end(); ++it)
         {
-            auto current = it++;
             // Ignore a placeholder interior that a player may currently be in
-            if ((*current)->getCell()->isExterior() ||
-                !Misc::StringUtils::ciEqual((*current)->getCell()->getDescription(),
-                    RecordHelper::getPlaceholderInteriorCellName()))
+            if ((*it)->getCell()->isExterior() || !Misc::StringUtils::ciEqual((*it)->getCell()->getDescription(), RecordHelper::getPlaceholderInteriorCellName()))
             {
-                mWorldScene->unloadCell(current);
+                mWorldScene->unloadCell(it);
             }
         }
     }

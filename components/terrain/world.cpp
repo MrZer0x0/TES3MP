@@ -131,8 +131,6 @@ void World::updateTextureFiltering()
 {
     if (mTextureManager)
         mTextureManager->updateTextureFiltering();
-    if (mChunkManager)
-        mChunkManager->updateTextureFiltering();
 }
 
 void World::clearAssociatedCaches()

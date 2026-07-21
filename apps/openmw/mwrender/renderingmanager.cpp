@@ -83,6 +83,7 @@ namespace MWRender
             : mFogStart(0.f)
             , mFogEnd(0.f)
             , mWireframe(false)
+            , mIsInterior(false)
         {
         }
 
@@ -101,6 +102,13 @@ namespace MWRender
             }
             else
                 stateset->removeAttribute(osg::StateAttribute::POLYGONMODE);
+
+            stateset->addUniform(new osg::Uniform("isInterior", false));
+            stateset->addUniform(new osg::Uniform("isInventoryPreview", false));
+            stateset->addUniform(new osg::Uniform("waterCausticsIntensity", 1.0f));
+            stateset->addUniform(new osg::Uniform("waterUnderwaterTint", 1.0f));
+            stateset->addUniform(new osg::Uniform("waterWaveStrength", 1.0f));
+            stateset->addUniform(new osg::Uniform("waterSurfaceRoughness", 0.22f));
         }
 
         void apply(osg::StateSet* stateset, osg::NodeVisitor*) override
@@ -111,6 +119,16 @@ namespace MWRender
             fog->setColor(mFogColor);
             fog->setStart(mFogStart);
             fog->setEnd(mFogEnd);
+            if (osg::Uniform* uniform = stateset->getUniform("isInterior"))
+                uniform->set(mIsInterior);
+            if (osg::Uniform* uniform = stateset->getUniform("waterCausticsIntensity"))
+                uniform->set(std::clamp(Settings::Manager::getFloat("caustics intensity", "Water"), 0.0f, 3.0f));
+            if (osg::Uniform* uniform = stateset->getUniform("waterUnderwaterTint"))
+                uniform->set(std::clamp(Settings::Manager::getFloat("underwater tint", "Water"), 0.0f, 2.0f));
+            if (osg::Uniform* uniform = stateset->getUniform("waterWaveStrength"))
+                uniform->set(std::clamp(Settings::Manager::getFloat("wave strength", "Water"), 0.0f, 2.5f));
+            if (osg::Uniform* uniform = stateset->getUniform("waterSurfaceRoughness"))
+                uniform->set(std::clamp(Settings::Manager::getFloat("surface roughness", "Water"), 0.02f, 1.0f));
         }
 
         void setAmbientColor(const osg::Vec4f& col)
@@ -133,6 +151,11 @@ namespace MWRender
             mFogEnd = end;
         }
 
+        void setInterior(bool interior)
+        {
+            mIsInterior = interior;
+        }
+
         void setWireframe(bool wireframe)
         {
             if (mWireframe != wireframe)
@@ -153,6 +176,7 @@ namespace MWRender
         float mFogStart;
         float mFogEnd;
         bool mWireframe;
+        bool mIsInterior;
     };
 
     class PreloadCommonAssetsWorkItem : public SceneUtil::WorkItem
@@ -561,6 +585,8 @@ namespace MWRender
 
     void RenderingManager::configureAmbient(const ESM::Cell *cell)
     {
+        // Authoritative cell flag; do not infer interiors from sun direction in shaders.
+        mStateUpdater->setInterior(!cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx));
         bool needsAdjusting = false;
         if (mResourceSystem->getSceneManager()->getLightingMethod() != SceneUtil::LightingMethod::FFP)
             needsAdjusting = !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);

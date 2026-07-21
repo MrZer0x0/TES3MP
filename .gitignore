@@ -85,4 +85,3 @@ moc_*.cxx
 *.[ao]
 *.so
 venv/
-README.txt

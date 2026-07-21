@@ -61,6 +61,15 @@
 
 #include "../mwgui/tooltips.hpp"
 
+
+// EncoreMP header additions
+
+#include "../mwworld/esmstore.hpp"
+#include "../mwmechanics/weapontype.hpp"
+#include "../mwmechanics/aipackage.hpp"
+
+// EncoreMP header additions
+
 namespace
 {
 
@@ -625,6 +634,53 @@ namespace MWClass
 
         float hitchance = MWMechanics::getHitChance(ptr, victim, getSkill(ptr, weapskill));
 
+        // start of EncoreMP accuracy modifiers
+
+        if (ptr == MWBase::Environment::get().getWorld()->getPlayerPtr())
+        {
+            int weaponType;
+            
+            MWWorld::Ptr actor;
+            MWWorld::ContainerStoreIterator activeWeaponIt = MWMechanics::getActiveWeapon(ptr, &weaponType);
+
+            const ESM::WeaponType* weapInfo = MWMechanics::getWeaponType(weaponType);
+
+            bool twoHandPenalty = Settings::Manager::getBool("two handed weapons receive an accuracy penalty", "Game");
+            bool staveAccuracyBonus = Settings::Manager::getBool("staves receive accuracy bonus instead of two handed penalty", "Game");
+
+            if (weapInfo)
+            {
+                if (weaponType == ESM::Weapon::LongBladeTwoHand || weaponType == ESM::Weapon::AxeTwoHand || weaponType == ESM::Weapon::BluntTwoClose)
+                {
+                    if (twoHandPenalty == true)
+                    {
+                        hitchance = hitchance - 15;
+                    }
+                }
+                if (weaponType == ESM::Weapon::SpearTwoWide || weaponType == ESM::Weapon::ShortBladeOneHand)
+                {
+                    hitchance += 10;
+                }
+                if (weaponType == ESM::Weapon::BluntTwoWide)
+                {
+                    if (staveAccuracyBonus == true)
+                    {
+                        hitchance += 20;
+                    }
+                    else
+                    {
+                        if (twoHandPenalty == true)
+                        {
+                            hitchance = hitchance - 15;
+                        }
+                    }
+
+                }
+            }
+        }
+
+        // end of EncoreMP accuracy modifiers
+
         /*
             Start of tes3mp addition
 
@@ -822,6 +878,27 @@ namespace MWClass
         if (!object.isEmpty())
             stats.setLastHitObject(object.getCellRef().getRefId());
 
+        // EncoreMP, check if attacker is allied to the player
+
+        bool attackerIsPlayerAlly = false;
+
+        if (!attacker.isEmpty() && attacker.getClass().isActor())
+        {
+            MWMechanics::CreatureStats& statsAttacker = attacker.getClass().getCreatureStats(attacker);
+            for (const auto& package : statsAttacker.getAiSequence())
+            {
+                if (!package) continue;
+                if (package && package->followTargetThroughDoors())
+                {
+                    const MWWorld::Ptr& master = package->getTarget();
+                    if (master.isEmpty()) continue;
+                    bool masterIsPlayer = (master == MWMechanics::getPlayer()) || mwmp::PlayerList::isDedicatedPlayer(master);
+                    if (!masterIsPlayer) continue;
+                    attackerIsPlayerAlly = true;
+                }
+            }
+        }
+
 
         if (damage > 0.0f && !object.isEmpty())
             MWMechanics::resistNormalWeapon(ptr, attacker, object, damage);
@@ -930,7 +1007,26 @@ namespace MWClass
                     if (!object.isEmpty() || attacker.isEmpty() || attacker.getClass().isNpc()) // Unarmed creature attacks don't affect armor condition
                     {
                         int armorhealth = armor.getClass().getItemHealth(armor);
-                        armorhealth -= std::min(damageDiff, armorhealth);
+
+                        int Diffholder = damageDiff;
+
+                        if (ptr == MWMechanics::getPlayer())
+                        {
+                            MWWorld::Ptr player = MWMechanics::getPlayer();
+                            float armorerSkill = player.getClass().getSkill(player, ESM::Skill::Armorer);
+                            armorerSkill = std::min(100.0f, armorerSkill);
+                            armorerSkill = std::max(1.0f, armorerSkill);
+
+                            float armorerx = 1.0f - (armorerSkill * 0.0075f);
+
+                            Diffholder *= armourdamagetaken();
+
+                            Diffholder = static_cast<int>(Diffholder * armorerx);
+                            Diffholder = std::max(1, Diffholder);
+
+                        }
+
+                        armorhealth -= std::min(Diffholder, armorhealth);
                         armor.getCellRef().setCharge(armorhealth);
 
                         // Armor broken? unequip it
@@ -962,8 +1058,20 @@ namespace MWClass
         if (ishealth)
         {
             if (!attacker.isEmpty() && !godmode)
-                damage = scaleDamage(damage, attacker, ptr);
-
+            {
+                if ((attacker == MWMechanics::getPlayer()) || (ptr == MWMechanics::getPlayer()))
+                {
+                    damage = scaleDamage(damage, attacker, ptr);
+                }
+                else
+                {
+                    if (attackerIsPlayerAlly)
+                    {
+                        float allyDamageMult = allyDamageDealt();
+                        damage *= allyDamageMult;
+                    }
+                }
+            }
             if (damage > 0.0f)
             {
                 sndMgr->playSound3D(ptr, "Health Damage", 1.0f, 1.0f);
@@ -978,9 +1086,38 @@ namespace MWClass
         }
         else
         {
-            MWMechanics::DynamicStat<float> fatigue(getCreatureStats(ptr).getFatigue());
-            fatigue.setCurrent(fatigue.getCurrent() - damage, true);
-            stats.setFatigue(fatigue);
+            // add difficulty based scaling for H2H fatigue damage taken and dealt
+            if (!attacker.isEmpty() && !godmode)
+                if (damage > 0)
+                {
+                    if ((attacker == MWMechanics::getPlayer()) || (ptr == MWMechanics::getPlayer()))
+                    {
+                        damage = scaleDamage(damage, attacker, ptr);
+                    }
+                    else
+                    {
+                        if (attackerIsPlayerAlly)
+                        {
+                            float allyDamageMult = allyDamageDealt();
+                            damage *= allyDamageMult;
+                        }
+                    }
+                }
+
+            // EncoreMP logic fork, bottom is core behaviour, top is slot for potential player H2H changes
+            // currently unused, pending server packet changes
+            if ((attacker == MWMechanics::getPlayer()) && (damage > 0.0f))
+            {
+                MWMechanics::DynamicStat<float> fatigue(getCreatureStats(ptr).getFatigue());
+                fatigue.setCurrent(fatigue.getCurrent() - damage, true);
+                stats.setFatigue(fatigue);
+            }
+            else
+            {
+                MWMechanics::DynamicStat<float> fatigue(getCreatureStats(ptr).getFatigue());
+                fatigue.setCurrent(fatigue.getCurrent() - damage, true);
+                stats.setFatigue(fatigue);
+            }
         }
 
         if (!wasDead && getCreatureStats(ptr).isDead())
@@ -1348,9 +1485,12 @@ namespace MWClass
         MWMechanics::NpcStats &stats = getNpcStats(ptr);
         const MWWorld::InventoryStore &invStore = getInventoryStore(ptr);
 
+        MWWorld::Ptr player = MWMechanics::getPlayer();
+
         float fUnarmoredBase1 = store.find("fUnarmoredBase1")->mValue.getFloat();
         float fUnarmoredBase2 = store.find("fUnarmoredBase2")->mValue.getFloat();
         float unarmoredSkill = getSkill(ptr, ESM::Skill::Unarmored);
+
 
         float ratings[MWWorld::InventoryStore::Slots];
         for(int i = 0;i < MWWorld::InventoryStore::Slots;i++)
@@ -1360,6 +1500,60 @@ namespace MWClass
             {
                 // unarmored
                 ratings[i] = (fUnarmoredBase1 * unarmoredSkill) * (fUnarmoredBase2 * unarmoredSkill);
+
+                if (ptr == player)
+                {
+                    float playerunarmoured = 0.0f;
+                    float unarmouredskillmod = 0.0f;
+
+                    if (unarmoredSkill < 30.0f)
+                    {
+                        unarmouredskillmod = (unarmoredSkill / 3.0f);
+                        playerunarmoured += unarmouredskillmod;
+                    }
+                    else if (unarmoredSkill < 70.0f)
+                    {
+                        unarmouredskillmod += 10.0f;
+                        unarmouredskillmod += ((unarmoredSkill - 30.0f )*1.625f);
+                        playerunarmoured += unarmouredskillmod;
+                    }
+                    else
+                    {
+                        unarmouredskillmod += 75.0f;
+                        unarmouredskillmod += ((unarmoredSkill - 70.0f)*2.5f);
+                        playerunarmoured += unarmouredskillmod;
+                    }
+
+
+                    float playerspeed = stats.getAttribute(ESM::Attribute::Speed).getModified();
+                    float playeragility = stats.getAttribute(ESM::Attribute::Agility).getModified();
+
+                    float statmultiplier = 1.0f;
+
+                    if (playerspeed > 50.0f)
+                    {
+                        float speedholder = 0.0f;
+                        speedholder = (playerspeed - 50.0f);
+                        speedholder = (speedholder / 200.0f);
+                        statmultiplier += speedholder;
+                    }
+
+                    if (playeragility > 50.0f)
+                    {
+                        float agilityholder = 0.0f;
+                        agilityholder = (playeragility - 50.0f);
+                        agilityholder = (agilityholder / 200.0f);
+                        statmultiplier += agilityholder;
+                    }
+
+                    playerunarmoured *= statmultiplier;
+
+                    playerunarmoured *= 10.0f;
+
+                    playerunarmoured *= fUnarmoredBase1;
+
+                    ratings[i] = playerunarmoured;
+                }
             }
             else
             {
@@ -1707,9 +1901,24 @@ namespace MWClass
         else
             swimSpeed = getWalkSpeed(ptr);
 
+        MWWorld::Ptr player = MWMechanics::getPlayer();
+
+        float athleticsswimmod = 0.01f;
+
+        float athleticsholder = getSkill(ptr, ESM::Skill::Athletics);
+
+        if (ptr == player)
+        {
+            athleticsswimmod = 0.03f;
+            if (athleticsholder > 500.0f)
+            {
+                athleticsholder = 500.0f;
+            }
+        }
+
         swimSpeed *= 1.0f + 0.01f * mageffects.get(ESM::MagicEffect::SwiftSwim).getMagnitude();
         swimSpeed *= gmst.fSwimRunBase->mValue.getFloat()
-                + 0.01f * getSkill(ptr, ESM::Skill::Athletics) * gmst.fSwimRunAthleticsMult->mValue.getFloat();
+                + athleticsswimmod * athleticsholder * gmst.fSwimRunAthleticsMult->mValue.getFloat();
 
         return swimSpeed;
     }

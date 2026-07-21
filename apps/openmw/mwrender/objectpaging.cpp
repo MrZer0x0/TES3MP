@@ -1,10 +1,6 @@
 #include "objectpaging.hpp"
-#include "occlusionculling.hpp"
-
-#include <components/sceneutil/occlusionculling.hpp>
 
 #include <unordered_map>
-#include <algorithm>
 
 #include <osg/Version>
 #include <osg/LOD>
@@ -72,7 +68,7 @@ namespace MWRender
         }
     }
 
-    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char /*lod*/, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+    osg::ref_ptr<osg::Node> ObjectPaging::getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
         if (activeGrid && !mActiveGrid)
             return nullptr;
@@ -84,8 +80,7 @@ namespace MWRender
             return obj->asNode();
         else
         {
-            const unsigned char lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
-            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile, lod);
+            osg::ref_ptr<osg::Node> node = createChunk(size, center, activeGrid, viewPoint, compile);
             mCache->addEntryToObjectCache(id, node.get());
             return node;
         }
@@ -389,10 +384,9 @@ namespace MWRender
         }
     };
 
-    ObjectPaging::ObjectPaging(Resource::SceneManager* sceneManager, SceneUtil::OcclusionCuller* occlusionCuller)
+    ObjectPaging::ObjectPaging(Resource::SceneManager* sceneManager)
             : GenericResourceManager<ChunkId>(nullptr)
          , mSceneManager(sceneManager)
-         , mOcclusionCuller(occlusionCuller)
          , mRefTrackerLocked(false)
     {
         mActiveGrid = Settings::Manager::getBool("object paging active grid", "Terrain");
@@ -403,9 +397,7 @@ namespace MWRender
         mMinSizeCostMultiplier = Settings::Manager::getFloat("object paging min size cost multiplier", "Terrain");
     }
 
-    ObjectPaging::~ObjectPaging() = default;
-
-    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile, unsigned char lod)
+    osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
         osg::Vec2i startCell = osg::Vec2i(std::floor(center.x() - size/2.f), std::floor(center.y() - size/2.f));
 
@@ -531,19 +523,6 @@ namespace MWRender
                         continue;
                 }
             }
-            else if (!activeGrid)
-            {
-                std::lock_guard<std::mutex> lock(mLODNameCacheMutex);
-                LODNameCacheKey key(model, lod);
-                LODNameCache::const_iterator found = mLODNameCache.find(key);
-                if (found != mLODNameCache.end())
-                    model = found->second;
-                else
-                {
-                    model = Misc::ResourceHelpers::getLODMeshName(model, mSceneManager->getVFS(), lod);
-                    mLODNameCache.insert(std::make_pair(key, model));
-                }
-            }
 
             osg::ref_ptr<const osg::Node> cnode = mSceneManager->getTemplate(model, false);
 
@@ -587,17 +566,6 @@ namespace MWRender
         osgUtil::StateToCompile stateToCompile(0, nullptr);
         CopyOp copyop;
         copyop.mCopyMask = copyMask;
-
-        const bool buildOccluders = mOcclusionCuller.valid()
-            && Settings::Manager::getBool("occlusion culling", "Camera")
-            && Settings::Manager::getBool("occlusion culling statics", "Camera");
-        osg::ref_ptr<PagedOccluderData> pagedOccluderData;
-        const float occluderMinRadius = Settings::Manager::getFloat("occlusion occluder min radius", "Camera");
-        const int occluderMeshRes = Settings::Manager::getInt("occlusion occluder mesh resolution", "Camera");
-        const int occluderMaxMeshRes = Settings::Manager::getInt("occlusion occluder max mesh resolution", "Camera");
-        const float occluderShrinkFactor = Settings::Manager::getFloat("occlusion occluder shrink factor", "Camera");
-        if (buildOccluders)
-            pagedOccluderData = new PagedOccluderData;
         for (const auto& pair : nodes)
         {
             const osg::Node* cnode = pair.first;
@@ -639,30 +607,6 @@ namespace MWRender
                 copyop.mViewVector = (viewPoint - worldCenter);
                 copyop.copy(cnode, trans);
                 copyop.mNodePath.pop_back();
-
-                if (pagedOccluderData.valid() && cnode->getBound().valid())
-                {
-                    const float scaledRadius = cnode->getBound().radius() * ref.mScale;
-                    if (scaledRadius >= occluderMinRadius)
-                    {
-                        int adaptiveRes = occluderMeshRes;
-                        if (occluderMinRadius > 0.f && scaledRadius > occluderMinRadius)
-                        {
-                            const float scale = scaledRadius / occluderMinRadius;
-                            adaptiveRes = std::max(occluderMeshRes, std::min(occluderMaxMeshRes, static_cast<int>(occluderMeshRes * scale)));
-                        }
-                        OccluderMesh occMesh = buildSimplifiedMesh(trans.get(), adaptiveRes, occluderShrinkFactor);
-                        if (!occMesh.indices.empty())
-                        {
-                            for (std::vector<osg::Vec3f>::iterator it = occMesh.vertices.begin(); it != occMesh.vertices.end(); ++it)
-                                *it += worldCenter;
-                            occMesh.aabb = osg::BoundingBox();
-                            for (std::vector<osg::Vec3f>::const_iterator it = occMesh.vertices.begin(); it != occMesh.vertices.end(); ++it)
-                                occMesh.aabb.expandBy(*it);
-                            pagedOccluderData->mOccluderMeshes.push_back(occMesh);
-                        }
-                    }
-                }
 
                 if (activeGrid)
                 {
@@ -742,12 +686,6 @@ namespace MWRender
             group->addCullCallback(new SceneUtil::LightListCallback);
         }
         udc->addUserObject(templateRefs);
-        if (pagedOccluderData.valid() && !pagedOccluderData->mOccluderMeshes.empty())
-        {
-            udc->addUserObject(pagedOccluderData);
-            if (mOcclusionCuller.valid())
-                group->addCullCallback(new PagedOccluderCallback(mOcclusionCuller.get(), Settings::Manager::getFloat("occlusion occluder max distance", "Camera")));
-        }
 
         return group;
     }
@@ -858,7 +796,7 @@ namespace MWRender
 
     struct GetRefnumsFunctor
     {
-        GetRefnumsFunctor(std::vector<ESM::RefNum>& output) : mOutput(output) {}
+        GetRefnumsFunctor(std::set<ESM::RefNum>& output) : mOutput(output) {}
         void operator()(MWRender::ChunkId chunkId, osg::Object* obj)
         {
             if (!std::get<2>(chunkId)) return;
@@ -871,20 +809,18 @@ namespace MWRender
             {
                 RefnumSet* refnums = dynamic_cast<RefnumSet*>(udc->getUserObject(0));
                 if (!refnums) return;
-                mOutput.insert(mOutput.end(), refnums->mRefnums.begin(), refnums->mRefnums.end());
+                mOutput.insert(refnums->mRefnums.begin(), refnums->mRefnums.end());
             }
         }
         osg::Vec4i mActiveGrid;
-        std::vector<ESM::RefNum>& mOutput;
+        std::set<ESM::RefNum>& mOutput;
     };
 
-    void ObjectPaging::getPagedRefnums(const osg::Vec4i &activeGrid, std::vector<ESM::RefNum> &out)
+    void ObjectPaging::getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out)
     {
         GetRefnumsFunctor grf(out);
         grf.mActiveGrid = activeGrid;
         mCache->call(grf);
-        std::sort(out.begin(), out.end());
-        out.erase(std::unique(out.begin(), out.end()), out.end());
     }
 
     void ObjectPaging::reportStats(unsigned int frameNumber, osg::Stats *stats) const

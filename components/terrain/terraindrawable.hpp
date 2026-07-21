@@ -45,7 +45,6 @@ namespace Terrain
 
         typedef std::vector<osg::ref_ptr<osg::StateSet> > PassVector;
         void setPasses (const PassVector& passes);
-        const PassVector& getPasses() const { return mPasses; }
 
         void setLightListCallback(SceneUtil::LightListCallback* lightListCallback);
 
@@ -57,7 +56,6 @@ namespace Terrain
         const osg::BoundingBox& getWaterBoundingBox() const { return mWaterBoundingBox; }
 
         void setCompositeMap(CompositeMap* map) { mCompositeMap = map; }
-        CompositeMap* getCompositeMap() const { return mCompositeMap.get(); }
         void setCompositeMapRenderer(CompositeMapRenderer* renderer) { mCompositeMapRenderer = renderer; }
 
     private:

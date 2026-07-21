@@ -11,7 +11,6 @@ Wizard::ImportPage::ImportPage(QWidget *parent) :
 
     registerField(QLatin1String("installation.import-settings"), importCheckBox);
     registerField(QLatin1String("installation.import-addons"), addonsCheckBox);
-    registerField(QLatin1String("installation.groundcover-from-content"), groundcoverCheckBox);
 }
 
 int Wizard::ImportPage::nextId() const

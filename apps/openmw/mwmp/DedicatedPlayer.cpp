@@ -118,10 +118,6 @@ void DedicatedPlayer::move(float dt)
 {
     if (!reference) return;
 
-    // guard against an uninitialized or transitioning cell
-    MWWorld::CellStore* cellStore = ptr.getCell();
-    if (!cellStore || !cellStore->getCell()) return;
-
     ESM::Position refPos = ptr.getRefData().getPosition();
     MWBase::World *world = MWBase::Environment::get().getWorld();
     const int maxInterpolationDistance = 80;
@@ -396,12 +392,12 @@ void DedicatedPlayer::setCell()
     // Prevent cell update when reference doesn't exist
     if (!reference) return;
 
-    MWBase::World* world = MWBase::Environment::get().getWorld();
+    MWBase::World *world = MWBase::Environment::get().getWorld();
 
     LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "Server says DedicatedPlayer %s moved to %s",
         npc.mName.c_str(), cell.getShortDescription().c_str());
 
-    MWWorld::CellStore* cellStore = Main::get().getCellController()->getCellStore(cell);
+    MWWorld::CellStore *cellStore = Main::get().getCellController()->getCellStore(cell);
 
     if (!cellStore)
     {
@@ -508,13 +504,6 @@ void DedicatedPlayer::addSpellsActive()
 
     for (const auto& activeSpell : spellsActiveChanges.activeSpells)
     {
-        if (!MWWorld::TimeStamp::isValid(activeSpell.timestampHour, activeSpell.timestampDay))
-        {
-            LOG_APPEND(TimedLog::LOG_WARN, "Ignoring active spell %s for %s with invalid timestamp %f/%i",
-                activeSpell.id.c_str(), npc.mName.c_str(), activeSpell.timestampHour, activeSpell.timestampDay);
-            continue;
-        }
-
         MWWorld::TimeStamp timestamp = MWWorld::TimeStamp(activeSpell.timestampHour, activeSpell.timestampDay);
         int casterActorId = MechanicsHelper::getActorId(activeSpell.caster);
 
@@ -534,13 +523,6 @@ void DedicatedPlayer::removeSpellsActive()
         // Remove stacking spells based on their timestamps
         if (activeSpell.isStackingSpell)
         {
-            if (!MWWorld::TimeStamp::isValid(activeSpell.timestampHour, activeSpell.timestampDay))
-            {
-                LOG_APPEND(TimedLog::LOG_WARN, "Ignoring removal of active spell %s for %s with invalid timestamp %f/%i",
-                    activeSpell.id.c_str(), npc.mName.c_str(), activeSpell.timestampHour, activeSpell.timestampDay);
-                continue;
-            }
-
             MWWorld::TimeStamp timestamp = MWWorld::TimeStamp(activeSpell.timestampHour, activeSpell.timestampDay);
             activeSpells.removeSpellByTimestamp(activeSpell.id, timestamp);
         }
@@ -562,7 +544,6 @@ void DedicatedPlayer::setSpellsActive()
 
 void DedicatedPlayer::updateMarker()
 {
-    return; // markerless for now
     if (!markerEnabled)
     {
         return;
@@ -584,14 +565,12 @@ void DedicatedPlayer::updateMarker()
 
 void DedicatedPlayer::enableMarker()
 {
-    return; // markerless for now
     markerEnabled = true;
     updateMarker();
 }
 
 void DedicatedPlayer::removeMarker()
 {
-    return; // markerless for now
     if (!markerEnabled)
         return;
 
@@ -614,24 +593,16 @@ void DedicatedPlayer::createReference(const std::string& recId)
 
     ptr = world->placeObject(reference->getPtr(), Main::get().getCellController()->getCellStore(cell), position);
 
-    //ESM::CustomMarker mEditingMarker = Main::get().getGUIController()->createMarker(guid);
-    //marker = mEditingMarker;
-    //enableMarker();
+    ESM::CustomMarker mEditingMarker = Main::get().getGUIController()->createMarker(guid);
+    marker = mEditingMarker;
+    enableMarker();
 }
 
 void DedicatedPlayer::deleteReference()
 {
-    MWBase::World* world = MWBase::Environment::get().getWorld();
+    MWBase::World *world = MWBase::Environment::get().getWorld();
 
     LOG_APPEND(TimedLog::LOG_INFO, "- Deleting reference");
-
-    // Evict cross-cell move tracking before freeing the LiveCellRefBase.
-    // Without this, a new ManualRef at the same address finds stale
-    // mMovedToAnotherCell/mMovedHere entries → "found->second != from" mismatches
-    // → corrupt cell tracking → dangling pointer crash on next cell reload.
-    if (ptr.getCell() != nullptr)
-        ptr.getCell()->evictMovedRef(ptr.mRef);
-
     world->deleteObject(ptr);
     delete reference;
     reference = nullptr;

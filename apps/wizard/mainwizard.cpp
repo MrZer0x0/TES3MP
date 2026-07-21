@@ -77,8 +77,8 @@ Wizard::MainWizard::~MainWizard()
 
 void Wizard::MainWizard::setupLog()
 {
-    QDir logDir(toQString(mCfgMgr.getLogPath()));
-    QString logPath(logDir.filePath(QLatin1String("wizard.log")));
+    QString logPath(toQString(mCfgMgr.getLogPath()));
+    logPath.append(QLatin1String("wizard.log"));
 
     QFile file(logPath);
 
@@ -99,8 +99,8 @@ void Wizard::MainWizard::setupLog()
 
 void Wizard::MainWizard::addLogText(const QString &text)
 {
-    QDir logDir(toQString(mCfgMgr.getLogPath()));
-    QString logPath(logDir.filePath(QLatin1String("wizard.log")));
+    QString logPath(toQString(mCfgMgr.getLogPath()));
+    logPath.append(QLatin1String("wizard.log"));
 
     QFile file(logPath);
 
@@ -130,15 +130,13 @@ void Wizard::MainWizard::setupGameSettings()
 {
     QString userPath(toQString(mCfgMgr.getUserConfigPath()));
     QString globalPath(toQString(mCfgMgr.getGlobalPath()));
-    QDir userDir(userPath);
-    QDir globalDir(globalPath);
     QString message(tr("<html><head/><body><p><b>Could not open %1 for reading</b></p> \
                     <p>Please make sure you have the right permissions \
                     and try again.</p></body></html>"));
 
     // Load the user config file first, separately
     // So we can write it properly, uncontaminated
-    QString path(userDir.filePath(QLatin1String("openmw.cfg")));
+    QString path(userPath + QLatin1String("openmw.cfg"));
     QFile file(path);
 
     qDebug() << "Loading config file:" << path.toUtf8().constData();
@@ -163,9 +161,9 @@ void Wizard::MainWizard::setupGameSettings()
 
     // Now the rest
     QStringList paths;
-    paths.append(userDir.filePath(QLatin1String("openmw.cfg")));
+    paths.append(userPath + QLatin1String("openmw.cfg"));
     paths.append(QLatin1String("openmw.cfg"));
-    paths.append(globalDir.filePath(QLatin1String("openmw.cfg")));
+    paths.append(globalPath + QLatin1String("openmw.cfg"));
 
     for (const QString &path2 : paths)
     {
@@ -193,8 +191,8 @@ void Wizard::MainWizard::setupGameSettings()
 
 void Wizard::MainWizard::setupLauncherSettings()
 {
-    QDir userDir(toQString(mCfgMgr.getUserConfigPath()));
-    QString path(userDir.filePath(QLatin1String(Config::LauncherSettings::sLauncherConfigFileName)));
+    QString path(toQString(mCfgMgr.getUserConfigPath()));
+    path.append(QLatin1String(Config::LauncherSettings::sLauncherConfigFileName));
 
     QString message(tr("<html><head/><body><p><b>Could not open %1 for reading</b></p> \
                     <p>Please make sure you have the right permissions \
@@ -243,8 +241,7 @@ void Wizard::MainWizard::runSettingsImporter()
     QString path(field(QLatin1String("installation.path")).toString());
 
     QString userPath(toQString(mCfgMgr.getUserConfigPath()));
-    QDir userDir(userPath);
-    QFile file(userDir.filePath(QLatin1String("openmw.cfg")));
+    QFile file(userPath + QLatin1String("openmw.cfg"));
 
     // Construct the arguments to run the importer
     QStringList arguments;
@@ -276,11 +273,8 @@ void Wizard::MainWizard::runSettingsImporter()
         arguments.append(mInstallations[path].iniPath);
     }
 
-    if (field(QLatin1String("installation.groundcover-from-content")).toBool())
-        arguments.append(QLatin1String("--groundcover-from-content"));
-
     arguments.append(QLatin1String("--cfg"));
-    arguments.append(userDir.filePath(QLatin1String("openmw.cfg")));
+    arguments.append(userPath + QLatin1String("openmw.cfg"));
 
     if (!mImporterInvoker->startProcess(QLatin1String("openmw-iniimporter"), arguments, false))
         return qApp->quit();
@@ -406,7 +400,7 @@ void Wizard::MainWizard::writeSettings()
     }
 
     // Game settings
-    QFile file(dir.filePath(QLatin1String("openmw.cfg")));
+    QFile file(userPath + QLatin1String("openmw.cfg"));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text | QIODevice::Truncate)) {
         // File cannot be opened or created
@@ -428,7 +422,7 @@ void Wizard::MainWizard::writeSettings()
     file.close();
 
     // Launcher settings
-    file.setFileName(dir.filePath(QLatin1String(Config::LauncherSettings::sLauncherConfigFileName)));
+    file.setFileName(userPath + QLatin1String(Config::LauncherSettings::sLauncherConfigFileName));
 
     if (!file.open(QIODevice::ReadWrite | QIODevice::Text | QIODevice::Truncate)) {
         // File cannot be opened or created
@@ -458,7 +452,8 @@ bool Wizard::MainWizard::findFiles(const QString &name, const QString &path)
         return false;
 
     // TODO: add MIME handling to make sure the files are real
-    return dir.entryList().contains(name + QLatin1String(".esm"), Qt::CaseInsensitive);
+    return (dir.entryList().contains(name + QLatin1String(".esm"), Qt::CaseInsensitive)
+            && dir.entryList().contains(name + QLatin1String(".bsa"), Qt::CaseInsensitive));
 }
 
 QString Wizard::MainWizard::toQString(const boost::filesystem::path& path)

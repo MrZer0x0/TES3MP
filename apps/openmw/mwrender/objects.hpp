@@ -27,7 +27,6 @@ namespace MWWorld
 namespace SceneUtil
 {
     class UnrefQueue;
-    class OcclusionCuller;
 }
 
 namespace MWRender{
@@ -68,12 +67,11 @@ class Objects{
     Resource::ResourceSystem* mResourceSystem;
 
     osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
-    osg::ref_ptr<SceneUtil::OcclusionCuller> mOcclusionCuller;
 
     void insertBegin(const MWWorld::Ptr& ptr);
 
 public:
-    Objects(Resource::ResourceSystem* resourceSystem, osg::ref_ptr<osg::Group> rootNode, SceneUtil::UnrefQueue* unrefQueue, SceneUtil::OcclusionCuller* occlusionCuller = nullptr);
+    Objects(Resource::ResourceSystem* resourceSystem, osg::ref_ptr<osg::Group> rootNode, SceneUtil::UnrefQueue* unrefQueue);
     ~Objects();
 
     /// @param animated Attempt to load separate keyframes from a .kf file matching the model file?

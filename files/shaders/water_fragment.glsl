@@ -4,6 +4,8 @@
 #include "water_waves.glsl"
 
 // runtime refraction toggle via uniform useRefraction
+uniform float waterWaveStrength;
+uniform float waterSurfaceRoughness;
 
 // ========================================================================
 // ОПТИМИЗИРОВАННЫЙ ШЕЙДЕР ВОДЫ v2.1 by MrZer0
@@ -517,7 +519,7 @@ void main(void) {
     baseNormal = fastNormalize(baseNormal);
 
     // Рябь делаем заметнее, но не даём ей слишком сильно дёргать отражение
-    vec3 normal = vec3(-(waterN.xy + rippleXY) * bump, waterN.z);
+    vec3 normal = vec3(-(waterN.xy + rippleXY) * bump * waterWaveStrength, waterN.z);
     normal = fastNormalize(normal);
     
     // ========================================================================
@@ -553,6 +555,7 @@ void main(void) {
     float ior = (camPos.z > 0.0) ? 1.333 : (1.0 / 1.333);
     float fBias = (camPos.z > 0.0) ? 0.0 : 0.08;
     float fresnel = clamp(fresnelDielectric(V, normal, ior) + fBias, 0.0, 1.0);
+    fresnel *= mix(1.18, 0.72, waterSurfaceRoughness);
     
     vec2 screenOff = (baseNormal.xy * 0.82 + rippleXY * 0.18) * REFL_BUMP;
     

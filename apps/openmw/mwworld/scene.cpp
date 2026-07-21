@@ -1,6 +1,5 @@
 #include "scene.hpp"
 
-#include <algorithm>
 #include <limits>
 #include <chrono>
 #include <thread>
@@ -113,7 +112,7 @@ namespace
     }
 
     void addObject(const MWWorld::Ptr& ptr, MWPhysics::PhysicsSystem& physics,
-                   MWRender::RenderingManager& rendering, const std::vector<ESM::RefNum>& pagedRefs)
+                   MWRender::RenderingManager& rendering, std::set<ESM::RefNum>& pagedRefs)
     {
         if (ptr.getRefData().getBaseNode() || physics.getActor(ptr))
         {
@@ -125,7 +124,7 @@ namespace
         std::string model = getModel(ptr, rendering.getResourceSystem()->getVFS());
 
         const ESM::RefNum& refnum = ptr.getCellRef().getRefNum();
-        if (!refnum.hasContentFile() || !std::binary_search(pagedRefs.begin(), pagedRefs.end(), refnum))
+        if (!refnum.hasContentFile() || pagedRefs.find(refnum) == pagedRefs.end())
             ptr.getClass().insertObjectRendering(ptr, model, rendering);
         else
             ptr.getRefData().setBaseNode(new SceneUtil::PositionAttitudeTransform); // FIXME remove this when physics code is fixed not to depend on basenode
@@ -263,15 +262,6 @@ namespace
         return std::abs(cellPosition.first) + std::abs(cellPosition.second);
     }
 
-    bool removeFromSorted(const ESM::RefNum& refnum, std::vector<ESM::RefNum>& pagedRefs)
-    {
-        const auto it = std::lower_bound(pagedRefs.begin(), pagedRefs.end(), refnum);
-        if (it == pagedRefs.end() || !(*it == refnum))
-            return false;
-        pagedRefs.erase(it);
-        return true;
-    }
-
 }
 
 
@@ -281,7 +271,7 @@ namespace MWWorld
     void Scene::removeFromPagedRefs(const Ptr &ptr)
     {
         const ESM::RefNum& refnum = ptr.getCellRef().getRefNum();
-        if (refnum.hasContentFile() && removeFromSorted(refnum, mPagedRefs))
+        if (refnum.hasContentFile() && mPagedRefs.erase(refnum))
         {
             if (!ptr.getRefData().getBaseNode()) return;
             ptr.getClass().insertObjectRendering(ptr, getModel(ptr, mRendering.getResourceSystem()->getVFS()), mRendering);
@@ -574,19 +564,25 @@ namespace MWWorld
 
         std::size_t refsToLoad = 0;
         std::vector<std::pair<int, int>> cellsPositionsToLoad;
-        std::set<std::pair<int, int>> activeExteriorCells;
-        for (CellStoreCollection::const_iterator iter = mActiveCells.begin(); iter != mActiveCells.end(); ++iter)
-        {
-            if ((*iter)->getCell()->isExterior())
-                activeExteriorCells.emplace((*iter)->getCell()->getGridX(), (*iter)->getCell()->getGridY());
-        }
-
         // get the number of refs to load
         for (int x = playerCellX - mHalfGridSize; x <= playerCellX + mHalfGridSize; ++x)
         {
             for (int y = playerCellY - mHalfGridSize; y <= playerCellY + mHalfGridSize; ++y)
             {
-                if (activeExteriorCells.find(std::make_pair(x, y)) == activeExteriorCells.end())
+                CellStoreCollection::iterator iter = mActiveCells.begin();
+
+                while (iter!=mActiveCells.end())
+                {
+                    assert ((*iter)->getCell()->isExterior());
+
+                    if (x==(*iter)->getCell()->getGridX() &&
+                        y==(*iter)->getCell()->getGridY())
+                        break;
+
+                    ++iter;
+                }
+
+                if (iter==mActiveCells.end())
                 {
                     refsToLoad += MWBase::Environment::get().getWorld()->getExterior(x, y)->count();
                     cellsPositionsToLoad.emplace_back(x, y);
@@ -621,12 +617,24 @@ namespace MWWorld
             const auto x = cellPosition.first;
             const auto y = cellPosition.second;
 
-            if (activeExteriorCells.find(std::make_pair(x, y)) == activeExteriorCells.end())
+            CellStoreCollection::iterator iter = mActiveCells.begin();
+
+            while (iter != mActiveCells.end())
+            {
+                assert ((*iter)->getCell()->isExterior());
+
+                if (x == (*iter)->getCell()->getGridX() &&
+                    y == (*iter)->getCell()->getGridY())
+                    break;
+
+                ++iter;
+            }
+
+            if (iter == mActiveCells.end())
             {
                 CellStore *cell = MWBase::Environment::get().getWorld()->getExterior(x, y);
 
                 loadCell (cell, loadingListener, changeEvent);
-                activeExteriorCells.emplace(x, y);
             }
         }
 
@@ -955,11 +963,10 @@ namespace MWWorld
         }
     }
 
-    void Scene::removeObjectFromScene (const Ptr& ptr, bool keepActive)
+    void Scene::removeObjectFromScene (const Ptr& ptr)
     {
         MWBase::Environment::get().getMechanicsManager()->remove (ptr);
-        if (!keepActive)
-            MWBase::Environment::get().getSoundManager()->stopSound3D (ptr);
+        MWBase::Environment::get().getSoundManager()->stopSound3D (ptr);
         const auto navigator = MWBase::Environment::get().getWorld()->getNavigator();
         if (const auto object = mPhysics->getObject(ptr))
         {
@@ -980,7 +987,14 @@ namespace MWWorld
 
     bool Scene::isCellActive(const CellStore &cell)
     {
-        return mActiveCells.find(const_cast<CellStore*>(&cell)) != mActiveCells.end();
+        CellStoreCollection::iterator active = mActiveCells.begin();
+        while (active != mActiveCells.end()) {
+            if (**active == cell) {
+                return true;
+            }
+            ++active;
+        }
+        return false;
     }
 
     Ptr Scene::searchPtrViaActorId (int actorId)

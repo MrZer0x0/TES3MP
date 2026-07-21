@@ -26,55 +26,8 @@ namespace Terrain
     class CompositeMapRenderer;
     class Storage;
     class CompositeMap;
-    class TerrainDrawable;
 
-    struct TerrainChunkTemplateId
-    {
-        osg::Vec2f mCenter;
-        unsigned char mLod;
-    };
-
-    inline auto tie(const TerrainChunkTemplateId& v)
-    {
-        return std::tie(v.mCenter, v.mLod);
-    }
-
-    inline bool operator<(const TerrainChunkTemplateId& l, const TerrainChunkTemplateId& r)
-    {
-        return tie(l) < tie(r);
-    }
-
-    inline bool operator==(const TerrainChunkTemplateId& l, const TerrainChunkTemplateId& r)
-    {
-        return tie(l) == tie(r);
-    }
-
-    struct ChunkId
-    {
-        osg::Vec2f mCenter;
-        unsigned char mLod;
-        unsigned int mLodFlags;
-    };
-
-    inline auto tie(const ChunkId& v)
-    {
-        return std::tie(v.mCenter, v.mLod, v.mLodFlags);
-    }
-
-    inline bool operator<(const ChunkId& l, const ChunkId& r)
-    {
-        return tie(l) < tie(r);
-    }
-
-    inline bool operator<(const ChunkId& l, const TerrainChunkTemplateId& r)
-    {
-        return TerrainChunkTemplateId{ l.mCenter, l.mLod } < r;
-    }
-
-    inline bool operator<(const TerrainChunkTemplateId& l, const ChunkId& r)
-    {
-        return l < TerrainChunkTemplateId{ r.mCenter, r.mLod };
-    }
+    typedef std::tuple<osg::Vec2f, unsigned char, unsigned int> ChunkId; // Center, Lod, Lod Flags
 
     /// @brief Handles loading and caching of terrain chunks
     class ChunkManager : public Resource::GenericResourceManager<ChunkId>, public QuadTreeWorld::ChunkManager
@@ -88,8 +41,6 @@ namespace Terrain
         void setCompositeMapLevel(float level) { mCompositeMapLevel = level; }
         void setMaxCompositeGeometrySize(float maxCompGeometrySize) { mMaxCompGeometrySize = maxCompGeometrySize; }
 
-        void updateTextureFiltering();
-
         void setNodeMask(unsigned int mask) { mNodeMask = mask; }
         unsigned int getNodeMask() override { return mNodeMask; }
 
@@ -100,7 +51,7 @@ namespace Terrain
         void releaseGLObjects(osg::State* state) override;
 
     private:
-        osg::ref_ptr<osg::Node> createChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool compile, const TerrainDrawable* templateGeometry);
+        osg::ref_ptr<osg::Node> createChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool compile);
 
         osg::ref_ptr<osg::Texture2D> createCompositeMapRTT();
 

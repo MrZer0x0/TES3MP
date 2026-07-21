@@ -157,6 +157,7 @@ namespace MWGui
         else if (canRest == MWBase::World::Rest_Allowed && !mwmp::Main::get().getLocalPlayer()->wildernessRestAllowed &&
             !mwmp::Main::get().getLocalPlayer()->isUsingBed)
         {
+            MWBase::Environment::get().getWindowManager()->messageBox("You are not allowed to rest without a bed.");
             MWBase::Environment::get().getWindowManager()->popGuiMode();
         }
         else if (canRest == MWBase::World::Rest_OnlyWaiting && !mwmp::Main::get().getLocalPlayer()->waitAllowed &&
