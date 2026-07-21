@@ -231,31 +231,6 @@ namespace MWGui
         delete mSpellIcons;
     }
 
-    void HUD::onResChange(int width, int height)
-    {
-        // GUI scaling changes MyGUI's virtual viewport without recreating the HUD.
-        // Center-aligned widgets are moved by MyGUI, but updatePositions() uses the
-        // base coordinates cached during startup. Refresh the centered anchors so
-        // the sneak indicator and crosshair do not jump until the next restart.
-        mMainWidget->setSize(width, height);
-
-        if (mSneakBox)
-        {
-            mSneakBoxBaseLeft = (width - mSneakBox->getWidth()) / 2;
-            const int top = (height - mSneakBox->getHeight()) / 2;
-            mSneakBox->setPosition(mSneakBoxBaseLeft, top);
-        }
-
-        if (mCrosshair)
-        {
-            const int left = (width - mCrosshair->getWidth()) / 2;
-            const int top = (height - mCrosshair->getHeight()) / 2;
-            mCrosshair->setPosition(left, top);
-        }
-
-        updatePositions();
-    }
-
     void HUD::setValue(const std::string& id, const MWMechanics::DynamicStat<float>& value)
     {
         int current = static_cast<int>(value.getCurrent());

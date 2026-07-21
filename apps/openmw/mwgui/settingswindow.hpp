@@ -31,8 +31,6 @@ namespace MWGui
 
             MyGUI::ComboBox* mWaterTextureSize;
             MyGUI::ComboBox* mWaterReflectionDetail;
-            MyGUI::ComboBox* mHdrTonemapper;
-            MyGUI::ComboBox* mShadowMapResolution;
 
             MyGUI::ComboBox* mMaxLights;
             MyGUI::ComboBox* mLightingMethodButton;
@@ -57,8 +55,6 @@ namespace MWGui
 
             void onWaterTextureSizeChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onWaterReflectionDetailChanged(MyGUI::ComboBox* _sender, size_t pos);
-            void onHdrTonemapperChanged(MyGUI::ComboBox* _sender, size_t pos);
-            void onShadowMapResolutionChanged(MyGUI::ComboBox* _sender, size_t pos);
 
             void onLightingMethodButtonChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onLightsResetButtonClicked(MyGUI::Widget* _sender);

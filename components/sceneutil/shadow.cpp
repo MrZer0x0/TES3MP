@@ -1,7 +1,5 @@
 #include "shadow.hpp"
 
-#include <algorithm>
-
 #include <osgShadow/ShadowedScene>
 
 #include <components/misc/stringops.hpp>
@@ -15,10 +13,13 @@ namespace SceneUtil
     {
         mEnableShadows = Settings::Manager::getBool("enable shadows", "Shadows");
 
-        if (mEnableShadows)
-            mShadowTechnique->enableShadows();
-        else
-            mShadowTechnique->disableShadows(true);
+        if (!mEnableShadows)
+        {
+            mShadowTechnique->disableShadows();
+            return;
+        }
+        
+        mShadowTechnique->enableShadows();
 
         mShadowSettings->setLightNum(0);
         mShadowSettings->setReceivesShadowTraversalMask(~0u);
@@ -167,37 +168,16 @@ namespace SceneUtil
 
     void ShadowManager::enableIndoorMode()
     {
-        mIndoorMode = true;
-        if (mEnableShadows && Settings::Manager::getBool("enable indoor shadows", "Shadows"))
-        {
-            mShadowTechnique->enableShadows();
+        if (Settings::Manager::getBool("enable indoor shadows", "Shadows"))
             mShadowSettings->setCastsShadowTraversalMask(mIndoorShadowCastingMask);
-        }
         else
             mShadowTechnique->disableShadows(true);
     }
 
     void ShadowManager::enableOutdoorMode()
     {
-        mIndoorMode = false;
         if (mEnableShadows)
             mShadowTechnique->enableShadows();
-        else
-            mShadowTechnique->disableShadows(true);
         mShadowSettings->setCastsShadowTraversalMask(mOutdoorShadowCastingMask);
-    }
-
-    void ShadowManager::processChangedSettings(unsigned int outdoorShadowCastingMask,
-        unsigned int indoorShadowCastingMask)
-    {
-        mOutdoorShadowCastingMask = outdoorShadowCastingMask;
-        mIndoorShadowCastingMask = indoorShadowCastingMask;
-        setupShadowSettings();
-        mShadowTechnique->dirty();
-
-        if (mIndoorMode)
-            enableIndoorMode();
-        else
-            enableOutdoorMode();
     }
 }

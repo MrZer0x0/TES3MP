@@ -48,7 +48,6 @@ namespace MWGui
         void setCrosshairOwned(bool owned);
 
         void onFrame(float dt) override;
-        void onResChange(int width, int height) override;
 
         void setCellName(const std::string& cellName);
 

@@ -109,27 +109,6 @@ namespace MWRender
             stateset->addUniform(new osg::Uniform("waterUnderwaterTint", 1.0f));
             stateset->addUniform(new osg::Uniform("waterWaveStrength", 1.0f));
             stateset->addUniform(new osg::Uniform("waterSurfaceRoughness", 0.22f));
-
-            stateset->addUniform(new osg::Uniform("hdrEnabled", true));
-            stateset->addUniform(new osg::Uniform("hdrTonemapper", 0));
-            stateset->addUniform(new osg::Uniform("hdrExposure", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrGamma", 2.2f));
-            stateset->addUniform(new osg::Uniform("hdrBrightness", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrContrast", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrSaturation", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrBloomIntensity", 0.25f));
-            stateset->addUniform(new osg::Uniform("hdrBloomThreshold", 1.1f));
-            stateset->addUniform(new osg::Uniform("lightDirectIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightAmbientIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightSpecularIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightGlowIntensity", 0.4f));
-            stateset->addUniform(new osg::Uniform("lightGlowRadius", 1.8f));
-            stateset->addUniform(new osg::Uniform("runtimeShadowsEnabled", true));
-            stateset->addUniform(new osg::Uniform("runtimeShadowStrength", 1.0f));
-            stateset->addUniform(new osg::Uniform("runtimeShadowSoftness", 1.0f));
-            stateset->addUniform(new osg::Uniform("runtimeShadowMaxDistance", 4096.0f));
-            stateset->addUniform(new osg::Uniform("runtimeShadowFadeStart", 0.9f));
-            stateset->addUniform(new osg::Uniform("runtimeShadowTexelSize", 1.0f / 512.0f));
         }
 
         void apply(osg::StateSet* stateset, osg::NodeVisitor*) override
@@ -150,50 +129,6 @@ namespace MWRender
                 uniform->set(std::clamp(Settings::Manager::getFloat("wave strength", "Water"), 0.0f, 2.5f));
             if (osg::Uniform* uniform = stateset->getUniform("waterSurfaceRoughness"))
                 uniform->set(std::clamp(Settings::Manager::getFloat("surface roughness", "Water"), 0.02f, 1.0f));
-
-            if (osg::Uniform* uniform = stateset->getUniform("hdrEnabled"))
-                uniform->set(Settings::Manager::getBool("enabled", "Post Processing"));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrTonemapper"))
-                uniform->set(std::clamp(Settings::Manager::getInt("tonemapper", "Post Processing"), 0, 3));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrExposure"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("exposure", "Post Processing"), 0.1f, 4.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrGamma"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("gamma", "Post Processing"), 0.5f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBrightness"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("brightness", "Post Processing"), 0.25f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrContrast"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("contrast", "Post Processing"), 0.25f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrSaturation"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("saturation", "Post Processing"), 0.0f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBloomIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("bloom intensity", "Post Processing"), 0.0f, 2.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBloomThreshold"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("bloom threshold", "Post Processing"), 0.1f, 4.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightDirectIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("direct light intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightAmbientIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("ambient light intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightSpecularIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("specular intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightGlowIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("glow intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightGlowRadius"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("glow radius", "Post Processing"), 0.25f, 5.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowsEnabled"))
-                uniform->set(Settings::Manager::getBool("enable shadows", "Shadows"));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowStrength"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("shadow strength", "Shadows"), 0.0f, 1.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowSoftness"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("shadow softness", "Shadows"), 0.25f, 4.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowMaxDistance"))
-                uniform->set(std::max(Settings::Manager::getFloat("maximum shadow map distance", "Shadows"), 0.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowFadeStart"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("shadow fade start", "Shadows"), 0.0f, 1.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowTexelSize"))
-            {
-                const float resolution = std::max(static_cast<float>(Settings::Manager::getInt("shadow map resolution", "Shadows")), 1.0f);
-                uniform->set(1.0f / resolution);
-            }
         }
 
         void setAmbientColor(const osg::Vec4f& col)
@@ -648,17 +583,10 @@ namespace MWRender
         mSky->setMoonColour(red);
     }
 
-    void RenderingManager::updateCurrentCellState(const ESM::Cell* cell)
-    {
-        // This state follows the player's current cell, not whichever neighbouring cell happens to be loaded last.
-        // Quasi-exteriors use exterior lighting and must keep outdoor water effects enabled.
-        const bool isInterior = cell && !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
-        mStateUpdater->setInterior(isInterior);
-    }
-
     void RenderingManager::configureAmbient(const ESM::Cell *cell)
     {
-        updateCurrentCellState(cell);
+        // Authoritative cell flag; do not infer interiors from sun direction in shaders.
+        mStateUpdater->setInterior(!cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx));
         bool needsAdjusting = false;
         if (mResourceSystem->getSceneManager()->getLightingMethod() != SceneUtil::LightingMethod::FFP)
             needsAdjusting = !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
@@ -1250,7 +1178,6 @@ namespace MWRender
 
     void RenderingManager::processChangedSettings(const Settings::CategorySettingVector &changed)
     {
-        bool shadowSettingsChanged = false;
         for (Settings::CategorySettingVector::const_iterator it = changed.begin(); it != changed.end(); ++it)
         {
             if (it->first == "Camera" && it->second == "field of view")
@@ -1274,10 +1201,6 @@ namespace MWRender
             else if (it->first == "Water")
             {
                 mWater->processChangedSettings(changed);
-            }
-            else if (it->first == "Shadows")
-            {
-                shadowSettingsChanged = true;
             }
             else if (it->first == "Shaders" && it->second == "minimum interior brightness")
             {
@@ -1309,31 +1232,10 @@ namespace MWRender
                     mSceneRoot->addUpdateCallback(mStateUpdater);
                     mStateUpdater->setFogEnd(mViewDistance);
                     updateAmbient();
-                    if (MWMechanics::getPlayer().isInCell())
-                        updateCurrentCellState(MWMechanics::getPlayer().getCell()->getCell());
 
                     mViewer->startThreading();
                 }
             }
-        }
-
-        if (shadowSettingsChanged && mShadowManager)
-        {
-            int outdoorMask = Mask_Scene;
-            if (Settings::Manager::getBool("actor shadows", "Shadows"))
-                outdoorMask |= Mask_Actor;
-            if (Settings::Manager::getBool("player shadows", "Shadows"))
-                outdoorMask |= Mask_Player;
-            if (Settings::Manager::getBool("terrain shadows", "Shadows"))
-                outdoorMask |= Mask_Terrain;
-
-            int indoorMask = outdoorMask;
-            if (Settings::Manager::getBool("object shadows", "Shadows"))
-                outdoorMask |= (Mask_Object | Mask_Static);
-
-            mViewer->stopThreading();
-            mShadowManager->processChangedSettings(outdoorMask, indoorMask);
-            mViewer->startThreading();
         }
     }
 

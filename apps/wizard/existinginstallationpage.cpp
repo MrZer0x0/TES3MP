@@ -93,63 +93,54 @@ bool Wizard::ExistingInstallationPage::validatePage()
 
 void Wizard::ExistingInstallationPage::on_browseButton_clicked()
 {
-    QString initialPath = field(QLatin1String("installation.path")).toString();
-    if (initialPath.isEmpty())
-        initialPath = QDir::currentPath();
+    QString selectedFile = QFileDialog::getOpenFileName(
+                this,
+                tr("Select Morrowind.esm (located in Data Files)"),
+                QDir::currentPath(),
+                QString(tr("Morrowind master file (Morrowind.esm)")),
+                nullptr,
+                QFileDialog::DontResolveSymlinks);
 
-    const QString selectedDirectory = QFileDialog::getExistingDirectory(
-        this,
-        tr("Select the Morrowind installation folder or Data Files folder"),
-        initialPath,
-        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-
-    if (selectedDirectory.isEmpty())
+    if (selectedFile.isEmpty())
         return;
 
-    QDir selectedDir(selectedDirectory);
-    QString dataPath;
+    QFileInfo info(selectedFile);
 
-    // Accept both the game root and Data Files itself. This avoids asking the
-    // user for the same installation a second time after the Wizard finishes.
-    if (selectedDir.exists(QLatin1String("Morrowind.esm")))
-        dataPath = selectedDir.absolutePath();
-    else
-    {
-        const QString nestedDataPath = selectedDir.filePath(QLatin1String("Data Files"));
-        QDir nestedDataDir(nestedDataPath);
-        if (nestedDataDir.exists(QLatin1String("Morrowind.esm")))
-            dataPath = nestedDataDir.absolutePath();
-    }
+    if (!info.exists())
+        return;
 
-    if (dataPath.isEmpty() || !mWizard->findFiles(QLatin1String("Morrowind"), dataPath))
+    if (!mWizard->findFiles(QLatin1String("Morrowind"), info.absolutePath()))
     {
         QMessageBox msgBox;
         msgBox.setWindowTitle(tr("Error detecting Morrowind files"));
         msgBox.setIcon(QMessageBox::Warning);
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.setText(QObject::tr(
-            "<b>Morrowind.esm or Morrowind.bsa was not found.</b><br><br>"
-            "Select either the Morrowind installation folder or its Data Files folder."
+            "<b>Morrowind.bsa</b> is missing!<br>\
+            Make sure your Morrowind installation is complete."
         ));
         msgBox.exec();
         return;
     }
 
-    const QString path = QDir::toNativeSeparators(QDir(dataPath).absolutePath());
+    QString path(QDir::toNativeSeparators(info.absolutePath()));
     QList<QListWidgetItem*> items = installationsList->findItems(path, Qt::MatchExactly);
 
-    if (items.isEmpty())
-    {
+    if (items.isEmpty()) {
+        // Path is not yet in the list, add it
         mWizard->addInstallation(path);
+
+        // Hide the default item
         installationsList->item(0)->setHidden(true);
 
-        QListWidgetItem* item = new QListWidgetItem(path);
+        QListWidgetItem *item = new QListWidgetItem(path);
         installationsList->addItem(item);
-        installationsList->setCurrentItem(item);
-    }
-    else
+        installationsList->setCurrentItem(item); // Select it too
+    } else {
         installationsList->setCurrentItem(items.first());
+    }
 
+    // Update the button
     emit completeChanged();
 }
 

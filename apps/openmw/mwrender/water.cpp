@@ -799,9 +799,8 @@ void Water::setEnabled(bool enabled)
 
 void Water::changeCell(const MWWorld::CellStore* store)
 {
-    const ESM::Cell* cell = store->getCell();
-    const bool isInterior = !cell->isExterior() && !(cell->mData.mFlags & ESM::Cell::QuasiEx);
-    const bool wasInterior = mInterior;
+    bool isInterior = !store->getCell()->isExterior();
+    bool wasInterior = mInterior;
     if (!isInterior)
     {
         mWaterNode->setPosition(getSceneNodeCoordinates(store->getCell()->mData.mX, store->getCell()->mData.mY));
