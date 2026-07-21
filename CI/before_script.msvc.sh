@@ -235,6 +235,8 @@ else
 	cd "$APPVEYOR_BUILD_FOLDER"
 fi
 
+SOURCE_ROOT="$(pwd)"
+
 run_cmd() {
 	CMD="$1"
 	shift
@@ -545,6 +547,13 @@ if ! [ -z $USE_CCACHE ]; then
 	add_cmake_opts "-DCMAKE_C_COMPILER_LAUNCHER=ccache  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 fi
 
+if ! [ -z $USE_SCCACHE ]; then
+    add_cmake_opts "-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+    # sccache requires /Z7 (embedded per-obj debug info) not /Zi (shared .pdb).
+    # CMP0141 is NEW in CMakeLists.txt specifically to enable this variable.
+    add_cmake_opts "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded"
+fi
+
 # turn on LTO by default
 if ! [ -z "USE_LTO" ]; then
 add_cmake_opts "-DOPENMW_LTO_BUILD=True"
@@ -561,7 +570,7 @@ fi
 BULLET_VER="2.89"
 FFMPEG_VER="4.2.2"
 ICU_VER="70_1"
-LUAJIT_VER="v2.1.0-beta3-452-g7a0cf5fd"
+LUAJIT_VER="latest-build"
 LZ4_VER="1.9.2"
 OPENAL_VER="1.23.0"
 QT_VER="5.15.2"
@@ -649,9 +658,11 @@ if [ -z $SKIP_DOWNLOAD ]; then
 		"lz4_win${BITS}_v${LZ4_VER//./_}.7z"
 
 	# LuaJIT
-	download "LuaJIT ${LUAJIT_VER}" \
-		"https://github.com/DreamWeave-MP/LuaJIT/releases/download/Stable-CI/LuaJIT-Windows.7z" \
-		"LuaJIT-DW.7z"
+	if [ -z "${LUAJIT_INCLUDE_DIR:-}" ] || [ -z "${LUAJIT_LIBRARY:-}" ] || [ -z "${LUAJIT_DLL:-}" ]; then
+		download "LuaJIT ${LUAJIT_VER}" \
+			"https://github.com/Skooma-Breath/LuaJIT/releases/download/latest-build/luajit-windows-x86_64.zip" \
+			"LuaJIT.zip"
+	fi
 
 	# ICU
 	download "ICU ${ICU_VER/_/.}"\
@@ -917,12 +928,11 @@ printf "Qt ${QT_VER}... "
 		echo "  Ensuring setuptools is installed in virtualenv..."
 		run_cmd "aqt-venv/${VENV_BIN_DIR}/python" -m pip install --upgrade pip setuptools wheel
 
-		# aqtinstall 1.1.3 is too old for current Python/Qt mirrors.
-		# Pin a modern, reproducible version that supports Python 3.12+.
-		if ! "aqt-venv/${VENV_BIN_DIR}/python" -m pip show aqtinstall 2>/dev/null \
-			| grep -q '^Version: 3.3.0$'; then
-			echo "  Installing aqtinstall 3.3.0 into virtualenv..."
-			run_cmd "aqt-venv/${VENV_BIN_DIR}/python" -m pip install --upgrade --force-reinstall aqtinstall==3.3.0
+		# Check version
+		aqt-venv/${VENV_BIN_DIR}/pip list | grep 'aqtinstall\s*1.1.3' || [ $? -ne 0 ]
+		if [ $? -eq 0 ]; then
+			echo "  Installing aqt wheel into virtualenv..."
+			run_cmd "aqt-venv/${VENV_BIN_DIR}/pip" install aqtinstall==3.1.9
 		fi
 		popd > /dev/null
 
@@ -931,10 +941,7 @@ printf "Qt ${QT_VER}... "
 		mkdir Qt
 		cd Qt
 
-		# Modern aqt syntax: host target version architecture.
-		run_cmd "${DEPS}/aqt-venv/${VENV_BIN_DIR}/python" -m aqt install-qt \
-			windows desktop "${QT_VER}" "win${BITS}_msvc${QT_MSVC_YEAR}${SUFFIX}" \
-			--outputdir "$(real_pwd)"
+		run_cmd "${DEPS}/aqt-venv/${VENV_BIN_DIR}/aqt" install ${QT_VER} windows desktop "win${BITS}_msvc${QT_MSVC_YEAR}${SUFFIX}"
 
 		printf "  Cleaning up extraneous data... "
 		rm -rf Qt/{aqtinstall.log,Tools}
@@ -1006,17 +1013,32 @@ cd $DEPS
 echo
 printf "LuaJIT ${LUAJIT_VER}... "
 {
-	if [ -d LuaJIT ]; then
-		printf "Exists. "
-	elif [ -z $SKIP_EXTRACT ]; then
-		rm -rf LuaJIT
-		eval 7z x -y LuaJIT-DW.7z -o$(real_pwd)/LuaJIT $STRIP
+	if [ -n "${LUAJIT_INCLUDE_DIR:-}" ] && [ -n "${LUAJIT_LIBRARY:-}" ] && [ -n "${LUAJIT_DLL:-}" ]; then
+		printf "Using environment overrides. "
+	else
+		if [ -d LuaJIT ]; then
+			printf "Exists. "
+		elif [ -z $SKIP_EXTRACT ]; then
+			rm -rf LuaJIT
+			eval 7z x -y LuaJIT.zip -o$(real_pwd)/LuaJIT $STRIP
+		fi
+
+		LUAJIT_INCLUDE_DIR="$(dirname "$(find "$(pwd)/LuaJIT" -type f -iname 'lua.h' -print -quit)")"
+		LUAJIT_LIBRARY="$(find "$(pwd)/LuaJIT" -type f -iname 'lua51.lib' -print -quit)"
+		LUAJIT_DLL="$(find "$(pwd)/LuaJIT" -type f -iname 'lua51.dll' -print -quit)"
+
+		if [ -z "${LUAJIT_INCLUDE_DIR}" ] || [ -z "${LUAJIT_LIBRARY}" ] || [ -z "${LUAJIT_DLL}" ]; then
+			echo "Failed."
+			echo "Error: Unable to locate LuaJIT include/lib/bin paths after extracting LuaJIT.zip"
+			find "$(pwd)/LuaJIT" -maxdepth 4 -print | head -100
+			wrappedExit 1
+		fi
 	fi
-	export LUAJIT_DIR="$(real_pwd)/LuaJIT"
-	add_cmake_opts -DLuaJit_INCLUDE_DIR="${LUAJIT_DIR}/include" \
-		-DLuaJit_LIBRARY="${LUAJIT_DIR}/lib/lua51.lib"
+
+	add_cmake_opts -DLuaJit_INCLUDE_DIR="${LUAJIT_INCLUDE_DIR}" \
+		-DLuaJit_LIBRARY="${LUAJIT_LIBRARY}"
 	for CONFIGURATION in ${CONFIGURATIONS[@]}; do
-		add_runtime_dlls $CONFIGURATION "$(pwd)/LuaJIT/bin/lua51.dll"
+		add_runtime_dlls $CONFIGURATION "${LUAJIT_DLL}"
 	done
 	echo Done.
 }
@@ -1204,6 +1226,17 @@ if [ -n "$ACTIVATE_MSVC" ]; then
 	echo "done."
 	echo
 fi
+
+echo "- Initializing submodules..."
+git -C "$SOURCE_ROOT" submodule update --init --recursive
+
+# RakNet (CrabNet) may not be registered as a submodule in older clones; clone directly if missing
+if [ ! -f "$SOURCE_ROOT/extern/raknet/CMakeLists.txt" ]; then
+    echo "- RakNet submodule missing, cloning directly..."
+    rm -rf "$SOURCE_ROOT/extern/raknet"
+    git clone https://github.com/TES3MP/CrabNet.git "$SOURCE_ROOT/extern/raknet"
+fi
+echo
 
 if [ -z $VERBOSE ]; then
 	printf -- "- Configuring... "
