@@ -37,6 +37,13 @@ namespace SceneUtil
         mMOC->ClearBuffer();
         mViewProjection = viewMatrix * projectionMatrix;
 
+        // Matrix inversion used to happen for every paged object during cull traversal.
+        // Cache it once per frame; dense exterior scenes can contain thousands of callbacks.
+        if (!mInverseView.invert(viewMatrix))
+            mInverseView.makeIdentity();
+        mEyeWorld.set(static_cast<float>(mInverseView(3, 0)),
+            static_cast<float>(mInverseView(3, 1)), static_cast<float>(mInverseView(3, 2)));
+
         const double* vpDouble = mViewProjection.ptr();
         for (int i = 0; i < 16; ++i)
             mVPFloat[i] = static_cast<float>(vpDouble[i]);

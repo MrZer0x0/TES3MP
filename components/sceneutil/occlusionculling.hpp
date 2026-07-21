@@ -37,6 +37,10 @@ namespace SceneUtil
         bool isActive() const { return mMOC != nullptr; }
         bool isFrameActive() const { return mFrameActive; }
 
+        /// Cached once per main-camera cull frame to avoid repeated matrix inversion in node callbacks.
+        const osg::Matrixd& getInverseViewMatrix() const { return mInverseView; }
+        const osg::Vec3f& getEyeWorld() const { return mEyeWorld; }
+
         unsigned int getNumOccluded() const { return mNumOccluded; }
         unsigned int getNumTested() const { return mNumTested; }
         unsigned int getNumBuildingOccluders() const { return mNumBuildingOccluders; }
@@ -57,6 +61,8 @@ namespace SceneUtil
     private:
         MaskedOcclusionCulling* mMOC;
         osg::Matrixd mViewProjection;
+        osg::Matrixd mInverseView;
+        osg::Vec3f mEyeWorld;
         float mVPFloat[16] = {};
         bool mFrameActive = false;
 

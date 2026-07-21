@@ -221,14 +221,14 @@ namespace MWRender
         const osg::BoundingSphere& bs = node->getBound();
         if (bs.valid())
         {
-            osg::Matrixd inv; inv.invert(cv->getCurrentCamera()->getViewMatrix());
+            const osg::Matrixd& inv = mCuller->getInverseViewMatrix();
             const osg::Matrixd modelToWorld = (*cv->getModelViewMatrix()) * inv;
             const osg::Vec3f worldCenter = bs.center() * modelToWorld;
             const float r = bs.radius();
             osg::BoundingBox bb(worldCenter.x()-r, worldCenter.y()-r, worldCenter.z()-r, worldCenter.x()+r, worldCenter.y()+r, worldCenter.z()+r);
             if (!mCuller->testVisibleAABB(bb))
                 return;
-            const osg::Vec3f eyeWorld(inv(3,0), inv(3,1), inv(3,2));
+            const osg::Vec3f& eyeWorld = mCuller->getEyeWorld();
             osg::UserDataContainer* udc = node->getUserDataContainer();
             if (udc)
                 for (unsigned int i = 0; i < udc->getNumUserObjects(); ++i)

@@ -1,25 +1,42 @@
-# Полный фикс сборки occlusion culling для ArenaMP
+# Полный фикс сборки ArenaMP: вода, ripple и occlusion
 
-Исправляет несогласованный перенос occlusion culling, проявлявшийся ошибками C2661 в `renderingmanager.cpp`.
+Пакет подготовлен по журналу GitHub Actions, где сборка остановилась в `water.cpp` на ошибке:
 
-Заменяемые файлы:
+```text
+error C2039: 'setRipples': is not a member of 'MWRender::RippleSimulation'
+```
 
-- `apps/openmw/mwrender/renderingmanager.cpp`
-- `apps/openmw/mwrender/renderingmanager.hpp`
-- `apps/openmw/mwrender/occlusionculling.hpp`
-- `apps/openmw/mwrender/objects.cpp`
-- `apps/openmw/mwrender/objects.hpp`
-- `apps/openmw/mwrender/objectpaging.cpp`
-- `apps/openmw/mwrender/objectpaging.hpp`
+## Исправлено
 
-Что синхронизировано:
+1. Восстановлен полный интерфейс `RippleSimulation`:
+   - `setRipples(Ripples*)`;
+   - передача событий движения игрока и NPC в динамическую ripple-карту;
+   - лимит и повторное использование старых частиц;
+   - безопасная обработка idle-таймера эмиттеров.
+2. Возвращены потерянные `ripples.cpp/.hpp` и GLSL-проходы симуляции волн.
+3. Полностью синхронизирован occlusion-порт:
+   - `RenderingManager`, `Objects`, `ObjectPaging`;
+   - MWRender/SceneUtil callbacks;
+   - `TerrainOccluder`;
+   - Intel Masked Occlusion Culling.
+4. Исправлены CMake-регистрации исходников и линковка `maskedoc`.
+5. В список копируемых ресурсов добавлены water/ripple/PBR/OpenMW-шейдеры.
+6. Сохранена оптимизация с кэшированием обратной матрицы камеры один раз за кадр.
 
-- конструктор `Objects(..., OcclusionCuller*)`;
-- конструктор `ObjectPaging(..., OcclusionCuller*)`;
-- callback для статических объектов ячейки;
-- callback для paged-объектов;
-- локальный заголовок `occlusionculling.hpp`;
-- поля occlusion в `RenderingManager`;
-- единая сигнатура `getPagedRefnums(..., std::set<ESM::RefNum>&)`.
+## Установка
 
-Распакуйте архив в корень проекта с заменой, затем сделайте новый commit и запустите новый workflow GitHub Actions.
+Распаковать ZIP непосредственно в корень репозитория с заменой файлов. Затем создать новый commit, выполнить push и запустить новый workflow. Не запускать повторно старый job: он использует прежний SHA.
+
+Предыдущие отдельные occlusion-фиксы поверх этого пакета применять не нужно — пакет уже включает согласованную версию связанных файлов.
+
+## Выполненная статическая проверка
+
+- все четыре вызова `setRipples` имеют объявление и реализацию;
+- все новые C++-модули зарегистрированы в CMake и присутствуют в пакете;
+- `components` связан с целью `maskedoc`, а сама цель подключена до `components`;
+- все файлы из `SHADER_FILES` реально присутствуют;
+- сигнатуры конструкторов `Objects` и `ObjectPaging` согласованы с `RenderingManager`;
+- `getPagedRefnums` использует единый тип `std::set<ESM::RefNum>`;
+- изменённые файлы ArenaMP проходят `git diff --check`; исходные third-party файлы `extern/maskedoc` сохранены без форматирования.
+
+Полную проверку MSVC/Ninja можно окончательно подтвердить только новым запуском GitHub Actions.
