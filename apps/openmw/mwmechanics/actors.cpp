@@ -1,5 +1,6 @@
 #include "actors.hpp"
 
+#include <algorithm>
 #include <optional>
 
 #include <components/esm/esmreader.hpp>
@@ -2235,7 +2236,42 @@ namespace MWMechanics
                             CreatureStats &stats = iter->first.getClass().getCreatureStats(iter->first);
                             if (isConscious(iter->first))
                             {
+                                const bool wasInCombat = stats.getAiSequence().isInCombat();
+                                const DrawState_ drawStateBeforeAi = stats.getDrawState();
+
                                 stats.getAiSequence().execute(iter->first, *ctrl, duration);
+
+                                const int actorId = stats.getActorId();
+                                const bool isInCombat = stats.getAiSequence().isInCombat();
+                                static const float weaponSheatheDelay =
+                                    std::max(0.f, Settings::Manager::getFloat("combat weapon sheathe delay", "Game"));
+
+                                if (wasInCombat && !isInCombat && drawStateBeforeAi == DrawState_Weapon
+                                    && weaponSheatheDelay > 0.f)
+                                {
+                                    mWeaponSheatheDelays[actorId] = { weaponSheatheDelay, static_cast<int>(drawStateBeforeAi) };
+                                }
+
+                                auto sheatheDelay = mWeaponSheatheDelays.find(actorId);
+                                if (sheatheDelay != mWeaponSheatheDelays.end())
+                                {
+                                    if (isInCombat)
+                                    {
+                                        mWeaponSheatheDelays.erase(sheatheDelay);
+                                    }
+                                    else
+                                    {
+                                        sheatheDelay->second.mTimeLeft -= duration;
+                                        if (sheatheDelay->second.mTimeLeft > 0.f)
+                                            stats.setDrawState(static_cast<DrawState_>(sheatheDelay->second.mDrawState));
+                                        else
+                                        {
+                                            stats.setDrawState(DrawState_Nothing);
+                                            mWeaponSheatheDelays.erase(sheatheDelay);
+                                        }
+                                    }
+                                }
+
                                 updateGreetingState(iter->first, *iter->second, timerUpdateHello > 0);
                                 playIdleDialogue(iter->first);
                                 updateMovementSpeed(iter->first);

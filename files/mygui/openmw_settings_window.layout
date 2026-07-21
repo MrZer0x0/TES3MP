@@ -348,11 +348,18 @@
             </Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
-            <Property key="Caption" value="  GUI  " />
-            <Widget type="TextBox" skin="NormalText" position="8 16 336 18" align="Left Top" name="GuiScalingFactorLabel">
+            <Property key="Caption" value="  Detail  " />
+            <Widget type="TextBox" skin="NormalText" position="4 4 300 24" align="Left Top">
+              <Property key="Caption" value="Texture Filtering" />
+            </Widget>
+            <Widget type="ComboBox" skin="MW_ComboBox" position="14 28 110 24" align="Left Top" name="TextureFilteringButton">
+              <Property key="AddItem" value="Bilinear" />
+              <Property key="AddItem" value="Trilinear" />
+            </Widget>
+            <Widget type="TextBox" skin="NormalText" position="0 64 352 18" align="Left Top" name="GuiScalingFactorLabel">
               <Property key="Caption" value="GUI scale (%s)" />
             </Widget>
-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 42 336 18" align="HStretch Top" name="GuiScalingFactor">
+            <Widget type="ScrollBar" skin="MW_HScroll" position="0 86 352 18" align="HStretch Top" name="GuiScalingFactor">
               <Property key="Range" value="251" />
               <UserString key="SettingType" value="Slider" />
               <UserString key="SettingCategory" value="GUI" />
@@ -362,26 +369,6 @@
               <UserString key="SettingMax" value="3.0" />
               <UserString key="SettingLabelWidget" value="GuiScalingFactorLabel" />
               <UserString key="SettingLabelCaption" value="GUI scale (%s)" />
-            </Widget>
-            <Widget type="TextBox" skin="SandText" position="8 66 80 18" align="Left Top">
-              <Property key="Caption" value="50%" />
-            </Widget>
-            <Widget type="TextBox" skin="SandText" position="264 66 80 18" align="Right Top">
-              <Property key="Caption" value="300%" />
-            </Widget>
-            <Widget type="TextBox" skin="SandText" position="8 104 336 54" align="HStretch Top">
-              <Property key="Caption" value="Changes are applied immediately. The selected scale is saved to settings.cfg." />
-              <Property key="TextAlign" value="Left Top" />
-            </Widget>
-          </Widget>
-          <Widget type="TabItem" skin="" position="0 28 352 318">
-            <Property key="Caption" value="  Detail  " />
-            <Widget type="TextBox" skin="NormalText" position="4 4 300 24" align="Left Top">
-              <Property key="Caption" value="Texture Filtering" />
-            </Widget>
-            <Widget type="ComboBox" skin="MW_ComboBox" position="14 28 110 24" align="Left Top" name="TextureFilteringButton">
-              <Property key="AddItem" value="Bilinear" />
-              <Property key="AddItem" value="Trilinear" />
             </Widget>
             <Widget type="Widget" skin="" position="184 4 168 50" align="Left Top" name="AnisotropyBox">
               <Widget type="TextBox" skin="NormalText" position="0 0 168 24" align="Left Top" name="AnisotropyLabel">
@@ -431,6 +418,12 @@
             <Widget type="TextBox" skin="SandText" position="0 178 352 18" align="Right Top">
               <Property key="Caption" value="#{sFar}" />
               <Property key="TextAlign" value="Right" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="0 106 80 18" align="Left Top">
+              <Property key="Caption" value="50%" />
+            </Widget>
+            <Widget type="TextBox" skin="SandText" position="272 106 80 18" align="Right Top">
+              <Property key="Caption" value="300%" />
             </Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
@@ -732,7 +725,6 @@
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
             <Property key="Caption" value="  Lights  " />
-            <!-- Lighting Method -->
             <Widget type="TextBox" skin="NormalText" position="0 4 170 18" align="Left Top">
               <Property key="Caption" value="Lighting Method:" />
             </Widget>
@@ -741,7 +733,6 @@
               <Property key="AddItem" value="shaders compatibility" />
               <Property key="AddItem" value="shaders" />
             </Widget>
-            <!-- Max Lights -->
             <Widget type="TextBox" skin="NormalText" position="178 4 160 18" align="Left Top" name="MaxLightsText">
               <UserString key="ToolTipType" value="Layout" />
               <UserString key="ToolTipLayout" value="TextToolTip" />
@@ -762,7 +753,6 @@
               <Property key="AddItem" value="32" />
             </Widget>
             <Widget type="ImageBox" skin="MW_HLine" position="0 54 352 18" align="Top HStretch" />
-            <!-- Light Fade Start -->
             <Widget type="TextBox" skin="NormalText" position="0 78 352 18" align="Left Top" name="MaxLightDistanceText">
               <UserString key="ToolTipType" value="Layout" />
               <UserString key="ToolTipLayout" value="TextToolTip" />
@@ -780,7 +770,6 @@
               <UserString key="SettingLabelWidget" value="MaxLightDistanceText" />
               <UserString key="SettingLabelCaption" value="Maximum Light Distance (%s)" />
             </Widget>
-            <!-- Light Fade Multiplier -->
             <Widget type="TextBox" skin="NormalText" position="0 128 352 18" align="Left Top" name="LightFadeMultiplierText">
               <UserString key="ToolTipType" value="Layout" />
               <UserString key="ToolTipLayout" value="TextToolTip" />
@@ -798,7 +787,6 @@
               <UserString key="SettingLabelWidget" value="LightFadeMultiplierText" />
               <UserString key="SettingLabelCaption" value="Fade Start Multiplier (%s)" />
             </Widget>
-            <!-- Bounding Sphere Multiplier -->
             <Widget type="TextBox" skin="NormalText" position="0 176 352 18" align="Left Top" name="BoundingSphereMultText">
               <UserString key="ToolTipType" value="Layout" />
               <UserString key="ToolTipLayout" value="TextToolTip" />
@@ -816,7 +804,6 @@
               <UserString key="SettingLabelWidget" value="BoundingSphereMultText" />
               <UserString key="SettingLabelCaption" value="Bounding Sphere Multiplier (%s)" />
             </Widget>
-            <!-- Minimum Ambient Brightness -->
             <Widget type="TextBox" skin="NormalText" position="0 224 352 18" align="Left Top" name="MinimumBrightnessText">
               <UserString key="ToolTipType" value="Layout" />
               <UserString key="ToolTipLayout" value="TextToolTip" />
@@ -836,86 +823,6 @@
               <Property key="Caption" value="Reset To Defaults" />
             </Widget>
           </Widget>
-          <!--
-                    <Widget type="TabItem" skin="" position="0 28 352 268">
-                    <Widget type="Widget" skin="" position="0 28 352 268">
-                        <Property key="Visible" value="false"/>
-                        <Property key="Caption" value="  Shadows  "/>
-                        <Widget type="HBox" skin="" position="4 4 350 24">
-                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="ShadowsEnabledButton">
-                                <UserString key="SettingCategory" value="Shadows"/>
-                                <UserString key="SettingName" value="enabled"/>
-                                <UserString key="SettingType" value="CheckButton"/>
-                            </Widget>
-                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 65 16" align="Left Top">
-                                <Property key="Caption" value="Shadows"/>
-                            </Widget>
-                        </Widget>
-                        <Widget type="Widget" skin="" position="24 32 300 230">
-                            <Widget type="HBox" skin="" position="4 0 350 24">
-                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="ShadowsLargeDistance">
-                                    <UserString key="SettingCategory" value="Shadows"/>
-                                    <UserString key="SettingName" value="split"/>
-                                    <UserString key="SettingType" value="CheckButton"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 182 16" align="Left Top">
-                                    <Property key="Caption" value="Large distance (PSSM3)"/>
-                                </Widget>
-                            </Widget>
-                            <Widget type="HBox" skin="" position="4 28 350 24">
-                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="TerrainShadows">
-                                    <UserString key="SettingCategory" value="Shadows"/>
-                                    <UserString key="SettingName" value="terrain shadows"/>
-                                    <UserString key="SettingType" value="CheckButton"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 122 16" align="Left Top">
-                                    <Property key="Caption" value="Terrain shadows"/>
-                                </Widget>
-                            </Widget>
-                            <Widget type="HBox" skin="" position="4 56 350 24">
-                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="ActorShadows">
-                                    <UserString key="SettingCategory" value="Shadows"/>
-                                    <UserString key="SettingName" value="actor shadows"/>
-                                    <UserString key="SettingType" value="CheckButton"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 108 16" align="Left Top">
-                                    <Property key="Caption" value="Actor shadows"/>
-                                </Widget>
-                            </Widget>
-                            <Widget type="HBox" skin="" position="4 84 350 24">
-                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="StaticsShadows">
-                                    <UserString key="SettingCategory" value="Shadows"/>
-                                    <UserString key="SettingName" value="statics shadows"/>
-                                    <UserString key="SettingType" value="CheckButton"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 111 16" align="Left Top">
-                                    <Property key="Caption" value="World shadows"/>
-                                </Widget>
-                            </Widget>
-                            <Widget type="HBox" skin="" position="4 112 350 24">
-                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="MiscShadows">
-                                    <UserString key="SettingCategory" value="Shadows"/>
-                                    <UserString key="SettingName" value="misc shadows"/>
-                                    <UserString key="SettingType" value="CheckButton"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 102 16" align="Left Top">
-                                    <Property key="Caption" value="Misc shadows"/>
-                                </Widget>
-                            </Widget>
-                            <Widget type="HBox" skin="" position="4 140 350 24">
-                                <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 60 24" align="Left Top" name="ShadowsTextureSize">
-                                    <Property key="AddItem" value="512"/>
-                                    <Property key="AddItem" value="1024"/>
-                                    <Property key="AddItem" value="2048"/>
-                                    <Property key="AddItem" value="4096"/>
-                                </Widget>
-                                <Widget type="AutoSizedTextBox" skin="SandText" position="64 4 90 16" align="Left Top">
-                                    <Property key="Caption" value="Texture size"/>
-                                </Widget>
-                            </Widget>
-                        </Widget>
-                    </Widget>
-                    -->
           <Widget type="TabItem" skin="" position="0 28 352 318" name="RenderSettingsTab" align="Stretch">
             <Property key="Caption" value="  Render  " />
             <Widget type="TabControl" skin="TabControlInner" position="0 0 352 318" name="RenderTabControl" align="Stretch">
@@ -1028,10 +935,10 @@
                   <UserString key="SettingLabelWidget" value="HdrBloomThresholdLabel" />
                   <UserString key="SettingLabelCaption" value="Bloom threshold (%s)" />
                 </Widget>
-                <Widget type="TextBox" skin="NormalText" position="4 212 344 18" name="HdrBloomIntensityLabel" align="Left Top">
+                <Widget type="TextBox" skin="NormalText" position="4 212 164 18" name="HdrBloomIntensityLabel" align="Left Top">
                   <Property key="Caption" value="Bloom intensity " />
                 </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="4 232 344 18" name="HdrBloomIntensity" align="Left Top">
+                <Widget type="ScrollBar" skin="MW_HScroll" position="4 232 164 18" name="HdrBloomIntensity" align="Left Top">
                   <Property key="Range" value="1001" />
                   <Property key="Page" value="10" />
                   <UserString key="SettingType" value="Slider" />
@@ -1043,87 +950,20 @@
                   <UserString key="SettingLabelWidget" value="HdrBloomIntensityLabel" />
                   <UserString key="SettingLabelCaption" value="Bloom intensity (%s)" />
                 </Widget>
-              </Widget>
-              <Widget type="TabItem" skin="" position="0 28 352 290" name="LightFxSettingsTab" align="Stretch">
-                <Property key="Caption" value="  Light FX  " />
-                <Widget type="TextBox" skin="NormalText" position="4 8 164 18" name="DirectLightLabel" align="Left Top">
-                  <Property key="Caption" value="Direct light " />
+                <Widget type="TextBox" skin="NormalText" position="184 212 164 18" name="HdrBloomRadiusLabel" align="Left Top">
+                  <Property key="Caption" value="Bloom radius " />
                 </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="4 28 164 18" name="DirectLightIntensity" align="Left Top">
+                <Widget type="ScrollBar" skin="MW_HScroll" position="184 232 164 18" name="HdrBloomRadius" align="Left Top">
                   <Property key="Range" value="1001" />
                   <Property key="Page" value="10" />
                   <UserString key="SettingType" value="Slider" />
                   <UserString key="SettingCategory" value="Post Processing" />
-                  <UserString key="SettingName" value="direct light intensity" />
+                  <UserString key="SettingName" value="bloom radius" />
                   <UserString key="SettingValueType" value="Float" />
                   <UserString key="SettingMin" value="0.00" />
-                  <UserString key="SettingMax" value="3.00" />
-                  <UserString key="SettingLabelWidget" value="DirectLightLabel" />
-                  <UserString key="SettingLabelCaption" value="Direct light (%s)" />
-                </Widget>
-                <Widget type="TextBox" skin="NormalText" position="184 8 164 18" name="AmbientLightLabel" align="Left Top">
-                  <Property key="Caption" value="Ambient light " />
-                </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="184 28 164 18" name="AmbientLightIntensity" align="Left Top">
-                  <Property key="Range" value="1001" />
-                  <Property key="Page" value="10" />
-                  <UserString key="SettingType" value="Slider" />
-                  <UserString key="SettingCategory" value="Post Processing" />
-                  <UserString key="SettingName" value="ambient light intensity" />
-                  <UserString key="SettingValueType" value="Float" />
-                  <UserString key="SettingMin" value="0.00" />
-                  <UserString key="SettingMax" value="3.00" />
-                  <UserString key="SettingLabelWidget" value="AmbientLightLabel" />
-                  <UserString key="SettingLabelCaption" value="Ambient light (%s)" />
-                </Widget>
-                <Widget type="TextBox" skin="NormalText" position="4 70 164 18" name="SpecularLabel" align="Left Top">
-                  <Property key="Caption" value="Specular " />
-                </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="4 90 164 18" name="SpecularIntensity" align="Left Top">
-                  <Property key="Range" value="1001" />
-                  <Property key="Page" value="10" />
-                  <UserString key="SettingType" value="Slider" />
-                  <UserString key="SettingCategory" value="Post Processing" />
-                  <UserString key="SettingName" value="specular intensity" />
-                  <UserString key="SettingValueType" value="Float" />
-                  <UserString key="SettingMin" value="0.00" />
-                  <UserString key="SettingMax" value="3.00" />
-                  <UserString key="SettingLabelWidget" value="SpecularLabel" />
-                  <UserString key="SettingLabelCaption" value="Specular (%s)" />
-                </Widget>
-                <Widget type="TextBox" skin="NormalText" position="184 70 164 18" name="GlowIntensityLabel" align="Left Top">
-                  <Property key="Caption" value="Glow intensity " />
-                </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="184 90 164 18" name="GlowIntensity" align="Left Top">
-                  <Property key="Range" value="1001" />
-                  <Property key="Page" value="10" />
-                  <UserString key="SettingType" value="Slider" />
-                  <UserString key="SettingCategory" value="Post Processing" />
-                  <UserString key="SettingName" value="glow intensity" />
-                  <UserString key="SettingValueType" value="Float" />
-                  <UserString key="SettingMin" value="0.00" />
-                  <UserString key="SettingMax" value="3.00" />
-                  <UserString key="SettingLabelWidget" value="GlowIntensityLabel" />
-                  <UserString key="SettingLabelCaption" value="Glow intensity (%s)" />
-                </Widget>
-                <Widget type="TextBox" skin="NormalText" position="4 132 344 18" name="GlowRadiusLabel" align="Left Top">
-                  <Property key="Caption" value="Glow radius " />
-                </Widget>
-                <Widget type="ScrollBar" skin="MW_HScroll" position="4 152 344 18" name="GlowRadius" align="Left Top">
-                  <Property key="Range" value="1001" />
-                  <Property key="Page" value="10" />
-                  <UserString key="SettingType" value="Slider" />
-                  <UserString key="SettingCategory" value="Post Processing" />
-                  <UserString key="SettingName" value="glow radius" />
-                  <UserString key="SettingValueType" value="Float" />
-                  <UserString key="SettingMin" value="0.25" />
-                  <UserString key="SettingMax" value="5.00" />
-                  <UserString key="SettingLabelWidget" value="GlowRadiusLabel" />
-                  <UserString key="SettingLabelCaption" value="Glow radius (%s)" />
-                </Widget>
-                <Widget type="TextBox" skin="SandText" position="4 196 344 52" align="Left Top">
-                  <Property key="Caption" value="All parameters are applied instantly. Glow radius controls the light halo range; bloom intensity controls bright highlights." />
-                  <Property key="TextAlign" value="Left Top" />
+                  <UserString key="SettingMax" value="12.00" />
+                  <UserString key="SettingLabelWidget" value="HdrBloomRadiusLabel" />
+                  <UserString key="SettingLabelCaption" value="Bloom radius (%s)" />
                 </Widget>
               </Widget>
               <Widget type="TabItem" skin="" position="0 28 352 290" name="RuntimeShadowSettingsTab" align="Stretch">

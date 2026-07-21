@@ -12,6 +12,14 @@
 #include <osg/UserDataContainer>
 #include <osg/ComputeBoundsVisitor>
 #include <osg/Timer>
+#include <osg/DrawArrays>
+#include <osg/Geode>
+#include <osg/Geometry>
+#include <osg/Program>
+#include <osg/Shader>
+#include <osg/StateSet>
+#include <osg/Texture2D>
+#include <osg/Viewport>
 
 #include <osgUtil/LineSegmentIntersector>
 
@@ -76,6 +84,192 @@
 namespace MWRender
 {
 
+    class PostProcessor
+    {
+    public:
+        PostProcessor(osgViewer::Viewer* viewer, osg::Group* rootNode, Shader::ShaderManager& shaderManager)
+            : mViewer(viewer)
+            , mRootNode(rootNode)
+            , mMainCamera(viewer->getCamera())
+        {
+            osg::ref_ptr<osg::Shader> vertex = shaderManager.getShader(
+                "fullscreen_tri.vert", Shader::ShaderManager::DefineMap(), osg::Shader::VERTEX);
+            osg::ref_ptr<osg::Shader> fragment = shaderManager.getShader(
+                "postprocess_fragment.glsl", Shader::ShaderManager::DefineMap(), osg::Shader::FRAGMENT);
+            if (!vertex || !fragment)
+            {
+                Log(Debug::Error) << "Failed to initialize global post-processing shaders";
+                return;
+            }
+
+            osg::ref_ptr<osg::Program> program = shaderManager.getProgram(vertex, fragment);
+
+            mSceneTexture = new osg::Texture2D;
+            mSceneTexture->setSourceFormat(GL_RGBA);
+            mSceneTexture->setSourceType(GL_FLOAT);
+            mSceneTexture->setInternalFormat(GL_RGBA16F_ARB);
+            mSceneTexture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture::LINEAR);
+            mSceneTexture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture::LINEAR);
+            mSceneTexture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+            mSceneTexture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+
+            osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
+            vertices->push_back(osg::Vec3f(-1.f, -1.f, 0.f));
+            vertices->push_back(osg::Vec3f(-1.f, 3.f, 0.f));
+            vertices->push_back(osg::Vec3f(3.f, -1.f, 0.f));
+
+            osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
+            geometry->setVertexArray(vertices);
+            geometry->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES, 0, 3));
+            geometry->setUseDisplayList(false);
+            geometry->setUseVertexBufferObjects(true);
+            geometry->setCullingActive(false);
+
+            osg::ref_ptr<osg::Geode> geode = new osg::Geode;
+            geode->addDrawable(geometry);
+            geode->setCullingActive(false);
+
+            osg::StateSet* stateSet = geode->getOrCreateStateSet();
+            stateSet->setTextureAttributeAndModes(0, mSceneTexture, osg::StateAttribute::ON);
+            stateSet->setAttributeAndModes(program, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            stateSet->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+            stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+            stateSet->setMode(GL_BLEND, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+            stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+
+            stateSet->addUniform(new osg::Uniform("sceneTexture", 0));
+            mInverseScreenSize = new osg::Uniform("inverseScreenSize", osg::Vec2f(1.f, 1.f));
+            mEnabled = new osg::Uniform("postEnabled", true);
+            mTonemapper = new osg::Uniform("postTonemapper", 3);
+            mExposure = new osg::Uniform("postExposure", 1.f);
+            mGamma = new osg::Uniform("postGamma", 2.2f);
+            mBrightness = new osg::Uniform("postBrightness", 1.f);
+            mContrast = new osg::Uniform("postContrast", 1.f);
+            mSaturation = new osg::Uniform("postSaturation", 1.f);
+            mBloomIntensity = new osg::Uniform("postBloomIntensity", 0.f);
+            mBloomThreshold = new osg::Uniform("postBloomThreshold", 1.1f);
+            mBloomRadius = new osg::Uniform("postBloomRadius", 2.f);
+            stateSet->addUniform(mInverseScreenSize);
+            stateSet->addUniform(mEnabled);
+            stateSet->addUniform(mTonemapper);
+            stateSet->addUniform(mExposure);
+            stateSet->addUniform(mGamma);
+            stateSet->addUniform(mBrightness);
+            stateSet->addUniform(mContrast);
+            stateSet->addUniform(mSaturation);
+            stateSet->addUniform(mBloomIntensity);
+            stateSet->addUniform(mBloomThreshold);
+            stateSet->addUniform(mBloomRadius);
+
+            mPostCamera = new osg::Camera;
+            mPostCamera->setReferenceFrame(osg::Transform::ABSOLUTE_RF);
+            mPostCamera->setProjectionResizePolicy(osg::Camera::FIXED);
+            mPostCamera->setProjectionMatrix(osg::Matrix::identity());
+            mPostCamera->setViewMatrix(osg::Matrix::identity());
+            mPostCamera->setRenderOrder(osg::Camera::POST_RENDER, -1);
+            mPostCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER);
+            mPostCamera->setClearMask(GL_COLOR_BUFFER_BIT);
+            mPostCamera->setClearColor(osg::Vec4f(0.f, 0.f, 0.f, 1.f));
+            mPostCamera->setAllowEventFocus(false);
+            mPostCamera->setCullingActive(false);
+            mPostCamera->addChild(geode);
+
+            resize();
+            rebuildSceneAttachment();
+            mRootNode->addChild(mPostCamera);
+            mActive = true;
+            applySettings();
+            Log(Debug::Info) << "Initialized full-screen post-processing pipeline";
+        }
+
+        ~PostProcessor()
+        {
+            if (!mActive)
+                return;
+            mRootNode->removeChild(mPostCamera);
+            mMainCamera->detach(osg::Camera::COLOR_BUFFER);
+            mMainCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER);
+        }
+
+        void update()
+        {
+            if (!mActive)
+                return;
+            const bool resized = resize();
+            const int configuredSamples = Settings::Manager::getInt("antialiasing", "Video");
+            const int samples = configuredSamples > 1 ? configuredSamples : 0;
+            if (resized || samples != mSamples)
+                rebuildSceneAttachment();
+        }
+
+        void applySettings()
+        {
+            if (!mActive)
+                return;
+            mEnabled->set(Settings::Manager::getBool("enabled", "Post Processing"));
+            mTonemapper->set(std::clamp(Settings::Manager::getInt("tonemapper", "Post Processing"), 0, 3));
+            mExposure->set(std::clamp(Settings::Manager::getFloat("exposure", "Post Processing"), 0.1f, 4.0f));
+            mGamma->set(std::clamp(Settings::Manager::getFloat("gamma", "Post Processing"), 0.5f, 3.0f));
+            mBrightness->set(std::clamp(Settings::Manager::getFloat("brightness", "Post Processing"), 0.25f, 2.5f));
+            mContrast->set(std::clamp(Settings::Manager::getFloat("contrast", "Post Processing"), 0.25f, 2.5f));
+            mSaturation->set(std::clamp(Settings::Manager::getFloat("saturation", "Post Processing"), 0.0f, 2.5f));
+            mBloomIntensity->set(std::clamp(Settings::Manager::getFloat("bloom intensity", "Post Processing"), 0.0f, 2.0f));
+            mBloomThreshold->set(std::clamp(Settings::Manager::getFloat("bloom threshold", "Post Processing"), 0.1f, 4.0f));
+            mBloomRadius->set(std::clamp(Settings::Manager::getFloat("bloom radius", "Post Processing"), 0.0f, 12.0f));
+        }
+
+    private:
+        bool resize()
+        {
+            osg::Viewport* viewport = mMainCamera->getViewport();
+            if (!viewport)
+                return false;
+            const int width = std::max(1, static_cast<int>(viewport->width()));
+            const int height = std::max(1, static_cast<int>(viewport->height()));
+            if (width == mWidth && height == mHeight)
+                return false;
+
+            mWidth = width;
+            mHeight = height;
+            mSceneTexture->setTextureSize(width, height);
+            mSceneTexture->dirtyTextureObject();
+            mPostCamera->setViewport(0, 0, width, height);
+            mInverseScreenSize->set(osg::Vec2f(1.f / static_cast<float>(width), 1.f / static_cast<float>(height)));
+            return true;
+        }
+
+        void rebuildSceneAttachment()
+        {
+            const int configuredSamples = Settings::Manager::getInt("antialiasing", "Video");
+            mSamples = configuredSamples > 1 ? configuredSamples : 0;
+            mMainCamera->detach(osg::Camera::COLOR_BUFFER);
+            mMainCamera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT, osg::Camera::PIXEL_BUFFER_RTT);
+            mMainCamera->attach(osg::Camera::COLOR_BUFFER, mSceneTexture, 0, 0, false,
+                static_cast<unsigned int>(mSamples), static_cast<unsigned int>(mSamples));
+        }
+
+        osg::ref_ptr<osgViewer::Viewer> mViewer;
+        osg::ref_ptr<osg::Group> mRootNode;
+        osg::ref_ptr<osg::Camera> mMainCamera;
+        osg::ref_ptr<osg::Camera> mPostCamera;
+        osg::ref_ptr<osg::Texture2D> mSceneTexture;
+        osg::ref_ptr<osg::Uniform> mInverseScreenSize;
+        osg::ref_ptr<osg::Uniform> mEnabled;
+        osg::ref_ptr<osg::Uniform> mTonemapper;
+        osg::ref_ptr<osg::Uniform> mExposure;
+        osg::ref_ptr<osg::Uniform> mGamma;
+        osg::ref_ptr<osg::Uniform> mBrightness;
+        osg::ref_ptr<osg::Uniform> mContrast;
+        osg::ref_ptr<osg::Uniform> mSaturation;
+        osg::ref_ptr<osg::Uniform> mBloomIntensity;
+        osg::ref_ptr<osg::Uniform> mBloomThreshold;
+        osg::ref_ptr<osg::Uniform> mBloomRadius;
+        int mWidth = 0;
+        int mHeight = 0;
+        int mSamples = -1;
+        bool mActive = false;
+    };
+
     class StateUpdater : public SceneUtil::StateSetUpdater
     {
     public:
@@ -110,20 +304,6 @@ namespace MWRender
             stateset->addUniform(new osg::Uniform("waterWaveStrength", 1.0f));
             stateset->addUniform(new osg::Uniform("waterSurfaceRoughness", 0.22f));
 
-            stateset->addUniform(new osg::Uniform("hdrEnabled", true));
-            stateset->addUniform(new osg::Uniform("hdrTonemapper", 0));
-            stateset->addUniform(new osg::Uniform("hdrExposure", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrGamma", 2.2f));
-            stateset->addUniform(new osg::Uniform("hdrBrightness", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrContrast", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrSaturation", 1.0f));
-            stateset->addUniform(new osg::Uniform("hdrBloomIntensity", 0.25f));
-            stateset->addUniform(new osg::Uniform("hdrBloomThreshold", 1.1f));
-            stateset->addUniform(new osg::Uniform("lightDirectIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightAmbientIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightSpecularIntensity", 1.0f));
-            stateset->addUniform(new osg::Uniform("lightGlowIntensity", 0.4f));
-            stateset->addUniform(new osg::Uniform("lightGlowRadius", 1.8f));
             stateset->addUniform(new osg::Uniform("runtimeShadowsEnabled", true));
             stateset->addUniform(new osg::Uniform("runtimeShadowStrength", 1.0f));
             stateset->addUniform(new osg::Uniform("runtimeShadowSoftness", 1.0f));
@@ -151,34 +331,6 @@ namespace MWRender
             if (osg::Uniform* uniform = stateset->getUniform("waterSurfaceRoughness"))
                 uniform->set(std::clamp(Settings::Manager::getFloat("surface roughness", "Water"), 0.02f, 1.0f));
 
-            if (osg::Uniform* uniform = stateset->getUniform("hdrEnabled"))
-                uniform->set(Settings::Manager::getBool("enabled", "Post Processing"));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrTonemapper"))
-                uniform->set(std::clamp(Settings::Manager::getInt("tonemapper", "Post Processing"), 0, 3));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrExposure"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("exposure", "Post Processing"), 0.1f, 4.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrGamma"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("gamma", "Post Processing"), 0.5f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBrightness"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("brightness", "Post Processing"), 0.25f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrContrast"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("contrast", "Post Processing"), 0.25f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrSaturation"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("saturation", "Post Processing"), 0.0f, 2.5f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBloomIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("bloom intensity", "Post Processing"), 0.0f, 2.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("hdrBloomThreshold"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("bloom threshold", "Post Processing"), 0.1f, 4.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightDirectIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("direct light intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightAmbientIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("ambient light intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightSpecularIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("specular intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightGlowIntensity"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("glow intensity", "Post Processing"), 0.0f, 3.0f));
-            if (osg::Uniform* uniform = stateset->getUniform("lightGlowRadius"))
-                uniform->set(std::clamp(Settings::Manager::getFloat("glow radius", "Post Processing"), 0.25f, 5.0f));
             if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowsEnabled"))
                 uniform->set(Settings::Manager::getBool("enable shadows", "Shadows"));
             if (osg::Uniform* uniform = stateset->getUniform("runtimeShadowStrength"))
@@ -543,6 +695,10 @@ namespace MWRender
 
         mUniformNear = mRootNode->getOrCreateStateSet()->getUniform("near");
         mUniformFar = mRootNode->getOrCreateStateSet()->getUniform("far");
+
+        mPostProcessor = std::make_unique<PostProcessor>(mViewer, mRootNode,
+            mResourceSystem->getSceneManager()->getShaderManager());
+
         updateProjectionMatrix();
     }
 
@@ -820,6 +976,9 @@ namespace MWRender
 
     void RenderingManager::update(float dt, bool paused)
     {
+        if (mPostProcessor)
+            mPostProcessor->update();
+
         reportStats();
 
         mUnrefQueue->flush(mWorkQueue.get());
@@ -1251,6 +1410,7 @@ namespace MWRender
     void RenderingManager::processChangedSettings(const Settings::CategorySettingVector &changed)
     {
         bool shadowSettingsChanged = false;
+        bool postProcessingSettingsChanged = false;
         for (Settings::CategorySettingVector::const_iterator it = changed.begin(); it != changed.end(); ++it)
         {
             if (it->first == "Camera" && it->second == "field of view")
@@ -1274,6 +1434,10 @@ namespace MWRender
             else if (it->first == "Water")
             {
                 mWater->processChangedSettings(changed);
+            }
+            else if (it->first == "Post Processing")
+            {
+                postProcessingSettingsChanged = true;
             }
             else if (it->first == "Shadows")
             {
@@ -1316,6 +1480,9 @@ namespace MWRender
                 }
             }
         }
+
+        if (postProcessingSettingsChanged && mPostProcessor)
+            mPostProcessor->applySettings();
 
         if (shadowSettingsChanged && mShadowManager)
         {

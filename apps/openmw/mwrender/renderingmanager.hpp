@@ -73,6 +73,7 @@ namespace DetourNavigator
 namespace MWRender
 {
     class GroundcoverUpdater;
+    class PostProcessor;
     class StateUpdater;
 
     class EffectManager;
@@ -298,6 +299,7 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<SceneUtil::ShadowManager> mShadowManager;
+        std::unique_ptr<PostProcessor> mPostProcessor;
         osg::ref_ptr<NpcAnimation> mPlayerAnimation;
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> mPlayerNode;
         std::unique_ptr<Camera> mCamera;

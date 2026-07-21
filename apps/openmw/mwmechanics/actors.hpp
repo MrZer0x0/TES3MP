@@ -235,6 +235,13 @@ namespace MWMechanics
         float mActorsProcessingRange;
 
         bool mSmoothMovement;
+
+        struct WeaponSheatheDelayState
+        {
+            float mTimeLeft;
+            int mDrawState;
+        };
+        std::map<int, WeaponSheatheDelayState> mWeaponSheatheDelays;
     };
 }
 

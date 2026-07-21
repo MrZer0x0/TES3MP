@@ -9,6 +9,7 @@ set(DDIRRELATIVE resources/shaders)
 set(SHADER_FILES
     lib/water/ripples.glsl
     fullscreen_tri.vert
+    postprocess_fragment.glsl
     ripples_blobber.frag
     ripples_simulate.frag
     groundcover_vertex.glsl
