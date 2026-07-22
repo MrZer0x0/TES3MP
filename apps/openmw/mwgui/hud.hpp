@@ -104,7 +104,6 @@ namespace MWGui
 
         int mEnemyActorId;
         float mEnemyHealthTimer;
-        float mEnemyHoverTimer;
 
         float mFpsUpdateTimer;
         float mFpsAccumulatedTime;

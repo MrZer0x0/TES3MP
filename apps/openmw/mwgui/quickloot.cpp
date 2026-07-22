@@ -165,15 +165,18 @@ namespace MWGui
 
             const bool selected = entryIndex == mLastIndex;
             const std::string textSkin = selected ? "SandBrightText" : "SandText";
-            const float alpha = selected ? 1.f : 0.72f;
+            const float textAlpha = selected ? 1.f : 0.72f;
 
             row.mMarker->changeWidgetSkin(textSkin);
             row.mCount->changeWidgetSkin(textSkin);
             row.mName->changeWidgetSkin(textSkin);
-            row.mMarker->setAlpha(alpha);
-            row.mCount->setAlpha(alpha);
-            row.mName->setAlpha(alpha);
-            row.mIcon->setAlpha(alpha);
+            row.mMarker->setAlpha(textAlpha);
+            row.mCount->setAlpha(textAlpha);
+            row.mName->setAlpha(textAlpha);
+
+            // Never fade an item icon. Semi-transparent icons blend with the red/brown
+            // HUD box and look as if the texture itself has been recoloured.
+            row.mIcon->setAlpha(1.f);
 
             if (entryIndex == 0)
             {
@@ -226,6 +229,7 @@ namespace MWGui
             mLastIndex = (mLastIndex + total - 1) % total;
 
         refreshRows();
+        resize();
         return true;
     }
 
@@ -614,12 +618,81 @@ namespace MWGui
         if (visibleItems <= 0)
             return;
 
-        // Compact header plus up to six 30-pixel item rows.
-        const int width = std::max(1, std::min(400, viewSize.width - 16));
-        const MyGUI::IntSize tooltipSize(width, 12 + 28 + visibleItems * 30);
-        setCoord(viewSize.width * 7 / 10 - tooltipSize.width / 2,
-            viewSize.height * 6 / 10 - tooltipSize.height / 2,
-            tooltipSize.width, tooltipSize.height);
+        constexpr int outerPadding = 6;
+        constexpr int headerHeight = 26;
+        constexpr int itemHeight = 28;
+        constexpr int markerWidth = 18;
+        constexpr int iconSize = 24;
+        constexpr int iconLeft = markerWidth;
+        constexpr int nameLeft = iconLeft + iconSize + 4;
+        constexpr int headerNameLeft = markerWidth + 4;
+        constexpr int nameCountGap = 8;
+        constexpr int rightPadding = 8;
+
+        // Fit the box to the longest currently visible row instead of reserving a
+        // fixed 400-pixel column. A small minimum keeps short names readable, while
+        // the maximum prevents unusually long modded names from covering the screen.
+        int desiredInnerWidth = headerNameLeft + mRows[0].mName->getTextSize().width + rightPadding;
+        for (int rowIndex = 1; rowIndex <= visibleItems; ++rowIndex)
+        {
+            const RowWidgets& row = mRows[static_cast<std::size_t>(rowIndex)];
+            const int nameWidth = row.mName->getTextSize().width;
+            const int countWidth = row.mCount->getTextSize().width;
+            desiredInnerWidth = std::max(desiredInnerWidth,
+                nameLeft + nameWidth + nameCountGap + countWidth + rightPadding);
+        }
+
+        const int maxOuterWidth = std::max(1, std::min(340, viewSize.width - 16));
+        const int minOuterWidth = std::min(220, maxOuterWidth);
+        const int outerWidth = std::max(minOuterWidth,
+            std::min(desiredInnerWidth + outerPadding * 2, maxOuterWidth));
+        const int outerHeight = outerPadding * 2 + headerHeight + visibleItems * itemHeight;
+        const int innerWidth = std::max(1, outerWidth - outerPadding * 2);
+        const int innerHeight = std::max(1, outerHeight - outerPadding * 2);
+
+        setCoord(viewSize.width * 7 / 10 - outerWidth / 2,
+            viewSize.height * 6 / 10 - outerHeight / 2,
+            outerWidth, outerHeight);
+
+        // Explicit coordinates keep the layout compact with every GUI scaling factor.
+        mQuickLoot->getParent()->setCoord(0, 0, outerWidth, outerHeight);
+        mQuickLoot->setCoord(outerPadding, outerPadding, innerWidth, innerHeight);
+
+        for (int rowIndex = 0; rowIndex < sVisibleRows; ++rowIndex)
+        {
+            RowWidgets& row = mRows[static_cast<std::size_t>(rowIndex)];
+            const bool header = rowIndex == 0;
+            const int rowHeight = header ? headerHeight : itemHeight;
+            const int rowTop = header ? 0 : headerHeight + (rowIndex - 1) * itemHeight;
+            row.mRoot->setCoord(0, rowTop, innerWidth, rowHeight);
+            row.mMarker->setCoord(0, 0, markerWidth, rowHeight);
+
+            if (header)
+            {
+                row.mIcon->setCoord(iconLeft, 1, iconSize, iconSize);
+                row.mName->setCoord(headerNameLeft, 0,
+                    std::max(1, innerWidth - headerNameLeft - rightPadding), rowHeight);
+                row.mCount->setCoord(0, 0, 0, 0);
+            }
+            else
+            {
+                row.mIcon->setCoord(iconLeft, 2, iconSize, iconSize);
+
+                const int countWidth = std::max(28,
+                    std::min(56, row.mCount->getTextSize().width + 4));
+                const int maximumNameWidth = std::max(1,
+                    innerWidth - nameLeft - nameCountGap - countWidth - rightPadding);
+                const int nameWidth = std::max(1,
+                    std::min(maximumNameWidth, row.mName->getTextSize().width + 2));
+                const int countLeft = nameLeft + nameWidth + nameCountGap;
+
+                row.mName->setCoord(nameLeft, 0, nameWidth, rowHeight);
+                row.mCount->setCoord(countLeft, 0, countWidth, rowHeight);
+            }
+
+            row.mWeight->setCoord(0, 0, 0, 0);
+            row.mValue->setCoord(0, 0, 0, 0);
+        }
     }
 
     void QuickLoot::clear()

@@ -14,16 +14,23 @@
 
         <!-- Energy bars -->
         
-        <Widget type="TextBox" skin="SandText" position="70 119 260 18" align="Bottom Center" name="EnemyName">
+        <!-- Compact target panel above the player's health bar -->
+        <Widget type="TextBox" skin="SandText" position="45 132 190 18" align="Center Bottom" name="EnemyName">
+            <Property key="NeedMouse" value="false"/>
             <Property key="TextAlign" value="Center"/>
+            <Property key="TextShadow" value="true"/>
+            <Property key="TextShadowColour" value="0 0 0"/>
             <Property key="Visible" value="false"/>
         </Widget>
-        <Widget type="TextBox" skin="SandText" position="70 99 260 16" align="Bottom Center" name="EnemySummary">
-            <Property key="TextAlign" value="Center"/>
+        <Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="55 153 170 12" align="Center Bottom" name="EnemyHealth">
+            <Property key="NeedMouse" value="false"/>
             <Property key="Visible" value="false"/>
-            <Property key="Alpha" value="0.8"/>
         </Widget>
-<Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="125 145 150 4" align="Bottom Center" name="EnemyHealth">
+        <Widget type="TextBox" skin="SandBrightText" position="55 151 170 16" align="Center Bottom" name="EnemySummary">
+            <Property key="NeedMouse" value="false"/>
+            <Property key="TextAlign" value="Center"/>
+            <Property key="TextShadow" value="true"/>
+            <Property key="TextShadowColour" value="0 0 0"/>
             <Property key="Visible" value="false"/>
         </Widget>
 		

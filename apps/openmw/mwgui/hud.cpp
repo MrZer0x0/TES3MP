@@ -148,7 +148,6 @@ namespace MWGui
         , mWorldMouseOver(false)
         , mEnemyActorId(-1)
         , mEnemyHealthTimer(-1)
-        , mEnemyHoverTimer(0.f)
         , mFpsUpdateTimer(0.f)
         , mFpsAccumulatedTime(0.f)
         , mFpsFrameCount(0)
@@ -522,21 +521,11 @@ namespace MWGui
         const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
         if (mEnemyActorId != -1)
         {
+            const bool showTargetInfo = targetInfoPanel && mEnemyHealth->getVisible();
             if (mEnemyName)
-                mEnemyName->setVisible(targetInfoPanel && mEnemyHealth->getVisible());
-
-            if (targetInfoPanel)
-            {
-                mEnemyHoverTimer += dt;
-                if (mEnemySummary)
-                    mEnemySummary->setVisible(mEnemyHealth->getVisible() && mEnemyHoverTimer >= 1.f);
-            }
-            else
-            {
-                mEnemyHoverTimer = 0.f;
-                if (mEnemySummary)
-                    mEnemySummary->setVisible(false);
-            }
+                mEnemyName->setVisible(showTargetInfo);
+            if (mEnemySummary)
+                mEnemySummary->setVisible(showTargetInfo);
         }
 
         updateAutoHideBar(mHealthFrame, mHealthBarState, dt, false);
@@ -895,35 +884,43 @@ namespace MWGui
         MWWorld::Ptr enemy = MWBase::Environment::get().getWorld()->searchPtrViaActorId(mEnemyActorId);
         if (enemy.isEmpty())
             return;
+
         MWMechanics::CreatureStats& stats = enemy.getClass().getCreatureStats(enemy);
+        const float maximumHealth = stats.getHealth().getModified();
+        const float currentHealth = stats.getHealth().getCurrent();
+        const float healthRatio = maximumHealth > 0.f ? currentHealth / maximumHealth : 0.f;
+        const int healthPercent = static_cast<int>(std::lround(
+            std::max(0.f, std::min(1.f, healthRatio)) * 100.f));
+
         mEnemyHealth->setProgressRange(100);
-        // Health is usually cast to int before displaying. Actors die whenever they are < 1 health.
-        // Therefore any value < 1 should show as an empty health bar. We do the same in statswindow :)
-        mEnemyHealth->setProgressPosition(static_cast<size_t>(stats.getHealth().getCurrent() / stats.getHealth().getModified() * 100));
+        mEnemyHealth->setProgressPosition(static_cast<size_t>(healthPercent));
+        if (mEnemySummary)
+            mEnemySummary->setCaption(MyGUI::utility::toString(healthPercent) + "%");
 
         static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
-        if (fNPCHealthBarFade > 0.f)
-            mEnemyHealth->setAlpha(std::max(0.f, std::min(1.f, mEnemyHealthTimer/fNPCHealthBarFade)));
-
+        const float alpha = fNPCHealthBarFade > 0.f
+            ? std::max(0.f, std::min(1.f, mEnemyHealthTimer / fNPCHealthBarFade))
+            : 1.f;
+        mEnemyHealth->setAlpha(alpha);
+        if (mEnemyName)
+            mEnemyName->setAlpha(alpha);
+        if (mEnemySummary)
+            mEnemySummary->setAlpha(alpha);
     }
 
     void HUD::setEnemy(const MWWorld::Ptr &enemy)
     {
         mEnemyActorId = enemy.getClass().getCreatureStats(enemy).getActorId();
-        mEnemyHoverTimer = 0.f;
         MWMechanics::CreatureStats& targetStats = enemy.getClass().getCreatureStats(enemy);
         if (mEnemyName)
         {
-            mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  Lv. " + MyGUI::utility::toString(targetStats.getLevel()));
+            const std::string levelLabel = MWBase::Environment::get().getWindowManager()->getGameSettingString("sLevel", "Level");
+            mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  " + levelLabel + " "
+                + MyGUI::utility::toString(targetStats.getLevel()));
             mEnemyName->setVisible(Settings::Manager::getBool("target info panel", "GUI"));
         }
         if (mEnemySummary)
-        {
-            const int hp = static_cast<int>(targetStats.getHealth().getCurrent());
-            const int maxHp = static_cast<int>(targetStats.getHealth().getModified());
-            mEnemySummary->setCaption("HP " + MyGUI::utility::toString(hp) + " / " + MyGUI::utility::toString(maxHp));
-            mEnemySummary->setVisible(false);
-        }
+            mEnemySummary->setVisible(Settings::Manager::getBool("target info panel", "GUI"));
         mEnemyHealthTimer = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarTime")->mValue.getFloat();
         if (!mEnemyHealth->getVisible())
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() - MyGUI::IntPoint(0,20));
@@ -935,7 +932,6 @@ namespace MWGui
     {
         mEnemyActorId = -1;
         mEnemyHealthTimer = -1;
-        mEnemyHoverTimer = 0.f;
         if (mEnemyName) mEnemyName->setVisible(false);
         if (mEnemySummary) mEnemySummary->setVisible(false);
     }
