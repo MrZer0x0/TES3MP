@@ -519,24 +519,31 @@ namespace MWGui
         if (!player.isEmpty())
             drawState = player.getClass().getCreatureStats(player).getDrawState();
 
-        const bool persistentBoxes = Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
-        if (mWeapBox && mWeapBox->getVisible())
-            mWeapBox->setAlpha(persistentBoxes && !mFatigueFrame->getVisible() ? 0.4f : 1.f);
-        if (mSpellBox && mSpellBox->getVisible())
-            mSpellBox->setAlpha(persistentBoxes && !mMagickaFrame->getVisible() ? 0.4f : 1.f);
-
-        if (mEnemyActorId != -1 && Settings::Manager::getBool("target info panel", "GUI"))
+        const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
+        if (mEnemyActorId != -1)
         {
-            mEnemyHoverTimer += dt;
-            if (mEnemySummary)
-                mEnemySummary->setVisible(mEnemyHoverTimer >= 1.f);
+            if (mEnemyName)
+                mEnemyName->setVisible(targetInfoPanel && mEnemyHealth->getVisible());
+
+            if (targetInfoPanel)
+            {
+                mEnemyHoverTimer += dt;
+                if (mEnemySummary)
+                    mEnemySummary->setVisible(mEnemyHealth->getVisible() && mEnemyHoverTimer >= 1.f);
+            }
+            else
+            {
+                mEnemyHoverTimer = 0.f;
+                if (mEnemySummary)
+                    mEnemySummary->setVisible(false);
+            }
         }
 
         updateAutoHideBar(mHealthFrame, mHealthBarState, dt, false);
         updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt,
-            drawState == MWMechanics::DrawState_Spell);
+            drawState == MWMechanics::DrawState_Spell, mSpellBox);
         updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt,
-            drawState == MWMechanics::DrawState_Weapon);
+            drawState == MWMechanics::DrawState_Weapon, mWeapBox);
     }
 
 
@@ -567,7 +574,8 @@ namespace MWGui
         widget->setAlpha(std::max(0.f, std::min(1.f, alpha)));
     }
 
-    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible)
+    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt,
+        bool forceVisible, MyGUI::Widget* persistentIcon)
     {
         if (!frame || !state.initialized)
             return;
@@ -578,6 +586,48 @@ namespace MWGui
             return;
         }
 
+        const auto applyResourceState = [&](float alpha)
+        {
+            alpha = std::max(0.f, std::min(1.f, alpha));
+            const bool keepIcon = persistentIcon
+                && Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
+
+            if (!keepIcon)
+            {
+                frame->setVisible(alpha > 0.f);
+                applyBarAlpha(frame, alpha);
+                if (alpha > 0.f)
+                {
+                    for (unsigned int i = 0; i < frame->getChildCount(); ++i)
+                    {
+                        MyGUI::Widget* child = frame->getChildAt(i);
+                        const bool iconAllowed = child != persistentIcon
+                            || (persistentIcon == mWeapBox ? mWeaponVisible : mSpellVisible);
+                        child->setVisible(iconAllowed);
+                        applyBarAlpha(child, 1.f);
+                    }
+                }
+                return;
+            }
+
+            // Weapon and spell boxes live inside the stamina/magicka frame. Keep the
+            // parent alive, fade only the bar children, and leave the icon at 40%.
+            frame->setVisible(true);
+            applyBarAlpha(frame, 1.f);
+            for (unsigned int i = 0; i < frame->getChildCount(); ++i)
+            {
+                MyGUI::Widget* child = frame->getChildAt(i);
+                if (child == persistentIcon)
+                    continue;
+                child->setVisible(alpha > 0.f);
+                applyBarAlpha(child, alpha);
+            }
+
+            const bool iconAllowed = persistentIcon == mWeapBox ? mWeaponVisible : mSpellVisible;
+            persistentIcon->setVisible(iconAllowed);
+            applyBarAlpha(persistentIcon, std::max(0.4f, alpha));
+        };
+
         // Keep the relevant resource bar visible for as long as the player is
         // actively holding a weapon or has magic readied. Start the normal
         // auto-hide delay only after the weapon/spell is put away.
@@ -585,16 +635,14 @@ namespace MWGui
         {
             state.idleTimer = 0.f;
             state.alpha = 1.f;
-            frame->setVisible(true);
-            applyBarAlpha(frame, 1.f);
+            applyResourceState(1.f);
             return;
         }
 
         if (!Settings::Manager::getBool("auto hide resource bars", "GUI"))
         {
             state.alpha = 1.f;
-            frame->setVisible(true);
-            applyBarAlpha(frame, 1.f);
+            applyResourceState(1.f);
             return;
         }
 
@@ -603,15 +651,13 @@ namespace MWGui
         const bool isFull = state.modified <= 0 || state.current >= state.modified;
         const float hideDelay = isFull ? 7.f : 20.f;
         const float fadeDuration = 0.35f;
-        const float minimumAlpha = 0.f;
 
         float targetAlpha = 1.f;
         if (state.idleTimer > hideDelay)
-            targetAlpha = std::max(minimumAlpha, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
+            targetAlpha = std::max(0.f, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
 
         state.alpha = targetAlpha;
-        frame->setVisible(state.alpha > 0.f);
-        applyBarAlpha(frame, state.alpha);
+        applyResourceState(state.alpha);
     }
 
     void HUD::setSelectedSpell(const std::string& spellId, int successChancePercent)

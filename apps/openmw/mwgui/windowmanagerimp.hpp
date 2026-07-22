@@ -325,6 +325,7 @@ namespace MWGui
 
     void showCrosshair(bool show) override;
     bool activateQuickLoot() override;
+    bool handleQuickLootMouseWheel(int rel) override;
     bool getSubtitlesEnabled() override;
 
     /// Turn visibility of HUD on or off

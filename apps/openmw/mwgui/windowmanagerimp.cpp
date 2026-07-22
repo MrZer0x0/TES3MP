@@ -1047,6 +1047,11 @@ namespace MWGui
         return mQuickLoot && mQuickLoot->activateSelected();
     }
 
+    bool WindowManager::handleQuickLootMouseWheel(int rel)
+    {
+        return mQuickLoot && mQuickLoot->handleMouseWheel(rel);
+    }
+
     bool WindowManager::toggleFullHelp()
     {
         return mToolTips->toggleFullHelp();
@@ -1162,6 +1167,8 @@ namespace MWGui
                 setMenuTransparency(Settings::Manager::getFloat("menu transparency", "GUI"));
             else if (setting.first == "GUI" && setting.second == "scaling factor")
                 setScalingFactor(Settings::Manager::getFloat("scaling factor", "GUI"));
+            else if (setting.first == "GUI" && setting.second == "quick loot")
+                mQuickLoot->setEnabled(Settings::Manager::getBool("quick loot", "GUI"));
             else if (setting.first == "Video" && (
                     setting.second == "resolution x"
                     || setting.second == "resolution y"

@@ -359,8 +359,11 @@ namespace MWBase
 
             virtual void showSoulgemDialog (MWWorld::Ptr item) = 0;
 
-            /// Let the normal Activate action take the selected QuickLoot item.
+            /// Let the normal Activate action use the selected QuickLoot row.
             virtual bool activateQuickLoot() = 0;
+
+            /// Consume the mouse wheel while QuickLoot is visible so it cannot zoom the camera.
+            virtual bool handleQuickLootMouseWheel(int rel) = 0;
 
             virtual void changePointer (const std::string& name) = 0;
 

@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <MyGUI type="Layout">
-    <Widget type="Widget" layer="Popup" position="0 0 350 200" name="_Main">
+    <Widget type="Widget" layer="Popup" position="0 0 360 184" name="_Main">
         <Property key="NeedKey" value="false"/>
-        <Widget type="Widget" skin="HUD_Box" position = "0 0 350 200" align="Stretch">
-            <!-- Quick Loot Title -->
-            <Widget type="TextBox" skin="SandBrightText" position = "0 6 350 28" align="Top HCenter" name="Label">
+        <Widget type="Widget" skin="HUD_Box" position="0 0 360 184" align="Stretch">
+            <Widget type="TextBox" skin="SandBrightText" position="8 6 344 24" align="Top HStretch" name="Label">
                 <Property key="Caption" value="-"/>
                 <Property key="TextAlign" value="Center"/>
             </Widget>
-            <!-- Quick Loot Item View -->
-            <Widget type="ItemView" skin="MW_ItemView" position="4 2 350 180" align="Left Top VStretch" name="QuickLoot">
+            <Widget type="Widget" skin="" position="8 34 344 140" align="Stretch" name="QuickLoot">
                 <Property key="NeedKey" value="true"/>
+                <Property key="NeedMouse" value="false"/>
+                <Widget type="TextBox" skin="SandBrightText" position="0 0 344 20" align="Top HStretch" name="Row0"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="TextBox" skin="SandText" position="0 22 344 20" align="Top HStretch" name="Row1"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="TextBox" skin="SandText" position="0 44 344 20" align="Top HStretch" name="Row2"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="TextBox" skin="SandText" position="0 66 344 20" align="Top HStretch" name="Row3"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="TextBox" skin="SandText" position="0 88 344 20" align="Top HStretch" name="Row4"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="TextBox" skin="SandText" position="0 110 344 20" align="Top HStretch" name="Row5"><Property key="TextAlign" value="Left VCenter"/></Widget>
             </Widget>
         </Widget>
     </Widget>
 </MyGUI>
-

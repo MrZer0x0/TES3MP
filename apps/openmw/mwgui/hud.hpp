@@ -129,7 +129,8 @@ namespace MWGui
         bool mHmsBaseVisible;
 
         void registerBarChange(AutoHideBarState& state, int current, int modified);
-        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible);
+        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible,
+            MyGUI::Widget* persistentIcon = nullptr);
         void applyBarAlpha(MyGUI::Widget* widget, float alpha);
 
         void onWorldClicked(MyGUI::Widget* _sender);
