@@ -197,47 +197,10 @@ jobs:
         run: |
           set -euxo pipefail
           name="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}"
-          rm -rf package
-          mkdir -p package
-
-          # CMake installs Linux into bin/etc/share, but TES3MP/OpenMW resolves
-          # local config and ./resources from the executable directory. Flatten
-          # the artifact so running ./openmw-launcher or ./tes3mp from the
-          # archive root finds openmw.cfg, defaults.bin and resources reliably.
-          cp -a stage/bin/. package/
-          cp -a stage/etc/openmw/openmw.cfg package/openmw.cfg
-          cp -a stage/etc/openmw/defaults.bin package/defaults.bin
-          cp -a stage/etc/openmw/gamecontrollerdb.txt package/gamecontrollerdb.txt
-          cp -a stage/share/games/openmw/resources package/resources
-
-          if [ -f stage/etc/openmw/tes3mp-client-default.cfg ]; then
-            cp -a stage/etc/openmw/tes3mp-client-default.cfg package/
-          elif [ -f stage/tes3mp-client-default.cfg ]; then
-            cp -a stage/tes3mp-client-default.cfg package/
-          fi
-          if [ -f stage/etc/openmw/tes3mp-server-default.cfg ]; then
-            cp -a stage/etc/openmw/tes3mp-server-default.cfg package/
-          elif [ -f stage/tes3mp-server-default.cfg ]; then
-            cp -a stage/tes3mp-server-default.cfg package/
-          fi
-          if [ -d stage/share/games/openmw/data ]; then
-            cp -a stage/share/games/openmw/data package/data
-          else
-            mkdir -p package/data
-          fi
-          if [ -d stage/share/doc ]; then
-            cp -a stage/share/doc package/doc
-          fi
-          if [ -d stage/share/licenses ]; then
-            cp -a stage/share/licenses package/licenses
-          fi
-
-          cat > package/STEAM_DECK_README.txt <<'EOF'
-          ArenaMP Linux x86_64 build for Steam Deck Desktop Mode / SteamOS.
-          Run ./openmw-launcher from this folder, or add it as a Non-Steam Game.
-          Morrowind data files are not included.
-          EOF
-          tar --numeric-owner -C package -czf "${name}.tar.gz" .
+          bash CI/linux/package-portable.sh \
+            "$GITHUB_WORKSPACE/stage" \
+            "$GITHUB_WORKSPACE/package" \
+            "$GITHUB_WORKSPACE/${name}.tar.gz"
 
       - name: Collect Linux package and diagnostics
         if: always()

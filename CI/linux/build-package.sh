@@ -9,6 +9,5 @@ ccache --show-stats || true
 mkdir -p artifacts
 ref="${GITHUB_REF_NAME:-manual}"
 ref="${ref//\//-}"
-archive="artifacts/ArenaMP-Linux-x86_64-${ref}.tar.gz"
-tar -C stage -czf "$archive" .
-printf 'Created %s\n' "$archive"
+archive="artifacts/ArenaMP-Linux-x86_64-SteamDeck-${ref}.tar.gz"
+bash CI/linux/package-portable.sh stage package "$archive"
