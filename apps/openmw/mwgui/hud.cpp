@@ -7,7 +7,6 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_ScrollView.h>
 
-#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -245,33 +244,6 @@ namespace MWGui
         // Fatigue can be negative
         if (id != "FBar")
             current = std::max(0, current);
-
-        // During client/server initialization and reconnects the multiplayer stats can
-        // briefly be reported as 0/0. Treat this as an invalid placeholder, not as
-        // real player data: keep the previous valid HUD value and never overwrite the
-        // bar/text with 0/0. If no valid value has arrived yet, keep the resource bar
-        // hidden while still allowing selected weapon/spell widgets to stay alive.
-        if (modified <= 0)
-        {
-            if (id == "HBar")
-            {
-                if (!mHealthBarState.initialized)
-                    applyResourceBarVisuals(mHealthFrame, mHealth, mHealthText, mHealthBarState, false, 0.f, false);
-                return;
-            }
-            else if (id == "MBar")
-            {
-                if (!mMagickaBarState.initialized)
-                    applyResourceBarVisuals(mMagickaFrame, mMagicka, mMagickaText, mMagickaBarState, false, 0.f, mSpellVisible);
-                return;
-            }
-            else if (id == "FBar")
-            {
-                if (!mStaminaBarState.initialized)
-                    applyResourceBarVisuals(mFatigueFrame, mStamina, mStaminaText, mStaminaBarState, false, 0.f, mWeaponVisible);
-                return;
-            }
-        }
 
         std::string valStr = MyGUI::utility::toString(current) + " / " + MyGUI::utility::toString(modified);
         if (id == "HBar")
@@ -548,8 +520,10 @@ namespace MWGui
             drawState = player.getClass().getCreatureStats(player).getDrawState();
 
         const bool persistentBoxes = Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
-        const float weaponSpellBoxAlpha = std::clamp(
-            Settings::Manager::getFloat("weapon spell box transparency", "GUI"), 0.f, 1.f);
+        if (mWeapBox && mWeapBox->getVisible())
+            mWeapBox->setAlpha(persistentBoxes && !mFatigueFrame->getVisible() ? 0.4f : 1.f);
+        if (mSpellBox && mSpellBox->getVisible())
+            mSpellBox->setAlpha(persistentBoxes && !mMagickaFrame->getVisible() ? 0.4f : 1.f);
 
         if (mEnemyActorId != -1 && Settings::Manager::getBool("target info panel", "GUI"))
         {
@@ -558,25 +532,11 @@ namespace MWGui
                 mEnemySummary->setVisible(mEnemyHoverTimer >= 1.f);
         }
 
-        updateAutoHideBar(mHealthFrame, mHealth, mHealthText, mHealthBarState, dt, false, false);
-        updateAutoHideBar(mMagickaFrame, mMagicka, mMagickaText, mMagickaBarState, dt,
-            drawState == MWMechanics::DrawState_Spell, persistentBoxes && mSpellVisible);
-        updateAutoHideBar(mFatigueFrame, mStamina, mStaminaText, mStaminaBarState, dt,
-            drawState == MWMechanics::DrawState_Weapon, persistentBoxes && mWeaponVisible);
-
-        const float weaponBoxAlpha = persistentBoxes && mStaminaBarState.initialized && !mStaminaBarState.resourceVisible
-            ? weaponSpellBoxAlpha : 1.f;
-        const float spellBoxAlpha = persistentBoxes && mMagickaBarState.initialized && !mMagickaBarState.resourceVisible
-            ? weaponSpellBoxAlpha : 1.f;
-
-        if (mWeapBox && mWeapBox->getVisible())
-            mWeapBox->setAlpha(weaponBoxAlpha);
-        if (mWeapStatus && mWeapStatus->getVisible())
-            mWeapStatus->setAlpha(weaponBoxAlpha);
-        if (mSpellBox && mSpellBox->getVisible())
-            mSpellBox->setAlpha(spellBoxAlpha);
-        if (mSpellStatus && mSpellStatus->getVisible())
-            mSpellStatus->setAlpha(spellBoxAlpha);
+        updateAutoHideBar(mHealthFrame, mHealthBarState, dt, false);
+        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt,
+            drawState == MWMechanics::DrawState_Spell);
+        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt,
+            drawState == MWMechanics::DrawState_Weapon);
     }
 
 
@@ -607,58 +567,14 @@ namespace MWGui
         widget->setAlpha(std::max(0.f, std::min(1.f, alpha)));
     }
 
-    void HUD::applyResourceBarVisuals(MyGUI::Widget* frame, MyGUI::Widget* bar, MyGUI::TextBox* text,
-                                      AutoHideBarState& state, bool visible, float alpha, bool keepFrameVisible)
+    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible)
     {
-        const float clampedAlpha = std::max(0.f, std::min(1.f, alpha));
-        state.alpha = clampedAlpha;
-        state.resourceVisible = visible;
-
-        if (frame)
-        {
-            // The selected weapon/spell widgets are children of the magicka/fatigue
-            // frames in openmw_hud.layout. Do not fade or hide the whole parent
-            // frame when only the resource bar is meant to auto-hide, otherwise
-            // the icon/status widgets and their numbers disappear too.
-            frame->setAlpha(1.f);
-            frame->setVisible(visible || keepFrameVisible);
-        }
-
-        if (bar)
-        {
-            bar->setVisible(visible);
-            applyBarAlpha(bar, clampedAlpha);
-        }
-
-        if (text)
-        {
-            text->setVisible(visible);
-            applyBarAlpha(text, clampedAlpha);
-        }
-    }
-
-    void HUD::updateAutoHideBar(MyGUI::Widget* frame, MyGUI::Widget* bar, MyGUI::TextBox* text,
-                                AutoHideBarState& state, float dt, bool forceVisible, bool keepFrameVisible)
-    {
-        if (!frame)
+        if (!frame || !state.initialized)
             return;
-
-        if (!state.initialized)
-        {
-            // Keep parent frames alive for selected weapon/spell children, but do
-            // not show the default 0/0 resource text before real stats arrive.
-            frame->setAlpha(1.f);
-            frame->setVisible(keepFrameVisible);
-            if (bar)
-                bar->setVisible(false);
-            if (text)
-                text->setVisible(false);
-            return;
-        }
 
         if (!mHmsBaseVisible)
         {
-            applyResourceBarVisuals(frame, bar, text, state, false, 0.f, keepFrameVisible);
+            frame->setVisible(false);
             return;
         }
 
@@ -668,13 +584,17 @@ namespace MWGui
         if (forceVisible)
         {
             state.idleTimer = 0.f;
-            applyResourceBarVisuals(frame, bar, text, state, true, 1.f, keepFrameVisible);
+            state.alpha = 1.f;
+            frame->setVisible(true);
+            applyBarAlpha(frame, 1.f);
             return;
         }
 
         if (!Settings::Manager::getBool("auto hide resource bars", "GUI"))
         {
-            applyResourceBarVisuals(frame, bar, text, state, true, 1.f, keepFrameVisible);
+            state.alpha = 1.f;
+            frame->setVisible(true);
+            applyBarAlpha(frame, 1.f);
             return;
         }
 
@@ -689,7 +609,9 @@ namespace MWGui
         if (state.idleTimer > hideDelay)
             targetAlpha = std::max(minimumAlpha, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
 
-        applyResourceBarVisuals(frame, bar, text, state, targetAlpha > 0.f, targetAlpha, keepFrameVisible);
+        state.alpha = targetAlpha;
+        frame->setVisible(state.alpha > 0.f);
+        applyBarAlpha(frame, state.alpha);
     }
 
     void HUD::setSelectedSpell(const std::string& spellId, int successChancePercent)
@@ -832,27 +754,28 @@ namespace MWGui
     {
         mHmsBaseVisible = visible;
 
+        mHealth->setVisible(visible);
+        mMagicka->setVisible(visible);
+        mStamina->setVisible(visible);
+
         if (!visible)
         {
-            applyResourceBarVisuals(mHealthFrame, mHealth, mHealthText, mHealthBarState, false, 0.f, false);
-            applyResourceBarVisuals(mMagickaFrame, mMagicka, mMagickaText, mMagickaBarState, false, 0.f, mSpellVisible);
-            applyResourceBarVisuals(mFatigueFrame, mStamina, mStaminaText, mStaminaBarState, false, 0.f, mWeaponVisible);
+            mHealthFrame->setVisible(false);
+            mMagickaFrame->setVisible(false);
+            mFatigueFrame->setVisible(false);
         }
         else
         {
-            if (mHealthBarState.initialized)
-                registerBarChange(mHealthBarState, mHealthBarState.current, mHealthBarState.modified);
-            if (mMagickaBarState.initialized)
-                registerBarChange(mMagickaBarState, mMagickaBarState.current, mMagickaBarState.modified);
-            if (mStaminaBarState.initialized)
-                registerBarChange(mStaminaBarState, mStaminaBarState.current, mStaminaBarState.modified);
+            registerBarChange(mHealthBarState, mHealthBarState.current, mHealthBarState.modified);
+            registerBarChange(mMagickaBarState, mMagickaBarState.current, mMagickaBarState.modified);
+            registerBarChange(mStaminaBarState, mStaminaBarState.current, mStaminaBarState.modified);
 
-            applyResourceBarVisuals(mHealthFrame, mHealth, mHealthText, mHealthBarState,
-                mHealthBarState.initialized, mHealthBarState.initialized ? 1.f : 0.f, false);
-            applyResourceBarVisuals(mMagickaFrame, mMagicka, mMagickaText, mMagickaBarState,
-                mMagickaBarState.initialized, mMagickaBarState.initialized ? 1.f : 0.f, mSpellVisible);
-            applyResourceBarVisuals(mFatigueFrame, mStamina, mStaminaText, mStaminaBarState,
-                mStaminaBarState.initialized, mStaminaBarState.initialized ? 1.f : 0.f, mWeaponVisible);
+            mHealthFrame->setVisible(true);
+            mMagickaFrame->setVisible(true);
+            mFatigueFrame->setVisible(true);
+            applyBarAlpha(mHealthFrame, 1.f);
+            applyBarAlpha(mMagickaFrame, 1.f);
+            applyBarAlpha(mFatigueFrame, 1.f);
         }
 
         updatePositions();
@@ -891,7 +814,7 @@ namespace MWGui
     void HUD::updatePositions()
     {
         int weapDx = 0, spellDx = 0;
-        if (!mHmsBaseVisible)
+        if (!mHealth->getVisible())
             spellDx = weapDx = mWeapBoxBaseLeft - mHealthManaStaminaBaseLeft;
 
         if (!mWeapBox->getVisible())

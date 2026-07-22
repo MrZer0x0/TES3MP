@@ -121,7 +121,6 @@ namespace MWGui
             float idleTimer = 0.f;
             float alpha = 1.f;
             bool initialized = false;
-            bool resourceVisible = true;
         };
 
         AutoHideBarState mHealthBarState;
@@ -130,11 +129,8 @@ namespace MWGui
         bool mHmsBaseVisible;
 
         void registerBarChange(AutoHideBarState& state, int current, int modified);
-        void updateAutoHideBar(MyGUI::Widget* frame, MyGUI::Widget* bar, MyGUI::TextBox* text,
-                               AutoHideBarState& state, float dt, bool forceVisible, bool keepFrameVisible);
+        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible);
         void applyBarAlpha(MyGUI::Widget* widget, float alpha);
-        void applyResourceBarVisuals(MyGUI::Widget* frame, MyGUI::Widget* bar, MyGUI::TextBox* text,
-                                     AutoHideBarState& state, bool visible, float alpha, bool keepFrameVisible);
 
         void onWorldClicked(MyGUI::Widget* _sender);
         void onWorldMouseOver(MyGUI::Widget* _sender, int x, int y);

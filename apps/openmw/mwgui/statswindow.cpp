@@ -132,13 +132,6 @@ namespace MWGui
 
     void StatsWindow::setBar(const std::string& name, const std::string& tname, int val, int max)
     {
-        // TES3MP can temporarily publish placeholder dynamic stats with max == 0
-        // while joining, changing cells, reconnecting, or waiting for server sync.
-        // The inventory character-info panel must keep showing the last real player
-        // values instead of being overwritten with 0/0.
-        if (max <= 0)
-            return;
-
         MyGUI::ProgressBar* pt;
         getWidget(pt, name);
 
@@ -191,12 +184,6 @@ namespace MWGui
         // Fatigue can be negative
         if (id != "FBar")
             current = std::max(0, current);
-
-        // This window is the inventory/player information panel. It should not use
-        // HUD auto-hide rules, and it should never lose values because of a transient
-        // 0/0 stat packet. Keep the existing valid text/bar until real data arrives.
-        if (modified <= 0)
-            return;
 
         setBar (id, id + "T", current, modified);
 
