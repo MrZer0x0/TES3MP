@@ -193,7 +193,7 @@
  
 
         <!-- Crosshair -->
-        <Widget type="ImageBox" skin="HUD_Crosshair" position="0 0 64 64" align="Center Center" name="Crosshair">
+        <Widget type="ImageBox" skin="HUD_Crosshair" position="118 68 64 64" align="Center Center" name="Crosshair">
         </Widget>
 
     </Widget>
