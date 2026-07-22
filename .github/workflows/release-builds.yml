@@ -165,7 +165,7 @@ jobs:
           # parts of the build and expects this legacy tree unconditionally.
           rm -rf "$GITHUB_WORKSPACE/extern/raknet"
           mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
-          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp -a "$CRABNET_DIR/include/." "$GITHUB_WORKSPACE/extern/raknet/include/"
           cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
             "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
           cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
@@ -185,7 +185,7 @@ jobs:
             -DOPENMW_USE_SYSTEM_BULLET=ON \
             -DRakNet_LIBRARY_RELEASE="$RUNNER_TEMP/CrabNet/build/lib/libRakNetLibStatic.a" \
             -DRakNet_LIBRARY_DEBUG="$RUNNER_TEMP/CrabNet/build/lib/libRakNetLibStatic.a" \
-            -DRakNet_INCLUDE_DIR="$RUNNER_TEMP/CrabNet/Source"
+            -DRakNet_INCLUDE_DIR="$RUNNER_TEMP/CrabNet/include/raknet"
 
       - name: Build and install
         run: |
@@ -310,6 +310,7 @@ jobs:
             git -C "$CRABNET_DIR" fetch --depth 1 origin
             git -C "$CRABNET_DIR" reset --hard FETCH_HEAD
           fi
+          bash CI/patch-crabnet-macos.sh "$CRABNET_DIR"
           cmake -S "$CRABNET_DIR" -B "$CRABNET_DIR/build" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
@@ -324,7 +325,7 @@ jobs:
           # Preserve the legacy path expected by TES3MP's CMake files.
           rm -rf "$GITHUB_WORKSPACE/extern/raknet"
           mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
-          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp -a "$CRABNET_DIR/include/." "$GITHUB_WORKSPACE/extern/raknet/include/"
           cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
             "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
           cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \

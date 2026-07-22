@@ -1,0 +1,990 @@
+diff --git a/mnt/data/apps/openmw/mwgui/settingswindow.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwgui/settingswindow.cpp
+index d809013..48f050f 100644
+--- a/mnt/data/apps/openmw/mwgui/settingswindow.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwgui/settingswindow.cpp
+@@ -224,12 +224,6 @@ namespace MWGui
+         WindowBase("openmw_settings_window.layout"),
+         mKeyboardMode(true)
+     {
+-        bool terrain = Settings::Manager::getBool("distant terrain", "Terrain");
+-        const std::string widgetName = terrain ? "RenderingDistanceSlider" : "LargeRenderingDistanceSlider";
+-        MyGUI::Widget* unusedSlider;
+-        getWidget(unusedSlider, widgetName);
+-        unusedSlider->setVisible(false);
+-
+         configureWidgets(mMainWidget, true);
+ 
+         setTitle("#{sOptions}");
+@@ -440,7 +434,7 @@ namespace MWGui
+     void SettingsWindow::onLightsResetButtonClicked(MyGUI::Widget* _sender)
+     {
+         std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
+-        std::string message = "Resets to default values, would you like to continue? Changes to lighting method or HDR image mode will require a restart.";
++        std::string message = "Resets to default values, would you like to continue? Only changes to the lighting method require a restart.";
+         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons, true);
+         int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
+         if (selectedButton == 1 || selectedButton == -1)
+diff --git a/mnt/data/apps/openmw/mwinput/actionmanager.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwinput/actionmanager.cpp
+index ce4d4fd..1735c86 100644
+--- a/mnt/data/apps/openmw/mwinput/actionmanager.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwinput/actionmanager.cpp
+@@ -367,6 +367,12 @@ namespace MWInput
+ 
+     void ActionManager::toggleMainMenu()
+     {
++        // Escape first toggles TES3MP chat history review. While review is active
++        // the chat gains a mouse cursor, scrollbar and selectable/copyable text.
++        if (!MWBase::Environment::get().getWindowManager()->isGuiMode()
++            && mwmp::Main::get().getGUIController()->handleChatEscape())
++            return;
++
+         /*
+             Start  of tes3mp addition
+ 
+diff --git a/mnt/data/apps/openmw/mwmp/GUI/GUIChat.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUI/GUIChat.cpp
+index d2ed297..83321d3 100644
+--- a/mnt/data/apps/openmw/mwmp/GUI/GUIChat.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUI/GUIChat.cpp
+@@ -1,6 +1,7 @@
+ #include "GUIChat.hpp"
+ 
+ #include <MyGUI_EditBox.h>
++#include <MyGUI_ScrollBar.h>
+ #include "apps/openmw/mwbase/environment.hpp"
+ #include "apps/openmw/mwgui/windowmanagerimp.hpp"
+ #include "apps/openmw/mwinput/inputmanagerimp.hpp"
+@@ -18,12 +19,28 @@ namespace mwmp
+ {
+     GUIChat::GUIChat(int x, int y, int w, int h)
+             : WindowBase("tes3mp_chat.layout")
++            , mHistoryScroll(nullptr)
++            , historyReviewState(false)
+     {
+         setCoord(x, y, w, h);
+ 
+         getWidget(mCommandLine, "edit_Command");
+         getWidget(mHistory, "list_History");
+ 
++        for (size_t i = 0; i < mHistory->getChildCount(); ++i)
++        {
++            if (MyGUI::ScrollBar* scroll = mHistory->getChildAt(i)->castType<MyGUI::ScrollBar>(false))
++            {
++                mHistoryScroll = scroll;
++                break;
++            }
++        }
++        if (mHistoryScroll)
++        {
++            mHistoryScroll->setVisible(false);
++            mHistoryScroll->setNeedMouseFocus(false);
++        }
++
+         // Set up the command line box
+         mCommandLine->eventEditSelectAccept +=
+                 newDelegate(this, &GUIChat::acceptCommand);
+@@ -32,8 +49,9 @@ namespace mwmp
+ 
+         setTitle("Chat");
+ 
+-        mHistory->setOverflowToTheLeft(true);
++        mHistory->setOverflowToTheLeft(false);
+         mHistory->setEditWordWrap(true);
++        mHistory->setEditReadOnly(true);
+         mHistory->setTextShadow(true);
+         mHistory->setTextShadowColour(MyGUI::Colour::Black);
+ 
+@@ -57,6 +75,7 @@ namespace mwmp
+     void GUIChat::onClose()
+     {
+         setEditState(false);
++        setHistoryReviewState(false);
+     }
+ 
+     bool GUIChat::exit()
+@@ -126,6 +145,8 @@ namespace mwmp
+         else
+         {
+             mHistory->addText(color + msg);
++            if (!historyReviewState)
++                scrollHistoryToBottom();
+             LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "%s", msg.c_str());
+         }
+     }
+@@ -155,6 +176,7 @@ namespace mwmp
+     void GUIChat::clean()
+     {
+         mHistory->setCaption("");
++        scrollHistoryToBottom();
+     }
+ 
+     void GUIChat::pressedChatMode()
+@@ -172,6 +194,7 @@ namespace mwmp
+         switch (windowState)
+         {
+             case CHAT_DISABLED:
++                setHistoryReviewState(false);
+                 setVisible(false);
+                 setEditState(false);
+                 break;
+@@ -186,11 +209,88 @@ namespace mwmp
+ 
+     void GUIChat::setEditState(bool state)
+     {
++        if (state && historyReviewState)
++            setHistoryReviewState(false);
++
+         editState = state;
+         mCommandLine->setVisible(editState);
+         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(editState ? mCommandLine : nullptr);
+     }
+ 
++    void GUIChat::scrollHistoryToBottom()
++    {
++        const size_t range = mHistory->getVScrollRange();
++        if (range > 0)
++            mHistory->setVScrollPosition(range - 1);
++        mHistory->setTextCursor(mHistory->getCaption().size());
++    }
++
++    void GUIChat::setHistoryReviewState(bool state)
++    {
++        if (historyReviewState == state)
++            return;
++
++        historyReviewState = state;
++        if (state)
++        {
++            editState = false;
++            mCommandLine->setVisible(false);
++            mMainWidget->setNeedMouseFocus(true);
++            mHistory->setNeedMouseFocus(true);
++            mHistory->setNeedKeyFocus(true);
++            if (mHistoryScroll)
++            {
++                mHistoryScroll->setVisible(true);
++                mHistoryScroll->setNeedMouseFocus(true);
++            }
++            MWBase::Environment::get().getInputManager()->changeInputMode(true);
++            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mHistory);
++        }
++        else
++        {
++            mMainWidget->setNeedMouseFocus(false);
++            mHistory->setNeedMouseFocus(false);
++            mHistory->setNeedKeyFocus(false);
++            if (mHistoryScroll)
++            {
++                mHistoryScroll->setVisible(false);
++                mHistoryScroll->setNeedMouseFocus(false);
++            }
++            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
++            MWBase::Environment::get().getInputManager()->changeInputMode(false);
++            scrollHistoryToBottom();
++            if (windowState == CHAT_HIDDENMODE)
++                curTime = 0.f;
++        }
++    }
++
++    bool GUIChat::handleEscape()
++    {
++        if (editState)
++        {
++            setEditState(false);
++            return true;
++        }
++
++        if (historyReviewState)
++        {
++            setHistoryReviewState(false);
++            return true;
++        }
++
++        if (windowState != CHAT_DISABLED)
++        {
++            // Hidden-mode chat may have auto-faded. Escape brings it back in
++            // history-review mode instead of requiring a new message first.
++            if (!isVisible())
++                setVisible(true);
++            setHistoryReviewState(true);
++            return true;
++        }
++
++        return false;
++    }
++
+     void GUIChat::pressedSay()
+     {
+         if (windowState == CHAT_DISABLED)
+@@ -243,7 +343,7 @@ namespace mwmp
+ 
+     void GUIChat::update(float dt)
+     {
+-        if (windowState == CHAT_HIDDENMODE && !editState && isVisible())
++        if (windowState == CHAT_HIDDENMODE && !editState && !historyReviewState && isVisible())
+         {
+             curTime += dt;
+             if (curTime >= delay)
+diff --git a/mnt/data/apps/openmw/mwmp/GUI/GUIChat.hpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUI/GUIChat.hpp
+index 01e9626..5cf1302 100644
+--- a/mnt/data/apps/openmw/mwmp/GUI/GUIChat.hpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUI/GUIChat.hpp
+@@ -7,6 +7,11 @@
+ 
+ #include "apps/openmw/mwgui/windowbase.hpp"
+ 
++namespace MyGUI
++{
++    class ScrollBar;
++}
++
+ namespace mwmp
+ {
+     class GUIController;
+@@ -23,6 +28,7 @@ namespace mwmp
+ 
+         MyGUI::EditBox* mCommandLine;
+         MyGUI::EditBox* mHistory;
++        MyGUI::ScrollBar* mHistoryScroll;
+ 
+         typedef std::list<std::string> StringList;
+ 
+@@ -45,6 +51,7 @@ namespace mwmp
+         virtual bool exit();
+ 
+         bool getEditState();
++        bool handleEscape();
+ 
+         void setFont(const std::string &fntName);
+ 
+@@ -77,9 +84,12 @@ namespace mwmp
+         void acceptCommand(MyGUI::EditBox* _sender);
+ 
+         void setEditState(bool state);
++        void setHistoryReviewState(bool state);
++        void scrollHistoryToBottom();
+ 
+         int windowState;
+         bool editState;
++        bool historyReviewState;
+         float delay;
+         float curTime;
+     };
+diff --git a/mnt/data/apps/openmw/mwmp/GUIController.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUIController.cpp
+index 3dda6dc..6562a9d 100644
+--- a/mnt/data/apps/openmw/mwmp/GUIController.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUIController.cpp
+@@ -91,6 +91,8 @@ void mwmp::GUIController::printChatMessage(std::string &msg)
+ 
+ void mwmp::GUIController::setChatVisible(bool chatVisible)
+ {
++    if (!chatVisible)
++        mChat->setHistoryReviewState(false);
+     mChat->setVisible(chatVisible);
+ }
+ 
+@@ -221,6 +223,11 @@ bool mwmp::GUIController::getChatEditState()
+     return mChat->editState;
+ }
+ 
++bool mwmp::GUIController::handleChatEscape()
++{
++    return mChat != nullptr && mChat->handleEscape();
++}
++
+ void mwmp::GUIController::update(float dt)
+ {
+     if (mChat != nullptr)
+diff --git a/mnt/data/apps/openmw/mwmp/GUIController.hpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUIController.hpp
+index ef2f771..ae4ed80 100644
+--- a/mnt/data/apps/openmw/mwmp/GUIController.hpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwmp/GUIController.hpp
+@@ -52,6 +52,7 @@ namespace mwmp
+         void changeChatMode();
+ 
+         bool getChatEditState();
++        bool handleChatEscape();
+ 
+         void update(float dt);
+ 
+diff --git a/mnt/data/apps/openmw/mwrender/groundcover.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/groundcover.cpp
+index 63df3e2..887a7bf 100644
+--- a/mnt/data/apps/openmw/mwrender/groundcover.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/groundcover.cpp
+@@ -1,5 +1,7 @@
+ #include "groundcover.hpp"
+ 
++#include <algorithm>
++
+ #include <osg/AlphaFunc>
+ #include <osg/Geometry>
+ #include <osg/VertexAttribDivisor>
+@@ -202,6 +204,16 @@ namespace MWRender
+     {
+     }
+ 
++    void Groundcover::setDensity(float density)
++    {
++        density = std::clamp(density, 0.f, 1.f);
++        if (mDensity == density)
++            return;
++
++        mDensity = density;
++        clearCache();
++    }
++
+     void Groundcover::collectInstances(InstanceMap& instances, float size, const osg::Vec2f& center)
+     {
+         const MWWorld::ESMStore& store = MWBase::Environment::get().getWorld()->getStore();
+diff --git a/mnt/data/apps/openmw/mwrender/groundcover.hpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/groundcover.hpp
+index cd80978..03749ff 100644
+--- a/mnt/data/apps/openmw/mwrender/groundcover.hpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/groundcover.hpp
+@@ -38,6 +38,8 @@ namespace MWRender
+ 
+         osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile) override;
+ 
++        void setDensity(float density);
++
+         unsigned int getNodeMask() override;
+ 
+         void reportStats(unsigned int frameNumber, osg::Stats* stats) const override;
+diff --git a/mnt/data/apps/openmw/mwrender/renderingmanager.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/renderingmanager.cpp
+index 945c043..c7479e1 100644
+--- a/mnt/data/apps/openmw/mwrender/renderingmanager.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/renderingmanager.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include <limits>
+ #include <cstdlib>
++#include <cmath>
+ 
+ #include <osg/Light>
+ #include <osg/LightModel>
+@@ -329,28 +330,27 @@ namespace MWRender
+         mTerrainStorage.reset(new TerrainStorage(mResourceSystem, normalMapPattern, heightMapPattern, useTerrainNormalMaps, specularMapPattern, useTerrainSpecularMaps));
+         const float lodFactor = Settings::Manager::getFloat("lod factor", "Terrain");
+ 
+-        if (Settings::Manager::getBool("distant terrain", "Terrain"))
++        // Keep the quadtree terrain backend available at all times so distant land can
++        // be enabled and disabled without restarting the game. With distant terrain
++        // disabled, the view distance is reduced to zero while the active cell grid
++        // remains loaded by QuadTreeWorld.
++        const int compMapResolution = Settings::Manager::getInt("composite map resolution", "Terrain");
++        int compMapPower = Settings::Manager::getInt("composite map level", "Terrain");
++        compMapPower = std::max(-3, compMapPower);
++        const float compMapLevel = std::pow(2.f, static_cast<float>(compMapPower));
++        const int vertexLodMod = Settings::Manager::getInt("vertex lod mod", "Terrain");
++        const float maxCompGeometrySize = std::max(1.f, Settings::Manager::getFloat("max composite geometry size", "Terrain"));
++
++        mTerrain.reset(new Terrain::QuadTreeWorld(
++            sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug,
++            compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
++
++        if (Settings::Manager::getBool("object paging", "Terrain"))
+         {
+-            const int compMapResolution = Settings::Manager::getInt("composite map resolution", "Terrain");
+-            int compMapPower = Settings::Manager::getInt("composite map level", "Terrain");
+-            compMapPower = std::max(-3, compMapPower);
+-            float compMapLevel = pow(2, compMapPower);
+-            const int vertexLodMod = Settings::Manager::getInt("vertex lod mod", "Terrain");
+-            float maxCompGeometrySize = Settings::Manager::getFloat("max composite geometry size", "Terrain");
+-            maxCompGeometrySize = std::max(maxCompGeometrySize, 1.f);
+-            mTerrain.reset(new Terrain::QuadTreeWorld(
+-                sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug,
+-                compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
+-            if (Settings::Manager::getBool("object paging", "Terrain"))
+-            {
+-                mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
+-                static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
+-                mResourceSystem->addResourceManager(mObjectPaging.get());
+-
+-            }
++            mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
++            static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
++            mResourceSystem->addResourceManager(mObjectPaging.get());
+         }
+-        else
+-            mTerrain.reset(new Terrain::TerrainGrid(sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug));
+ 
+         mTerrain->setTargetFrameRate(Settings::Manager::getFloat("target framerate", "Cells"));
+         mTerrain->setWorkQueue(mWorkQueue.get());
+@@ -366,38 +366,34 @@ namespace MWRender
+                 Settings::Manager::getBool("occlusion culling terrain", "Camera")));
+         }
+ 
+-        if (Settings::Manager::getBool("enabled", "Groundcover"))
+-        {
+-            osg::ref_ptr<osg::Group> groundcoverRoot = new osg::Group;
+-            groundcoverRoot->setNodeMask(Mask_Groundcover);
+-            groundcoverRoot->setName("Groundcover Root");
+-            sceneRoot->addChild(groundcoverRoot);
+-
+-            mGroundcoverUpdater = new GroundcoverUpdater;
+-            groundcoverRoot->addUpdateCallback(mGroundcoverUpdater);
+-
+-            float chunkSize = Settings::Manager::getFloat("min chunk size", "Groundcover");
+-            if (chunkSize >= 1.0f)
+-                chunkSize = 1.0f;
+-            else if (chunkSize >= 0.5f)
+-                chunkSize = 0.5f;
+-            else if (chunkSize >= 0.25f)
+-                chunkSize = 0.25f;
+-            else if (chunkSize != 0.125f)
+-                chunkSize = 0.125f;
+-
+-            float density = Settings::Manager::getFloat("density", "Groundcover");
+-            density = std::clamp(density, 0.f, 1.f);
+-
+-            mGroundcoverWorld.reset(new Terrain::QuadTreeWorld(groundcoverRoot, mTerrainStorage.get(), Mask_Groundcover, lodFactor, chunkSize));
+-            mGroundcover.reset(new Groundcover(mResourceSystem->getSceneManager(), density));
+-            static_cast<Terrain::QuadTreeWorld*>(mGroundcoverWorld.get())->addChunkManager(mGroundcover.get());
+-            mResourceSystem->addResourceManager(mGroundcover.get());
+-
+-            // Groundcover it is handled in the same way indifferently from if it is from active grid or from distant cell.
+-            // Use a stub grid to avoid splitting between chunks for active grid and chunks for distant cells.
+-            mGroundcoverWorld->setActiveGrid(osg::Vec4i(0, 0, 0, 0));
+-        }
++        // Build the groundcover world once and switch its node mask at runtime.
++        // This allows enabling/disabling grass and changing density without a restart.
++        mGroundcoverRoot = new osg::Group;
++        mGroundcoverRoot->setNodeMask(Settings::Manager::getBool("enabled", "Groundcover") ? Mask_Groundcover : 0u);
++        mGroundcoverRoot->setName("Groundcover Root");
++        sceneRoot->addChild(mGroundcoverRoot);
++
++        mGroundcoverUpdater = new GroundcoverUpdater;
++        mGroundcoverRoot->addUpdateCallback(mGroundcoverUpdater);
++
++        float chunkSize = Settings::Manager::getFloat("min chunk size", "Groundcover");
++        if (chunkSize >= 1.0f)
++            chunkSize = 1.0f;
++        else if (chunkSize >= 0.5f)
++            chunkSize = 0.5f;
++        else if (chunkSize >= 0.25f)
++            chunkSize = 0.25f;
++        else if (chunkSize != 0.125f)
++            chunkSize = 0.125f;
++
++        float density = std::clamp(Settings::Manager::getFloat("density", "Groundcover"), 0.f, 1.f);
++        mGroundcoverWorld.reset(new Terrain::QuadTreeWorld(mGroundcoverRoot, mTerrainStorage.get(), Mask_Groundcover, lodFactor, chunkSize));
++        mGroundcover.reset(new Groundcover(mResourceSystem->getSceneManager(), density));
++        static_cast<Terrain::QuadTreeWorld*>(mGroundcoverWorld.get())->addChunkManager(mGroundcover.get());
++        mResourceSystem->addResourceManager(mGroundcover.get());
++
++        // Groundcover is handled identically for active and distant cells.
++        mGroundcoverWorld->setActiveGrid(osg::Vec4i(0, 0, 0, 0));
+         // water goes after terrain for correct waterculling order
+         mWater.reset(new Water(sceneRoot->getParent(0), sceneRoot, mResourceSystem, mViewer->getIncrementalCompileOperation(), resourcePath));
+ 
+@@ -1128,11 +1124,16 @@ namespace MWRender
+         // Limit FOV here just for sure, otherwise viewing distance can be too high.
+         fov = std::min(mFieldOfView, 140.f);
+         float distanceMult = std::cos(osg::DegreesToRadians(fov)/2.f);
+-        mTerrain->setViewDistance(mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f));
++        const float terrainDistance = Settings::Manager::getBool("distant terrain", "Terrain")
++            ? mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f)
++            : 0.f;
++        mTerrain->setViewDistance(terrainDistance);
+ 
+         if (mGroundcoverWorld)
+         {
+-            float groundcoverDistance = std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"));
++            float groundcoverDistance = Settings::Manager::getBool("enabled", "Groundcover")
++                ? std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"))
++                : 0.f;
+             mGroundcoverWorld->setViewDistance(groundcoverDistance * (distanceMult ? 1.f/distanceMult : 1.f));
+         }
+     }
+@@ -1184,45 +1185,96 @@ namespace MWRender
+ 
+     void RenderingManager::processChangedSettings(const Settings::CategorySettingVector &changed)
+     {
+-        for (Settings::CategorySettingVector::const_iterator it = changed.begin(); it != changed.end(); ++it)
++        bool refreshShaderDefines = false;
++        bool refreshShadowSettings = false;
++        bool rebuildTerrainViews = false;
++        bool rebuildGroundcoverViews = false;
++
++        for (const auto& setting : changed)
+         {
+-            if (it->first == "Camera" && it->second == "field of view")
++            if (setting.first == "Camera" && setting.second == "field of view")
+             {
+                 mFieldOfView = Settings::Manager::getFloat("field of view", "Camera");
+                 updateProjectionMatrix();
++                rebuildTerrainViews = true;
++                rebuildGroundcoverViews = true;
+             }
+-            else if (it->first == "Camera" && it->second == "viewing distance")
++            else if (setting.first == "Camera" && setting.second == "viewing distance")
+             {
+                 mViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
+-                if(!Settings::Manager::getBool("use distant fog", "Fog"))
++                if (!Settings::Manager::getBool("use distant fog", "Fog"))
+                     mStateUpdater->setFogEnd(mViewDistance);
+                 updateProjectionMatrix();
++                rebuildTerrainViews = true;
++            }
++            else if (setting.first == "Camera" && setting.second == "view over shoulder")
++            {
++                if (Settings::Manager::getBool("view over shoulder", "Camera"))
++                {
++                    if (!mViewOverShoulderController)
++                        mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
++                }
++                else
++                    mViewOverShoulderController.reset();
++            }
++            else if (setting.first == "Terrain" && setting.second == "distant terrain")
++            {
++                updateProjectionMatrix();
++                rebuildTerrainViews = true;
+             }
+-            else if (it->first == "General" && (it->second == "texture filter" ||
+-                                                it->second == "texture mipmap" ||
+-                                                it->second == "anisotropy"))
++            else if (setting.first == "Groundcover")
++            {
++                if (setting.second == "enabled")
++                {
++                    if (mGroundcoverRoot)
++                        mGroundcoverRoot->setNodeMask(Settings::Manager::getBool("enabled", "Groundcover") ? Mask_Groundcover : 0u);
++                    updateProjectionMatrix();
++                    rebuildGroundcoverViews = true;
++                }
++                else if (setting.second == "density")
++                {
++                    if (mGroundcover)
++                        mGroundcover->setDensity(Settings::Manager::getFloat("density", "Groundcover"));
++                    rebuildGroundcoverViews = true;
++                }
++                else if (setting.second == "rendering distance")
++                {
++                    updateProjectionMatrix();
++                    refreshShaderDefines = true;
++                    rebuildGroundcoverViews = true;
++                }
++                else if (setting.second == "stomp mode" || setting.second == "stomp intensity")
++                    refreshShaderDefines = true;
++            }
++            else if (setting.first == "General" && (setting.second == "texture filter" ||
++                                                     setting.second == "texture mipmap" ||
++                                                     setting.second == "anisotropy"))
+             {
+                 updateTextureFiltering();
+             }
+-            else if (it->first == "Water")
++            else if (setting.first == "Water")
+             {
+                 mWater->processChangedSettings(changed);
+             }
+-            else if (it->first == "Shaders" && it->second == "minimum interior brightness")
++            else if (setting.first == "Shaders" && setting.second == "hdr lighting")
++            {
++                refreshShaderDefines = true;
++            }
++            else if (setting.first == "Shaders" && setting.second == "minimum interior brightness")
+             {
+                 mMinimumAmbientLuminance = std::clamp(Settings::Manager::getFloat("minimum interior brightness", "Shaders"), 0.f, 1.f);
+                 if (MWMechanics::getPlayer().isInCell())
+                     configureAmbient(MWMechanics::getPlayer().getCell()->getCell());
+             }
+-            else if (it->first == "Shaders" && (it->second == "light bounds multiplier" ||
+-                                                it->second == "maximum light distance" ||
+-                                                it->second == "light fade start" ||
+-                                                it->second == "max lights"))
++            else if (setting.first == "Shaders" && (setting.second == "light bounds multiplier" ||
++                                                     setting.second == "maximum light distance" ||
++                                                     setting.second == "light fade start" ||
++                                                     setting.second == "max lights"))
+             {
+                 auto* lightManager = static_cast<SceneUtil::LightManager*>(getLightRoot());
+                 lightManager->processChangedSettings(changed);
+ 
+-                if (it->second == "max lights" && !lightManager->usingFFP())
++                if (setting.second == "max lights" && !lightManager->usingFFP())
+                 {
+                     mViewer->stopThreading();
+ 
+@@ -1242,7 +1294,44 @@ namespace MWRender
+                     mViewer->startThreading();
+                 }
+             }
++            else if (setting.first == "Shadows")
++            {
++                refreshShadowSettings = true;
++                refreshShaderDefines = true;
++            }
+         }
++
++        if (refreshShadowSettings || refreshShaderDefines)
++        {
++            mViewer->stopThreading();
++
++            if (refreshShadowSettings && mShadowManager)
++                mShadowManager->setupShadowSettings();
++
++            auto defines = mResourceSystem->getSceneManager()->getShaderManager().getGlobalDefines();
++
++            if (mShadowManager)
++            {
++                const auto shadowDefines = mShadowManager->getShadowDefines();
++                for (const auto& [name, value] : shadowDefines)
++                    defines[name] = value;
++            }
++
++            defines["hdrLighting"] = Settings::Manager::getBool("hdr lighting", "Shaders") ? "1" : "0";
++            const float groundcoverDistance = std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"));
++            defines["groundcoverFadeStart"] = std::to_string(groundcoverDistance * 0.9f);
++            defines["groundcoverFadeEnd"] = std::to_string(groundcoverDistance);
++            defines["groundcoverStompMode"] = std::to_string(std::clamp(Settings::Manager::getInt("stomp mode", "Groundcover"), 0, 2));
++            defines["groundcoverStompIntensity"] = std::to_string(std::clamp(Settings::Manager::getInt("stomp intensity", "Groundcover"), 0, 2));
++
++            mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(defines);
++            mViewer->startThreading();
++        }
++
++        if (rebuildTerrainViews && mTerrain)
++            mTerrain->rebuildViews();
++        if (rebuildGroundcoverViews && mGroundcoverWorld)
++            mGroundcoverWorld->rebuildViews();
+     }
+ 
+     float RenderingManager::getNearClipDistance() const
+diff --git a/mnt/data/apps/openmw/mwrender/renderingmanager.hpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/renderingmanager.hpp
+index 9885df7..6eaa162 100644
+--- a/mnt/data/apps/openmw/mwrender/renderingmanager.hpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwrender/renderingmanager.hpp
+@@ -269,6 +269,7 @@ namespace MWRender
+         Resource::ResourceSystem* mResourceSystem;
+ 
+         osg::ref_ptr<GroundcoverUpdater> mGroundcoverUpdater;
++        osg::ref_ptr<osg::Group> mGroundcoverRoot;
+ 
+         osg::ref_ptr<SceneUtil::WorkQueue> mWorkQueue;
+         osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
+diff --git a/mnt/data/apps/openmw/mwworld/scene.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/scene.cpp
+index d706dc2..8c32d65 100644
+--- a/mnt/data/apps/openmw/mwworld/scene.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/scene.cpp
+@@ -818,6 +818,32 @@ namespace MWWorld
+         mPreloader->setPreloadInstances(Settings::Manager::getBool("preload instances", "Cells"));
+     }
+ 
++    void Scene::processChangedSettings(const Settings::CategorySettingVector& settings)
++    {
++        for (const auto& setting : settings)
++        {
++            if (setting.first != "Cells")
++                continue;
++
++            if (setting.second == "preload enabled")
++            {
++                mPreloadEnabled = Settings::Manager::getBool("preload enabled", "Cells");
++                if (!mPreloadEnabled)
++                    mPreloader->clear();
++            }
++            else if (setting.second == "preload exterior grid")
++                mPreloadExteriorGrid = Settings::Manager::getBool("preload exterior grid", "Cells");
++            else if (setting.second == "preload doors")
++                mPreloadDoors = Settings::Manager::getBool("preload doors", "Cells");
++            else if (setting.second == "preload fast travel")
++                mPreloadFastTravel = Settings::Manager::getBool("preload fast travel", "Cells");
++            else if (setting.second == "preload distance")
++                mPreloadDistance = std::max(0, Settings::Manager::getInt("preload distance", "Cells"));
++            else if (setting.second == "preload instances")
++                mPreloader->setPreloadInstances(Settings::Manager::getBool("preload instances", "Cells"));
++        }
++    }
++
+     Scene::~Scene()
+     {
+     }
+diff --git a/mnt/data/apps/openmw/mwworld/scene.hpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/scene.hpp
+index f87a0ca..7b561b0 100644
+--- a/mnt/data/apps/openmw/mwworld/scene.hpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/scene.hpp
+@@ -12,6 +12,7 @@
+ #include <unordered_map>
+ 
+ #include <components/misc/constants.hpp>
++#include <components/settings/settings.hpp>
+ 
+ namespace osg
+ {
+@@ -148,6 +149,8 @@ namespace MWWorld
+ 
+             void update (float duration, bool paused);
+ 
++            void processChangedSettings(const Settings::CategorySettingVector& settings);
++
+             void addObjectToScene (const Ptr& ptr);
+             ///< Add an object that already exists in the world model to the scene.
+ 
+diff --git a/mnt/data/apps/openmw/mwworld/worldimp.cpp b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/worldimp.cpp
+index ec7a857..8464237 100644
+--- a/mnt/data/apps/openmw/mwworld/worldimp.cpp
++++ b/mnt/data/TES3MP_fix_v6/apps/openmw/mwworld/worldimp.cpp
+@@ -2622,6 +2622,8 @@ namespace MWWorld
+     void World::processChangedSettings(const Settings::CategorySettingVector& settings)
+     {
+         mRendering->processChangedSettings(settings);
++        if (mWorldScene)
++            mWorldScene->processChangedSettings(settings);
+     }
+ 
+     bool World::isFlying(const MWWorld::Ptr &ptr) const
+diff --git a/mnt/data/files/mygui/openmw_settings_window.layout b/mnt/data/TES3MP_fix_v6/files/mygui/openmw_settings_window.layout
+index 5618b30..6adf452 100644
+--- a/mnt/data/files/mygui/openmw_settings_window.layout
++++ b/mnt/data/TES3MP_fix_v6/files/mygui/openmw_settings_window.layout
+@@ -141,35 +141,38 @@
+       </Widget>
+       <Widget type="TabItem" skin="" position="4 32 360 358">
+         <Property key="Caption" value="  GUI  "/>
+-        <Widget type="VBox" skin="" position="8 8 340 188">
+-          <Widget type="HBox" skin="" position="0 0 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="auto hide resource bars"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Auto-hide health, mana and stamina bars"/></Widget></Widget>
+-          <Widget type="HBox" skin="" position="0 32 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Keep weapon and magic icons at 40%"/></Widget></Widget>
+-          <Widget type="HBox" skin="" position="0 64 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Compact target name, level and health"/></Widget></Widget>
+-          <Widget type="HBox" skin="" position="0 96 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Quick loot overlay (experimental)"/></Widget></Widget>
+-          <Widget type="HBox" skin="" position="0 128 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Over-the-shoulder view"/></Widget></Widget>
+-          <Widget type="HBox" skin="" position="0 160 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget></Widget>
++        <Widget type="HBox" skin="" position="8 8 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="auto hide resource bars"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Auto-hide health, mana and stamina bars"/></Widget>
+         </Widget>
+-        <Widget type="TextBox" skin="NormalText" position="8 206 336 18" align="Left Top" name="GuiScalingFactorLabel">
+-          <Property key="Caption" value="GUI scale (%s)"/>
++        <Widget type="HBox" skin="" position="8 40 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Keep weapon and magic icons at 40%"/></Widget>
+         </Widget>
+-        <Widget type="ScrollBar" skin="MW_HScroll" position="8 232 336 18" align="HStretch Top" name="GuiScalingFactor">
+-          <Property key="Range" value="251"/>
+-          <UserString key="SettingType" value="Slider"/>
+-          <UserString key="SettingCategory" value="GUI"/>
+-          <UserString key="SettingName" value="scaling factor"/>
+-          <UserString key="SettingValueType" value="Float"/>
+-          <UserString key="SettingMin" value="0.5"/>
+-          <UserString key="SettingMax" value="3.0"/>
+-          <UserString key="SettingLabelWidget" value="GuiScalingFactorLabel"/>
+-          <UserString key="SettingLabelCaption" value="GUI scale (%s)"/>
++        <Widget type="HBox" skin="" position="8 72 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Compact target name, level and health"/></Widget>
++        </Widget>
++        <Widget type="HBox" skin="" position="8 104 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Quick loot overlay"/></Widget>
++        </Widget>
++        <Widget type="HBox" skin="" position="8 136 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Over-the-shoulder view"/></Widget>
+         </Widget>
+-        <Widget type="TextBox" skin="SandText" position="8 256 80 18" align="Left Top">
+-          <Property key="Caption" value="50%"/>
++        <Widget type="HBox" skin="" position="8 168 336 24" align="Left Top">
++          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget>
++          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget>
+         </Widget>
+-        <Widget type="TextBox" skin="SandText" position="264 256 80 18" align="Right Top">
+-          <Property key="Caption" value="300%"/>
++        <Widget type="TextBox" skin="NormalText" position="8 206 336 18" align="Left Top" name="GuiScalingFactorLabel"><Property key="Caption" value="GUI scale (%s)"/></Widget>
++        <Widget type="ScrollBar" skin="MW_HScroll" position="8 232 336 18" align="HStretch Top" name="GuiScalingFactor">
++          <Property key="Range" value="151"/><Property key="Page" value="1"/>
++          <UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="scaling factor"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="1.0"/><UserString key="SettingMax" value="2.5"/><UserString key="SettingLabelWidget" value="GuiScalingFactorLabel"/><UserString key="SettingLabelCaption" value="GUI scale (%s)"/>
+         </Widget>
+-        <Widget type="TextBox" skin="SandText" position="8 282 340 58"><Property key="Caption" value="Quick loot keys: Q close, F normal mode, W/S select, Activate/Use take. GUI scale changes are applied immediately and saved to settings.cfg."/><Property key="TextAlign" value="Left Top"/></Widget>
++        <Widget type="TextBox" skin="SandText" position="8 256 80 18" align="Left Top"><Property key="Caption" value="100%"/></Widget>
++        <Widget type="TextBox" skin="SandText" position="264 256 80 18" align="Right Top"><Property key="Caption" value="250%"/></Widget>
++        <Widget type="TextBox" skin="SandText" position="8 284 336 52" align="HStretch Top"><Property key="Caption" value="All options on this page are applied immediately. QuickLoot: Q close, F normal mode, W/S select, Activate/Use take."/><Property key="TextAlign" value="Left Top"/></Widget>
+       </Widget>
+       <Widget type="TabItem" skin="" position="4 32 360 358">
+         <Property key="Caption" value="  #{sAudio}  "/>
+@@ -295,6 +298,44 @@
+           </Widget>
+         </Widget>
+       </Widget>
++      <Widget type="TabItem" skin="" position="4 32 360 358">
++        <Property key="Caption" value="  Engine  "/>
++        <Widget type="TabControl" skin="TabControlInner" position="4 4 352 346" align="Stretch">
++          <Property key="ButtonAutoWidth" value="true"/>
++          <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
++            <Property key="Caption" value="  Preload  "/>
++            <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload enabled"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Enable cell preloading"/></Widget></Widget>
++            <Widget type="HBox" skin="" position="8 42 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload exterior grid"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Preload exterior grid"/></Widget></Widget>
++            <Widget type="HBox" skin="" position="8 74 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload instances"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Preload object instances"/></Widget></Widget>
++            <Widget type="HBox" skin="" position="8 106 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload doors"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Preload cells behind doors"/></Widget></Widget>
++            <Widget type="HBox" skin="" position="8 138 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload fast travel"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Preload fast-travel destinations"/></Widget></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 176 336 18" name="PreloadDistanceLabel"><Property key="Caption" value="Preload distance (%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 200 336 18" align="HStretch Top"><Property key="Range" value="129"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Cells"/><UserString key="SettingName" value="preload distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="0"/><UserString key="SettingMax" value="8192"/><UserString key="SettingLabelWidget" value="PreloadDistanceLabel"/><UserString key="SettingLabelCaption" value="Preload distance (%s)"/></Widget>
++            <Widget type="TextBox" skin="SandText" position="8 230 336 64"><Property key="Caption" value="These preload options update immediately. Worker thread count remains launcher-controlled because replacing active worker threads is unsafe."/><Property key="TextAlign" value="Left Top"/></Widget>
++          </Widget>
++          <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
++            <Property key="Caption" value="  World  "/>
++            <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Terrain"/><UserString key="SettingName" value="distant terrain"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Distant land"/></Widget></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 46 336 18" name="EngineViewDistanceLabel"><Property key="Caption" value="Distant land distance (x%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 70 336 18" align="HStretch Top"><Property key="Range" value="5"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="viewing distance"/><UserString key="SettingValueType" value="Cell"/><UserString key="SettingMin" value="8192"/><UserString key="SettingMax" value="40960"/><UserString key="SettingLabelWidget" value="EngineViewDistanceLabel"/><UserString key="SettingLabelCaption" value="Distant land distance (x%s)"/></Widget>
++            <Widget type="HBox" skin="" position="8 108 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="enabled"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Groundcover"/></Widget></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 144 336 18" name="GroundcoverDensityLabel"><Property key="Caption" value="Groundcover density (%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 168 336 18" align="HStretch Top"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="density"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="GroundcoverDensityLabel"/><UserString key="SettingLabelCaption" value="Groundcover density (%s)"/></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 202 336 18" name="GroundcoverDistanceLabel"><Property key="Caption" value="Groundcover distance (%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 226 336 18" align="HStretch Top"><Property key="Range" value="121"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="rendering distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="2048"/><UserString key="SettingMax" value="32768"/><UserString key="SettingLabelWidget" value="GroundcoverDistanceLabel"/><UserString key="SettingLabelCaption" value="Groundcover distance (%s)"/></Widget>
++          </Widget>
++          <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
++            <Property key="Caption" value="  Lighting  "/>
++            <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="hdr lighting"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="HDR lighting and tone mapping (shader mode)"/></Widget></Widget>
++            <Widget type="HBox" skin="" position="8 42 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shadows"/><UserString key="SettingName" value="enable shadows"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Dynamic shadows"/></Widget></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 84 336 18" name="ShadowDistanceLabel"><Property key="Caption" value="Shadow distance (%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 108 336 18" align="HStretch Top"><Property key="Range" value="121"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shadows"/><UserString key="SettingName" value="maximum shadow map distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="1024"/><UserString key="SettingMax" value="16384"/><UserString key="SettingLabelWidget" value="ShadowDistanceLabel"/><UserString key="SettingLabelCaption" value="Shadow distance (%s)"/></Widget>
++            <Widget type="TextBox" skin="NormalText" position="8 146 336 18" name="ShadowFadeLabel"><Property key="Caption" value="Shadow fade start (%s)"/></Widget>
++            <Widget type="ScrollBar" skin="MW_HScroll" position="8 170 336 18" align="HStretch Top"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shadows"/><UserString key="SettingName" value="shadow fade start"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="ShadowFadeLabel"/><UserString key="SettingLabelCaption" value="Shadow fade start (%s)"/></Widget>
++            <Widget type="TextBox" skin="SandText" position="8 210 336 70"><Property key="Caption" value="HDR, shadow enable, distance and fade are rebuilt live. A short one-frame shader refresh may occur when HDR or shadows are switched."/><Property key="TextAlign" value="Left Top"/></Widget>
++          </Widget>
++        </Widget>
++      </Widget>
+       <Widget type="TabItem" skin="" position="4 32 360 358">
+         <Property key="Caption" value="  #{sVideo}  "/>
+         <Widget type="TabControl" skin="TabControlInner" position="4 4 352 346" align="Stretch">
+@@ -379,13 +420,6 @@
+               <Property key="TextAlign" value="Right"/>
+             </Widget>
+           </Widget>
+-          <Widget type="TabItem" skin="" position="0 28 352 318">
+-            <Property key="Caption" value="  GUI  "/>
+-            <Widget type="TextBox" skin="SandText" position="8 16 336 72" align="HStretch Top">
+-              <Property key="Caption" value="GUI scale has been moved to the main GUI tab so all interface options stay together."/>
+-              <Property key="TextAlign" value="Left Top"/>
+-            </Widget>
+-          </Widget>
+           <Widget type="TabItem" skin="" position="0 28 352 318">
+             <Property key="Caption" value="  Detail  "/>
+             <Widget type="TextBox" skin="NormalText" position="4 4 300 24" align="Left Top">
+@@ -409,53 +443,9 @@
+                 <UserString key="SettingLabelCaption" value="Anisotropy (%s)"/>
+               </Widget>
+             </Widget>
+-            <Widget type="TextBox" skin="NormalText" position="0 130 352 18" align="Left Top" name="RenderDistanceLabel">
+-              <Property key="Caption" value="#{sRender_Distance}"/>
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="0 154 352 18" align="HStretch Top" name="RenderingDistanceSlider">
+-              <Property key="Range" value="4669"/>
+-              <Property key="Page" value="128"/>
+-              <UserString key="SettingType" value="Slider"/>
+-              <UserString key="SettingCategory" value="Camera"/>
+-              <UserString key="SettingName" value="viewing distance"/>
+-              <UserString key="SettingValueType" value="Integer"/>
+-              <UserString key="SettingMin" value="2500"/>
+-              <UserString key="SettingMax" value="7168"/>
+-              <UserString key="SettingLabelWidget" value="RenderDistanceLabel"/>
+-              <UserString key="SettingLabelCaption" value="#{sRender_Distance} (%s)"/>
+-            </Widget>
+-            <Widget type="ScrollBar" skin="MW_HScroll" position="0 154 352 18" align="HStretch Top" name="LargeRenderingDistanceSlider">
+-              <Property key="Range" value="79421"/>
+-              <Property key="Page" value="2048"/>
+-              <UserString key="SettingType" value="Slider"/>
+-              <UserString key="SettingCategory" value="Camera"/>
+-              <UserString key="SettingName" value="viewing distance"/>
+-              <UserString key="SettingValueType" value="Cell"/>
+-              <UserString key="SettingMin" value="2500"/>
+-              <UserString key="SettingMax" value="81920"/>
+-              <UserString key="SettingLabelWidget" value="RenderDistanceLabel"/>
+-              <UserString key="SettingLabelCaption" value="#{sRender_Distance} (x%s)"/>
+-            </Widget>
+-            <Widget type="TextBox" skin="SandText" position="0 178 352 18" align="Left Top">
+-              <Property key="Caption" value="#{sNear}"/>
+-              <Property key="TextAlign" value="Left"/>
+-            </Widget>
+-            <Widget type="TextBox" skin="SandText" position="0 178 352 18" align="Right Top">
+-              <Property key="Caption" value="#{sFar}"/>
+-              <Property key="TextAlign" value="Right"/>
+-            </Widget>
+-            <Widget type="HBox" skin="" position="0 242 352 24" align="Left Top">
+-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+-                <UserString key="SettingCategory" value="Shaders"/>
+-                <UserString key="SettingName" value="hdr lighting"/>
+-                <UserString key="SettingType" value="CheckButton"/>
+-              </Widget>
+-              <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 320 16" align="Left Top">
+-                <Property key="Caption" value="HDR image (enhanced lighting + tone mapping)"/>
+-                <UserString key="ToolTipType" value="Layout"/>
+-                <UserString key="ToolTipLayout" value="TextToolTip"/>
+-                <UserString key="Caption_Text" value="Enables enhanced shader lighting and ACES-style tone mapping. Disabled by default. Restart required."/>
+-              </Widget>
++            <Widget type="TextBox" skin="SandText" position="0 92 352 54" align="HStretch Top">
++              <Property key="Caption" value="Distant land, HDR, shadows and groundcover controls are grouped in the Engine tab."/>
++              <Property key="TextAlign" value="Left Top"/>
+             </Widget>
+           </Widget>
+           <Widget type="TabItem" skin="" position="0 28 352 318">
+diff --git a/mnt/data/files/mygui/tes3mp_chat.layout b/mnt/data/TES3MP_fix_v6/files/mygui/tes3mp_chat.layout
+index eb17e6a..ac69a1c 100644
+--- a/mnt/data/files/mygui/tes3mp_chat.layout
++++ b/mnt/data/TES3MP_fix_v6/files/mygui/tes3mp_chat.layout
+@@ -8,7 +8,7 @@
+     <Property key="NeedKey" value="false"/>
+ 
+     <!-- Log window -->
+-    <Widget type="EditBox" skin="TES3MP_EditClient" position="8 8 404 102" align="Stretch" name="list_History">
++    <Widget type="EditBox" skin="TES3MP_ChatHistory" position="8 8 404 102" align="Stretch" name="list_History">
+         <Property key="MultiLine" value="1"/>
+         <Property key="ReadOnly" value="true"/>
+         <Property key="NeedMouse" value="false"/>
+@@ -16,7 +16,7 @@
+         <Property key="FontName" value="Russo"/>
+         <Property key="TextAlign" value="Left Top"/>
+         <Property key="TextColour" value="1 1 1"/>
+-        <Property key="InvertSelected" value="false"/>
++        <Property key="InvertSelected" value="true"/>
+         <Property key="WordWrap" value="true"/>
+     </Widget>
+ 
+diff --git a/mnt/data/files/mygui/tes3mp_chat.skin.xml b/mnt/data/TES3MP_fix_v6/files/mygui/tes3mp_chat.skin.xml
+index 51660fb..ca133d5 100644
+--- a/mnt/data/files/mygui/tes3mp_chat.skin.xml
++++ b/mnt/data/TES3MP_fix_v6/files/mygui/tes3mp_chat.skin.xml
+@@ -2,16 +2,28 @@
+ 
+ <MyGUI type="Resource" version="1.1">
+ 
+-
+-    <!-- Console Input -->
+-
++    <!-- Transparent text client shared by chat history and command line. -->
+     <Resource type="ResourceSkin" name="TES3MP_EditClient" size="10 10">
+         <Property key="FontName" value="Russo"/>
+-        <Property key="TextAlign" value="Left VCenter"/>
++        <Property key="TextAlign" value="Left Top"/>
+         <Property key="TextColour" value="1 1 1"/>
+         <BasisSkin type="EditText" offset="0 0 10 10" align="Stretch"/>
+     </Resource>
+ 
++    <!-- Transparent, selectable history with a scrollbar shown only in review mode. -->
++    <Resource type="ResourceSkin" name="TES3MP_ChatHistory" size="512 20">
++        <Property key="FontName" value="Russo"/>
++        <Property key="TextAlign" value="Left Top"/>
++        <Property key="TextColour" value="1 1 1"/>
++        <Property key="WordWrap" value="true"/>
++        <Property key="MultiLine" value="true"/>
++        <Property key="MaxTextLength" value="10000000"/>
++        <Property key="InvertSelected" value="true"/>
++        <Child type="TextBox" skin="TES3MP_EditClient" offset="0 0 492 20" align="Stretch" name="Client"/>
++        <Child type="ScrollBar" skin="MW_VScroll" offset="494 3 14 14" align="Right VStretch" name="VScroll"/>
++    </Resource>
++
++    <!-- Transparent command line. -->
+     <Resource type="ResourceSkin" name="TES3MP_ChatMsg" size="29 28">
+         <Child type="TextBox" skin="TES3MP_EditClient" offset="4 2 21 22" align="Bottom Stretch" name="Client"/>
+     </Resource>
+diff --git a/mnt/data/files/settings-default.cfg b/mnt/data/TES3MP_fix_v6/files/settings-default.cfg
+index a994aae..db38292 100644
+--- a/mnt/data/files/settings-default.cfg
++++ b/mnt/data/TES3MP_fix_v6/files/settings-default.cfg
+@@ -258,7 +258,7 @@ radial fog = false
+ lighting method = shaders compatibility
+ 
+ # Enables the enhanced lighting path and ACES-style tone mapping.
+-# Requires shader mode and takes effect after restarting the game.
++# Requires shader mode. The in-game Engine tab recompiles affected shaders immediately.
+ hdr lighting = false
+ 
+ # Sets the bounding sphere multiplier of light sources if 'lighting method' is

@@ -52,6 +52,7 @@ namespace mwmp
         void changeChatMode();
 
         bool getChatEditState();
+        bool handleChatEscape();
 
         void update(float dt);
 

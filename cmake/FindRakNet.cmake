@@ -12,8 +12,18 @@
 include_guard(GLOBAL)
 
 # Accept the singular variable used by several CI scripts and package managers.
+# CrabNet keeps public headers in include/raknet while older RakNet trees kept
+# them directly in Source. Normalize both layouts and reject stale paths that
+# do not actually contain the public API.
 if(RakNet_INCLUDE_DIR AND NOT RakNet_INCLUDES)
-    set(RakNet_INCLUDES "${RakNet_INCLUDE_DIR}")
+    if(EXISTS "${RakNet_INCLUDE_DIR}/RakPeer.h" AND EXISTS "${RakNet_INCLUDE_DIR}/RakNetTypes.h")
+        set(RakNet_INCLUDES "${RakNet_INCLUDE_DIR}")
+    elseif(EXISTS "${RakNet_INCLUDE_DIR}/raknet/RakPeer.h" AND EXISTS "${RakNet_INCLUDE_DIR}/raknet/RakNetTypes.h")
+        set(RakNet_INCLUDES "${RakNet_INCLUDE_DIR}/raknet")
+    elseif(EXISTS "${RakNet_INCLUDE_DIR}/../include/raknet/RakPeer.h" AND EXISTS "${RakNet_INCLUDE_DIR}/../include/raknet/RakNetTypes.h")
+        get_filename_component(_raknet_source_parent "${RakNet_INCLUDE_DIR}" DIRECTORY)
+        set(RakNet_INCLUDES "${_raknet_source_parent}/include/raknet")
+    endif()
 endif()
 
 # Prefer an explicitly supplied include directory, then look in common layouts.

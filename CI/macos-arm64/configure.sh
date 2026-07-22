@@ -12,6 +12,7 @@ else
   SDL_PREFIX="$(brew --prefix sdl2-compat)"
 fi
 PREFIX_PATH="${QT_PREFIX};${MYGUI_PREFIX};$(brew --prefix boost);$(brew --prefix bullet);$(brew --prefix open-scene-graph);$(brew --prefix ffmpeg);${SDL_PREFIX};$(brew --prefix openal-soft);$(brew --prefix lz4);$(brew --prefix luajit)"
+CRABNET_PREFIX="${RUNNER_TEMP:-$HOME}/CrabNet"
 
 cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
@@ -30,5 +31,8 @@ cmake -S . -B build -G Ninja \
   -DOPENMW_USE_SYSTEM_MYGUI=ON \
   -DOPENMW_USE_SYSTEM_OSG=ON \
   -DOPENMW_USE_SYSTEM_BULLET=ON \
+  -DRakNet_INCLUDE_DIR="$CRABNET_PREFIX/include/raknet" \
+  -DRakNet_LIBRARY_RELEASE="$CRABNET_PREFIX/build/lib/libRakNetLibStatic.a" \
+  -DRakNet_LIBRARY_DEBUG="$CRABNET_PREFIX/build/lib/libRakNetLibStatic.a" \
   -DLuaJit_INCLUDE_DIR="$(brew --prefix luajit)/include/luajit-2.1" \
   -DLuaJit_LIBRARY="$(brew --prefix luajit)/lib/libluajit-5.1.dylib"

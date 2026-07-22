@@ -2622,6 +2622,8 @@ namespace MWWorld
     void World::processChangedSettings(const Settings::CategorySettingVector& settings)
     {
         mRendering->processChangedSettings(settings);
+        if (mWorldScene)
+            mWorldScene->processChangedSettings(settings);
     }
 
     bool World::isFlying(const MWWorld::Ptr &ptr) const

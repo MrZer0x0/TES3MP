@@ -1,6 +1,7 @@
 #include "GUIChat.hpp"
 
 #include <MyGUI_EditBox.h>
+#include <MyGUI_ScrollBar.h>
 #include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwgui/windowmanagerimp.hpp"
 #include "apps/openmw/mwinput/inputmanagerimp.hpp"
@@ -18,11 +19,27 @@ namespace mwmp
 {
     GUIChat::GUIChat(int x, int y, int w, int h)
             : WindowBase("tes3mp_chat.layout")
+            , mHistoryScroll(nullptr)
+            , historyReviewState(false)
     {
         setCoord(x, y, w, h);
 
         getWidget(mCommandLine, "edit_Command");
         getWidget(mHistory, "list_History");
+
+        for (size_t i = 0; i < mHistory->getChildCount(); ++i)
+        {
+            if (MyGUI::ScrollBar* scroll = mHistory->getChildAt(i)->castType<MyGUI::ScrollBar>(false))
+            {
+                mHistoryScroll = scroll;
+                break;
+            }
+        }
+        if (mHistoryScroll)
+        {
+            mHistoryScroll->setVisible(false);
+            mHistoryScroll->setNeedMouseFocus(false);
+        }
 
         // Set up the command line box
         mCommandLine->eventEditSelectAccept +=
@@ -32,8 +49,9 @@ namespace mwmp
 
         setTitle("Chat");
 
-        mHistory->setOverflowToTheLeft(true);
+        mHistory->setOverflowToTheLeft(false);
         mHistory->setEditWordWrap(true);
+        mHistory->setEditReadOnly(true);
         mHistory->setTextShadow(true);
         mHistory->setTextShadowColour(MyGUI::Colour::Black);
 
@@ -57,6 +75,7 @@ namespace mwmp
     void GUIChat::onClose()
     {
         setEditState(false);
+        setHistoryReviewState(false);
     }
 
     bool GUIChat::exit()
@@ -126,6 +145,8 @@ namespace mwmp
         else
         {
             mHistory->addText(color + msg);
+            if (!historyReviewState)
+                scrollHistoryToBottom();
             LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "%s", msg.c_str());
         }
     }
@@ -155,6 +176,7 @@ namespace mwmp
     void GUIChat::clean()
     {
         mHistory->setCaption("");
+        scrollHistoryToBottom();
     }
 
     void GUIChat::pressedChatMode()
@@ -172,6 +194,7 @@ namespace mwmp
         switch (windowState)
         {
             case CHAT_DISABLED:
+                setHistoryReviewState(false);
                 setVisible(false);
                 setEditState(false);
                 break;
@@ -186,9 +209,86 @@ namespace mwmp
 
     void GUIChat::setEditState(bool state)
     {
+        if (state && historyReviewState)
+            setHistoryReviewState(false);
+
         editState = state;
         mCommandLine->setVisible(editState);
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(editState ? mCommandLine : nullptr);
+    }
+
+    void GUIChat::scrollHistoryToBottom()
+    {
+        const size_t range = mHistory->getVScrollRange();
+        if (range > 0)
+            mHistory->setVScrollPosition(range - 1);
+        mHistory->setTextCursor(mHistory->getCaption().size());
+    }
+
+    void GUIChat::setHistoryReviewState(bool state)
+    {
+        if (historyReviewState == state)
+            return;
+
+        historyReviewState = state;
+        if (state)
+        {
+            editState = false;
+            mCommandLine->setVisible(false);
+            mMainWidget->setNeedMouseFocus(true);
+            mHistory->setNeedMouseFocus(true);
+            mHistory->setNeedKeyFocus(true);
+            if (mHistoryScroll)
+            {
+                mHistoryScroll->setVisible(true);
+                mHistoryScroll->setNeedMouseFocus(true);
+            }
+            MWBase::Environment::get().getInputManager()->changeInputMode(true);
+            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mHistory);
+        }
+        else
+        {
+            mMainWidget->setNeedMouseFocus(false);
+            mHistory->setNeedMouseFocus(false);
+            mHistory->setNeedKeyFocus(false);
+            if (mHistoryScroll)
+            {
+                mHistoryScroll->setVisible(false);
+                mHistoryScroll->setNeedMouseFocus(false);
+            }
+            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
+            MWBase::Environment::get().getInputManager()->changeInputMode(false);
+            scrollHistoryToBottom();
+            if (windowState == CHAT_HIDDENMODE)
+                curTime = 0.f;
+        }
+    }
+
+    bool GUIChat::handleEscape()
+    {
+        if (editState)
+        {
+            setEditState(false);
+            return true;
+        }
+
+        if (historyReviewState)
+        {
+            setHistoryReviewState(false);
+            return true;
+        }
+
+        if (windowState != CHAT_DISABLED)
+        {
+            // Hidden-mode chat may have auto-faded. Escape brings it back in
+            // history-review mode instead of requiring a new message first.
+            if (!isVisible())
+                setVisible(true);
+            setHistoryReviewState(true);
+            return true;
+        }
+
+        return false;
     }
 
     void GUIChat::pressedSay()
@@ -243,7 +343,7 @@ namespace mwmp
 
     void GUIChat::update(float dt)
     {
-        if (windowState == CHAT_HIDDENMODE && !editState && isVisible())
+        if (windowState == CHAT_HIDDENMODE && !editState && !historyReviewState && isVisible())
         {
             curTime += dt;
             if (curTime >= delay)

@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <cstdlib>
+#include <cmath>
 
 #include <osg/Light>
 #include <osg/LightModel>
@@ -329,28 +330,27 @@ namespace MWRender
         mTerrainStorage.reset(new TerrainStorage(mResourceSystem, normalMapPattern, heightMapPattern, useTerrainNormalMaps, specularMapPattern, useTerrainSpecularMaps));
         const float lodFactor = Settings::Manager::getFloat("lod factor", "Terrain");
 
-        if (Settings::Manager::getBool("distant terrain", "Terrain"))
-        {
-            const int compMapResolution = Settings::Manager::getInt("composite map resolution", "Terrain");
-            int compMapPower = Settings::Manager::getInt("composite map level", "Terrain");
-            compMapPower = std::max(-3, compMapPower);
-            float compMapLevel = pow(2, compMapPower);
-            const int vertexLodMod = Settings::Manager::getInt("vertex lod mod", "Terrain");
-            float maxCompGeometrySize = Settings::Manager::getFloat("max composite geometry size", "Terrain");
-            maxCompGeometrySize = std::max(maxCompGeometrySize, 1.f);
-            mTerrain.reset(new Terrain::QuadTreeWorld(
-                sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug,
-                compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
-            if (Settings::Manager::getBool("object paging", "Terrain"))
-            {
-                mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
-                static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
-                mResourceSystem->addResourceManager(mObjectPaging.get());
+        // Keep the quadtree terrain backend available at all times so distant land can
+        // be enabled and disabled without restarting the game. With distant terrain
+        // disabled, the view distance is reduced to zero while the active cell grid
+        // remains loaded by QuadTreeWorld.
+        const int compMapResolution = Settings::Manager::getInt("composite map resolution", "Terrain");
+        int compMapPower = Settings::Manager::getInt("composite map level", "Terrain");
+        compMapPower = std::max(-3, compMapPower);
+        const float compMapLevel = std::pow(2.f, static_cast<float>(compMapPower));
+        const int vertexLodMod = Settings::Manager::getInt("vertex lod mod", "Terrain");
+        const float maxCompGeometrySize = std::max(1.f, Settings::Manager::getFloat("max composite geometry size", "Terrain"));
 
-            }
+        mTerrain.reset(new Terrain::QuadTreeWorld(
+            sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug,
+            compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
+
+        if (Settings::Manager::getBool("object paging", "Terrain"))
+        {
+            mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
+            static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
+            mResourceSystem->addResourceManager(mObjectPaging.get());
         }
-        else
-            mTerrain.reset(new Terrain::TerrainGrid(sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug));
 
         mTerrain->setTargetFrameRate(Settings::Manager::getFloat("target framerate", "Cells"));
         mTerrain->setWorkQueue(mWorkQueue.get());
@@ -366,38 +366,34 @@ namespace MWRender
                 Settings::Manager::getBool("occlusion culling terrain", "Camera")));
         }
 
-        if (Settings::Manager::getBool("enabled", "Groundcover"))
-        {
-            osg::ref_ptr<osg::Group> groundcoverRoot = new osg::Group;
-            groundcoverRoot->setNodeMask(Mask_Groundcover);
-            groundcoverRoot->setName("Groundcover Root");
-            sceneRoot->addChild(groundcoverRoot);
+        // Build the groundcover world once and switch its node mask at runtime.
+        // This allows enabling/disabling grass and changing density without a restart.
+        mGroundcoverRoot = new osg::Group;
+        mGroundcoverRoot->setNodeMask(Settings::Manager::getBool("enabled", "Groundcover") ? Mask_Groundcover : 0u);
+        mGroundcoverRoot->setName("Groundcover Root");
+        sceneRoot->addChild(mGroundcoverRoot);
 
-            mGroundcoverUpdater = new GroundcoverUpdater;
-            groundcoverRoot->addUpdateCallback(mGroundcoverUpdater);
+        mGroundcoverUpdater = new GroundcoverUpdater;
+        mGroundcoverRoot->addUpdateCallback(mGroundcoverUpdater);
 
-            float chunkSize = Settings::Manager::getFloat("min chunk size", "Groundcover");
-            if (chunkSize >= 1.0f)
-                chunkSize = 1.0f;
-            else if (chunkSize >= 0.5f)
-                chunkSize = 0.5f;
-            else if (chunkSize >= 0.25f)
-                chunkSize = 0.25f;
-            else if (chunkSize != 0.125f)
-                chunkSize = 0.125f;
+        float chunkSize = Settings::Manager::getFloat("min chunk size", "Groundcover");
+        if (chunkSize >= 1.0f)
+            chunkSize = 1.0f;
+        else if (chunkSize >= 0.5f)
+            chunkSize = 0.5f;
+        else if (chunkSize >= 0.25f)
+            chunkSize = 0.25f;
+        else if (chunkSize != 0.125f)
+            chunkSize = 0.125f;
 
-            float density = Settings::Manager::getFloat("density", "Groundcover");
-            density = std::clamp(density, 0.f, 1.f);
+        float density = std::clamp(Settings::Manager::getFloat("density", "Groundcover"), 0.f, 1.f);
+        mGroundcoverWorld.reset(new Terrain::QuadTreeWorld(mGroundcoverRoot, mTerrainStorage.get(), Mask_Groundcover, lodFactor, chunkSize));
+        mGroundcover.reset(new Groundcover(mResourceSystem->getSceneManager(), density));
+        static_cast<Terrain::QuadTreeWorld*>(mGroundcoverWorld.get())->addChunkManager(mGroundcover.get());
+        mResourceSystem->addResourceManager(mGroundcover.get());
 
-            mGroundcoverWorld.reset(new Terrain::QuadTreeWorld(groundcoverRoot, mTerrainStorage.get(), Mask_Groundcover, lodFactor, chunkSize));
-            mGroundcover.reset(new Groundcover(mResourceSystem->getSceneManager(), density));
-            static_cast<Terrain::QuadTreeWorld*>(mGroundcoverWorld.get())->addChunkManager(mGroundcover.get());
-            mResourceSystem->addResourceManager(mGroundcover.get());
-
-            // Groundcover it is handled in the same way indifferently from if it is from active grid or from distant cell.
-            // Use a stub grid to avoid splitting between chunks for active grid and chunks for distant cells.
-            mGroundcoverWorld->setActiveGrid(osg::Vec4i(0, 0, 0, 0));
-        }
+        // Groundcover is handled identically for active and distant cells.
+        mGroundcoverWorld->setActiveGrid(osg::Vec4i(0, 0, 0, 0));
         // water goes after terrain for correct waterculling order
         mWater.reset(new Water(sceneRoot->getParent(0), sceneRoot, mResourceSystem, mViewer->getIncrementalCompileOperation(), resourcePath));
 
@@ -1128,11 +1124,16 @@ namespace MWRender
         // Limit FOV here just for sure, otherwise viewing distance can be too high.
         fov = std::min(mFieldOfView, 140.f);
         float distanceMult = std::cos(osg::DegreesToRadians(fov)/2.f);
-        mTerrain->setViewDistance(mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f));
+        const float terrainDistance = Settings::Manager::getBool("distant terrain", "Terrain")
+            ? mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f)
+            : 0.f;
+        mTerrain->setViewDistance(terrainDistance);
 
         if (mGroundcoverWorld)
         {
-            float groundcoverDistance = std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"));
+            float groundcoverDistance = Settings::Manager::getBool("enabled", "Groundcover")
+                ? std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"))
+                : 0.f;
             mGroundcoverWorld->setViewDistance(groundcoverDistance * (distanceMult ? 1.f/distanceMult : 1.f));
         }
     }
@@ -1184,45 +1185,96 @@ namespace MWRender
 
     void RenderingManager::processChangedSettings(const Settings::CategorySettingVector &changed)
     {
-        for (Settings::CategorySettingVector::const_iterator it = changed.begin(); it != changed.end(); ++it)
+        bool refreshShaderDefines = false;
+        bool refreshShadowSettings = false;
+        bool rebuildTerrainViews = false;
+        bool rebuildGroundcoverViews = false;
+
+        for (const auto& setting : changed)
         {
-            if (it->first == "Camera" && it->second == "field of view")
+            if (setting.first == "Camera" && setting.second == "field of view")
             {
                 mFieldOfView = Settings::Manager::getFloat("field of view", "Camera");
                 updateProjectionMatrix();
+                rebuildTerrainViews = true;
+                rebuildGroundcoverViews = true;
             }
-            else if (it->first == "Camera" && it->second == "viewing distance")
+            else if (setting.first == "Camera" && setting.second == "viewing distance")
             {
                 mViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
-                if(!Settings::Manager::getBool("use distant fog", "Fog"))
+                if (!Settings::Manager::getBool("use distant fog", "Fog"))
                     mStateUpdater->setFogEnd(mViewDistance);
                 updateProjectionMatrix();
+                rebuildTerrainViews = true;
             }
-            else if (it->first == "General" && (it->second == "texture filter" ||
-                                                it->second == "texture mipmap" ||
-                                                it->second == "anisotropy"))
+            else if (setting.first == "Camera" && setting.second == "view over shoulder")
+            {
+                if (Settings::Manager::getBool("view over shoulder", "Camera"))
+                {
+                    if (!mViewOverShoulderController)
+                        mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
+                }
+                else
+                    mViewOverShoulderController.reset();
+            }
+            else if (setting.first == "Terrain" && setting.second == "distant terrain")
+            {
+                updateProjectionMatrix();
+                rebuildTerrainViews = true;
+            }
+            else if (setting.first == "Groundcover")
+            {
+                if (setting.second == "enabled")
+                {
+                    if (mGroundcoverRoot)
+                        mGroundcoverRoot->setNodeMask(Settings::Manager::getBool("enabled", "Groundcover") ? Mask_Groundcover : 0u);
+                    updateProjectionMatrix();
+                    rebuildGroundcoverViews = true;
+                }
+                else if (setting.second == "density")
+                {
+                    if (mGroundcover)
+                        mGroundcover->setDensity(Settings::Manager::getFloat("density", "Groundcover"));
+                    rebuildGroundcoverViews = true;
+                }
+                else if (setting.second == "rendering distance")
+                {
+                    updateProjectionMatrix();
+                    refreshShaderDefines = true;
+                    rebuildGroundcoverViews = true;
+                }
+                else if (setting.second == "stomp mode" || setting.second == "stomp intensity")
+                    refreshShaderDefines = true;
+            }
+            else if (setting.first == "General" && (setting.second == "texture filter" ||
+                                                     setting.second == "texture mipmap" ||
+                                                     setting.second == "anisotropy"))
             {
                 updateTextureFiltering();
             }
-            else if (it->first == "Water")
+            else if (setting.first == "Water")
             {
                 mWater->processChangedSettings(changed);
             }
-            else if (it->first == "Shaders" && it->second == "minimum interior brightness")
+            else if (setting.first == "Shaders" && setting.second == "hdr lighting")
+            {
+                refreshShaderDefines = true;
+            }
+            else if (setting.first == "Shaders" && setting.second == "minimum interior brightness")
             {
                 mMinimumAmbientLuminance = std::clamp(Settings::Manager::getFloat("minimum interior brightness", "Shaders"), 0.f, 1.f);
                 if (MWMechanics::getPlayer().isInCell())
                     configureAmbient(MWMechanics::getPlayer().getCell()->getCell());
             }
-            else if (it->first == "Shaders" && (it->second == "light bounds multiplier" ||
-                                                it->second == "maximum light distance" ||
-                                                it->second == "light fade start" ||
-                                                it->second == "max lights"))
+            else if (setting.first == "Shaders" && (setting.second == "light bounds multiplier" ||
+                                                     setting.second == "maximum light distance" ||
+                                                     setting.second == "light fade start" ||
+                                                     setting.second == "max lights"))
             {
                 auto* lightManager = static_cast<SceneUtil::LightManager*>(getLightRoot());
                 lightManager->processChangedSettings(changed);
 
-                if (it->second == "max lights" && !lightManager->usingFFP())
+                if (setting.second == "max lights" && !lightManager->usingFFP())
                 {
                     mViewer->stopThreading();
 
@@ -1242,7 +1294,44 @@ namespace MWRender
                     mViewer->startThreading();
                 }
             }
+            else if (setting.first == "Shadows")
+            {
+                refreshShadowSettings = true;
+                refreshShaderDefines = true;
+            }
         }
+
+        if (refreshShadowSettings || refreshShaderDefines)
+        {
+            mViewer->stopThreading();
+
+            if (refreshShadowSettings && mShadowManager)
+                mShadowManager->setupShadowSettings();
+
+            auto defines = mResourceSystem->getSceneManager()->getShaderManager().getGlobalDefines();
+
+            if (mShadowManager)
+            {
+                const auto shadowDefines = mShadowManager->getShadowDefines();
+                for (const auto& [name, value] : shadowDefines)
+                    defines[name] = value;
+            }
+
+            defines["hdrLighting"] = Settings::Manager::getBool("hdr lighting", "Shaders") ? "1" : "0";
+            const float groundcoverDistance = std::max(0.f, Settings::Manager::getFloat("rendering distance", "Groundcover"));
+            defines["groundcoverFadeStart"] = std::to_string(groundcoverDistance * 0.9f);
+            defines["groundcoverFadeEnd"] = std::to_string(groundcoverDistance);
+            defines["groundcoverStompMode"] = std::to_string(std::clamp(Settings::Manager::getInt("stomp mode", "Groundcover"), 0, 2));
+            defines["groundcoverStompIntensity"] = std::to_string(std::clamp(Settings::Manager::getInt("stomp intensity", "Groundcover"), 0, 2));
+
+            mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(defines);
+            mViewer->startThreading();
+        }
+
+        if (rebuildTerrainViews && mTerrain)
+            mTerrain->rebuildViews();
+        if (rebuildGroundcoverViews && mGroundcoverWorld)
+            mGroundcoverWorld->rebuildViews();
     }
 
     float RenderingManager::getNearClipDistance() const

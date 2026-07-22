@@ -7,6 +7,11 @@
 
 #include "apps/openmw/mwgui/windowbase.hpp"
 
+namespace MyGUI
+{
+    class ScrollBar;
+}
+
 namespace mwmp
 {
     class GUIController;
@@ -23,6 +28,7 @@ namespace mwmp
 
         MyGUI::EditBox* mCommandLine;
         MyGUI::EditBox* mHistory;
+        MyGUI::ScrollBar* mHistoryScroll;
 
         typedef std::list<std::string> StringList;
 
@@ -45,6 +51,7 @@ namespace mwmp
         virtual bool exit();
 
         bool getEditState();
+        bool handleEscape();
 
         void setFont(const std::string &fntName);
 
@@ -77,9 +84,12 @@ namespace mwmp
         void acceptCommand(MyGUI::EditBox* _sender);
 
         void setEditState(bool state);
+        void setHistoryReviewState(bool state);
+        void scrollHistoryToBottom();
 
         int windowState;
         bool editState;
+        bool historyReviewState;
         float delay;
         float curTime;
     };

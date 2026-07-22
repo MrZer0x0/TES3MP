@@ -91,6 +91,8 @@ void mwmp::GUIController::printChatMessage(std::string &msg)
 
 void mwmp::GUIController::setChatVisible(bool chatVisible)
 {
+    if (!chatVisible)
+        mChat->setHistoryReviewState(false);
     mChat->setVisible(chatVisible);
 }
 
@@ -219,6 +221,11 @@ void mwmp::GUIController::changeChatMode()
 bool mwmp::GUIController::getChatEditState()
 {
     return mChat->editState;
+}
+
+bool mwmp::GUIController::handleChatEscape()
+{
+    return mChat != nullptr && mChat->handleEscape();
 }
 
 void mwmp::GUIController::update(float dt)

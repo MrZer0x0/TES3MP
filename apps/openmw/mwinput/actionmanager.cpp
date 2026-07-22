@@ -367,6 +367,12 @@ namespace MWInput
 
     void ActionManager::toggleMainMenu()
     {
+        // Escape first toggles TES3MP chat history review. While review is active
+        // the chat gains a mouse cursor, scrollbar and selectable/copyable text.
+        if (!MWBase::Environment::get().getWindowManager()->isGuiMode()
+            && mwmp::Main::get().getGUIController()->handleChatEscape())
+            return;
+
         /*
             Start  of tes3mp addition
 
@@ -610,6 +616,11 @@ namespace MWInput
         }
         else if (MWBase::Environment::get().getInputManager()->getControlSwitch("playercontrols"))
         {
+            // QuickLoot follows the player's actual Activate binding (keyboard, mouse or controller).
+            // If it handled the action, do not also activate/open the world object.
+            if (MWBase::Environment::get().getWindowManager()->activateQuickLoot())
+                return;
+
             MWWorld::Player& player = MWBase::Environment::get().getWorld()->getPlayer();
             player.activate();
         }

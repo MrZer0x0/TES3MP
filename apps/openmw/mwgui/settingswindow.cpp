@@ -224,12 +224,6 @@ namespace MWGui
         WindowBase("openmw_settings_window.layout"),
         mKeyboardMode(true)
     {
-        bool terrain = Settings::Manager::getBool("distant terrain", "Terrain");
-        const std::string widgetName = terrain ? "RenderingDistanceSlider" : "LargeRenderingDistanceSlider";
-        MyGUI::Widget* unusedSlider;
-        getWidget(unusedSlider, widgetName);
-        unusedSlider->setVisible(false);
-
         configureWidgets(mMainWidget, true);
 
         setTitle("#{sOptions}");
@@ -440,7 +434,7 @@ namespace MWGui
     void SettingsWindow::onLightsResetButtonClicked(MyGUI::Widget* _sender)
     {
         std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
-        std::string message = "Resets to default values, would you like to continue? Changes to lighting method or HDR image mode will require a restart.";
+        std::string message = "Resets to default values, would you like to continue? Only changes to the lighting method require a restart.";
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons, true);
         int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
         if (selectedButton == 1 || selectedButton == -1)

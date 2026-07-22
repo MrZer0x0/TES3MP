@@ -269,6 +269,7 @@ namespace MWRender
         Resource::ResourceSystem* mResourceSystem;
 
         osg::ref_ptr<GroundcoverUpdater> mGroundcoverUpdater;
+        osg::ref_ptr<osg::Group> mGroundcoverRoot;
 
         osg::ref_ptr<SceneUtil::WorkQueue> mWorkQueue;
         osg::ref_ptr<SceneUtil::UnrefQueue> mUnrefQueue;

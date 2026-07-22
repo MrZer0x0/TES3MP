@@ -818,6 +818,32 @@ namespace MWWorld
         mPreloader->setPreloadInstances(Settings::Manager::getBool("preload instances", "Cells"));
     }
 
+    void Scene::processChangedSettings(const Settings::CategorySettingVector& settings)
+    {
+        for (const auto& setting : settings)
+        {
+            if (setting.first != "Cells")
+                continue;
+
+            if (setting.second == "preload enabled")
+            {
+                mPreloadEnabled = Settings::Manager::getBool("preload enabled", "Cells");
+                if (!mPreloadEnabled)
+                    mPreloader->clear();
+            }
+            else if (setting.second == "preload exterior grid")
+                mPreloadExteriorGrid = Settings::Manager::getBool("preload exterior grid", "Cells");
+            else if (setting.second == "preload doors")
+                mPreloadDoors = Settings::Manager::getBool("preload doors", "Cells");
+            else if (setting.second == "preload fast travel")
+                mPreloadFastTravel = Settings::Manager::getBool("preload fast travel", "Cells");
+            else if (setting.second == "preload distance")
+                mPreloadDistance = std::max(0, Settings::Manager::getInt("preload distance", "Cells"));
+            else if (setting.second == "preload instances")
+                mPreloader->setPreloadInstances(Settings::Manager::getBool("preload instances", "Cells"));
+        }
+    }
+
     Scene::~Scene()
     {
     }
