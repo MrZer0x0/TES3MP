@@ -52,7 +52,8 @@ namespace mwmp
         void changeChatMode();
 
         bool getChatEditState();
-        bool handleChatEscape();
+        std::string getChatHistoryText() const;
+        void setChatMainMenuOpen(bool state);
 
         void update(float dt);
 

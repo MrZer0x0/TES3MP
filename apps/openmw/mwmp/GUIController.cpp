@@ -223,9 +223,15 @@ bool mwmp::GUIController::getChatEditState()
     return mChat->editState;
 }
 
-bool mwmp::GUIController::handleChatEscape()
+std::string mwmp::GUIController::getChatHistoryText() const
 {
-    return mChat != nullptr && mChat->handleEscape();
+    return mChat != nullptr ? mChat->getHistoryText() : std::string();
+}
+
+void mwmp::GUIController::setChatMainMenuOpen(bool state)
+{
+    if (mChat != nullptr)
+        mChat->setMainMenuOpen(state);
 }
 
 void mwmp::GUIController::update(float dt)

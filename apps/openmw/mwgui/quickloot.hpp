@@ -30,6 +30,9 @@ namespace MWGui
 
         void notifyMouseWheel(int rel);
 
+        /// Take the currently focused item. Returns true when QuickLoot handled Activate.
+        bool activateSelected();
+
         void clear();
 
         void setFocusObject(const MWWorld::Ptr& focus);

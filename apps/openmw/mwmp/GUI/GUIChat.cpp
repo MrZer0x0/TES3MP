@@ -20,7 +20,13 @@ namespace mwmp
     GUIChat::GUIChat(int x, int y, int w, int h)
             : WindowBase("tes3mp_chat.layout")
             , mHistoryScroll(nullptr)
+            , windowState(CHAT_DISABLED)
+            , editState(false)
             , historyReviewState(false)
+            , mainMenuOpen(false)
+            , visibleBeforeMainMenu(false)
+            , delay(3.f)
+            , curTime(0.f)
     {
         setCoord(x, y, w, h);
 
@@ -57,9 +63,7 @@ namespace mwmp
 
         mHistory->setNeedKeyFocus(false);
 
-        windowState = CHAT_DISABLED;
         mCommandLine->setVisible(false);
-        delay = 3; // 3 sec.
     }
 
     void GUIChat::onOpen()
@@ -132,10 +136,8 @@ namespace mwmp
 
     void GUIChat::print(const std::string &msg, const std::string &color)
     {
-        if (windowState == CHAT_HIDDENMODE && !isVisible())
-        {
+        if (windowState == CHAT_HIDDENMODE && !mainMenuOpen && !isVisible())
             setVisible(true);
-        }
 
         if(msg.size() == 0)
         {
@@ -257,38 +259,54 @@ namespace mwmp
                 mHistoryScroll->setNeedMouseFocus(false);
             }
             MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
-            MWBase::Environment::get().getInputManager()->changeInputMode(false);
+            if (!mainMenuOpen)
+                MWBase::Environment::get().getInputManager()->changeInputMode(false);
             scrollHistoryToBottom();
             if (windowState == CHAT_HIDDENMODE)
                 curTime = 0.f;
         }
     }
 
-    bool GUIChat::handleEscape()
+    std::string GUIChat::getHistoryText() const
     {
-        if (editState)
-        {
-            setEditState(false);
-            return true;
-        }
+        return mHistory->getCaption().asUTF8();
+    }
 
-        if (historyReviewState)
-        {
-            setHistoryReviewState(false);
-            return true;
-        }
+    void GUIChat::setMainMenuOpen(bool state)
+    {
+        if (mainMenuOpen == state)
+            return;
 
-        if (windowState != CHAT_DISABLED)
+        mainMenuOpen = state;
+        if (state)
         {
-            // Hidden-mode chat may have auto-faded. Escape brings it back in
-            // history-review mode instead of requiring a new message first.
-            if (!isVisible())
+            visibleBeforeMainMenu = isVisible();
+
+            // The pause menu already owns keyboard/mouse focus. Close the live
+            // chat controls without clearing the focus assigned to menu buttons.
+            editState = false;
+            mCommandLine->setVisible(false);
+            historyReviewState = false;
+            mMainWidget->setNeedMouseFocus(false);
+            mHistory->setNeedMouseFocus(false);
+            mHistory->setNeedKeyFocus(false);
+            if (mHistoryScroll)
+            {
+                mHistoryScroll->setVisible(false);
+                mHistoryScroll->setNeedMouseFocus(false);
+            }
+            setVisible(false);
+        }
+        else
+        {
+            if (windowState == CHAT_ENABLED || (windowState == CHAT_HIDDENMODE && visibleBeforeMainMenu))
                 setVisible(true);
-            setHistoryReviewState(true);
-            return true;
-        }
+            else
+                setVisible(false);
 
-        return false;
+            if (windowState == CHAT_HIDDENMODE)
+                curTime = 0.f;
+        }
     }
 
     void GUIChat::pressedSay()
@@ -343,7 +361,7 @@ namespace mwmp
 
     void GUIChat::update(float dt)
     {
-        if (windowState == CHAT_HIDDENMODE && !editState && !historyReviewState && isVisible())
+        if (!mainMenuOpen && windowState == CHAT_HIDDENMODE && !editState && !historyReviewState && isVisible())
         {
             curTime += dt;
             if (curTime >= delay)

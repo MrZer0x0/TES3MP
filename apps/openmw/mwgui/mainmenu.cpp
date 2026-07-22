@@ -1,6 +1,8 @@
 #include "mainmenu.hpp"
 
+#include <algorithm>
 #include <MyGUI_TextBox.h>
+#include <MyGUI_EditBox.h>
 #include <MyGUI_Gui.h>
 #include <MyGUI_RenderManager.h>
 
@@ -18,6 +20,9 @@
 #include "backgroundimage.hpp"
 #include "videowidget.hpp"
 
+#include "../mwmp/Main.hpp"
+#include "../mwmp/GUIController.hpp"
+
 namespace MWGui
 {
 
@@ -25,13 +30,21 @@ namespace MWGui
         : WindowBase("openmw_mainmenu.layout")
         , mWidth (w), mHeight (h)
         , mVFS(vfs), mButtonBox(nullptr)
+        , mChatHistory(nullptr)
         , mBackground(nullptr)
         , mVideoBackground(nullptr)
         , mVideo(nullptr)
         , mSaveGameDialog(nullptr)
     {
         getWidget(mVersionText, "VersionText");
+        getWidget(mChatHistory, "MenuChatHistory");
         mVersionText->setCaption(versionDescription);
+
+        mChatHistory->setOverflowToTheLeft(false);
+        mChatHistory->setEditWordWrap(true);
+        mChatHistory->setEditReadOnly(true);
+        mChatHistory->setTextShadow(true);
+        mChatHistory->setTextShadowColour(MyGUI::Colour::Black);
 
         mHasAnimatedMenu = mVFS->exists("video/menu_background.bik");
 
@@ -74,6 +87,16 @@ namespace MWGui
             else
                 MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mButtons["return"]);
         }
+
+        const bool inGameMenu = MWBase::Environment::get().getStateManager()->getState()
+            == MWBase::StateManager::State_Running;
+        mChatHistory->setVisible(visible && inGameMenu);
+
+        if (mwmp::Main::isInitialized() && mwmp::Main::get().getGUIController() != nullptr)
+            mwmp::Main::get().getGUIController()->setChatMainMenuOpen(visible && inGameMenu);
+
+        if (visible && inGameMenu)
+            updateChatHistory();
 
         Layout::setVisible (visible);
     }
@@ -200,6 +223,8 @@ namespace MWGui
 
     void MainMenu::onFrame(float dt)
     {
+        updateChatHistory();
+
         if (mVideo)
         {
             if (!mVideo->update())
@@ -215,6 +240,27 @@ namespace MWGui
         return MWBase::Environment::get().getStateManager()->getState() == MWBase::StateManager::State_Running;
     }
 
+    void MainMenu::updateChatHistory()
+    {
+        if (!mChatHistory || !mChatHistory->getVisible() || !mwmp::Main::isInitialized())
+            return;
+
+        mwmp::GUIController* controller = mwmp::Main::get().getGUIController();
+        if (!controller)
+            return;
+
+        const std::string history = controller->getChatHistoryText();
+        if (history == mLastChatHistory)
+            return;
+
+        mLastChatHistory = history;
+        mChatHistory->setCaption(history);
+        const size_t range = mChatHistory->getVScrollRange();
+        if (range > 0)
+            mChatHistory->setVScrollPosition(range - 1);
+        mChatHistory->setTextCursor(mChatHistory->getCaption().size());
+    }
+
     void MainMenu::updateMenu()
     {
         setCoord(0,0, mWidth, mHeight);
@@ -228,6 +274,11 @@ namespace MWGui
 
         mVersionText->setVisible(state == MWBase::StateManager::State_NoGame);
 
+        const int chatWidth = std::max(300, std::min(620, mWidth / 2 - 30));
+        const int chatHeight = std::max(120, std::min(220, mHeight / 3));
+        mChatHistory->setCoord(20, mHeight - chatHeight - 20, chatWidth, chatHeight);
+        mChatHistory->setVisible(state == MWBase::StateManager::State_Running && isVisible());
+
         std::vector<std::string> buttons;
 
         if (state==MWBase::StateManager::State_Running)
@@ -239,17 +290,10 @@ namespace MWGui
             In multiplayer, the main menu should not have options for starting or loading the game,
             so they have been removed
 
-            Saving the game should still be possible, as long as it's clear that the resulting
-            save is singleplayer-only; this will prevent players from completely losing their
-            characters and houses on servers if those servers ever go down
+            Saving and loading are intentionally omitted from the multiplayer pause menu.
         */
 
         //buttons.emplace_back("newgame");
-
-        if (state==MWBase::StateManager::State_Running &&
-            MWBase::Environment::get().getWorld()->getGlobalInt ("chargenstate")==-1 &&
-                MWBase::Environment::get().getWindowManager()->isSavingAllowed())
-            buttons.emplace_back("savegame");
 
         /*
         if (MWBase::Environment::get().getStateManager()->characterBegin()!=
@@ -269,7 +313,7 @@ namespace MWGui
         buttons.emplace_back("exitgame");
 
         // Create new buttons if needed
-        std::vector<std::string> allButtons { "return", "newgame", "savegame", "loadgame", "options", "credits", "exitgame"};
+        std::vector<std::string> allButtons { "return", "newgame", "loadgame", "options", "credits", "exitgame"};
         for (std::string& buttonId : allButtons)
         {
             if (mButtons.find(buttonId) == mButtons.end())

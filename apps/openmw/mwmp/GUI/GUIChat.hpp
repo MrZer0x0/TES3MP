@@ -51,7 +51,8 @@ namespace mwmp
         virtual bool exit();
 
         bool getEditState();
-        bool handleEscape();
+        std::string getHistoryText() const;
+        void setMainMenuOpen(bool state);
 
         void setFont(const std::string &fntName);
 
@@ -90,6 +91,8 @@ namespace mwmp
         int windowState;
         bool editState;
         bool historyReviewState;
+        bool mainMenuOpen;
+        bool visibleBeforeMainMenu;
         float delay;
         float curTime;
     };

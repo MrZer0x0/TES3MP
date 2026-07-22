@@ -739,14 +739,15 @@ namespace MWGui
     
     void HUD::setCrosshairOwned(bool owned)
     {
-        if(owned)
-        {
-            mCrosshair->changeWidgetSkin("HUD_Crosshair_Owned");
-        }
-        else
-        {
-            mCrosshair->changeWidgetSkin("HUD_Crosshair");
-        }
+        const int size = owned ? 32 : 64;
+        mCrosshair->changeWidgetSkin(owned ? "HUD_Crosshair_Owned" : "HUD_Crosshair");
+
+        // Keep both reticles exactly centred. The ownership hand is intentionally
+        // half the size of the normal crosshair and must not inherit its 64x64 box.
+        mCrosshair->setCoord(
+            (mMainWidget->getWidth() - size) / 2,
+            (mMainWidget->getHeight() - size) / 2,
+            size, size);
     }
     
     void HUD::setHmsVisible(bool visible)

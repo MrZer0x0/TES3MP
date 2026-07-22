@@ -367,12 +367,6 @@ namespace MWInput
 
     void ActionManager::toggleMainMenu()
     {
-        // Escape first toggles TES3MP chat history review. While review is active
-        // the chat gains a mouse cursor, scrollbar and selectable/copyable text.
-        if (!MWBase::Environment::get().getWindowManager()->isGuiMode()
-            && mwmp::Main::get().getGUIController()->handleChatEscape())
-            return;
-
         /*
             Start  of tes3mp addition
 

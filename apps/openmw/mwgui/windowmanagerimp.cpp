@@ -1042,6 +1042,11 @@ namespace MWGui
         mQuickLoot->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
     }
 
+    bool WindowManager::activateQuickLoot()
+    {
+        return mQuickLoot && mQuickLoot->activateSelected();
+    }
+
     bool WindowManager::toggleFullHelp()
     {
         return mToolTips->toggleFullHelp();

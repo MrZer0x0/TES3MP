@@ -324,6 +324,7 @@ namespace MWGui
     void updateConsoleObjectPtr(const MWWorld::Ptr& currentPtr, const MWWorld::Ptr& newPtr) override;
 
     void showCrosshair(bool show) override;
+    bool activateQuickLoot() override;
     bool getSubtitlesEnabled() override;
 
     /// Turn visibility of HUD on or off

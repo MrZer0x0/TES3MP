@@ -359,6 +359,9 @@ namespace MWBase
 
             virtual void showSoulgemDialog (MWWorld::Ptr item) = 0;
 
+            /// Let the normal Activate action take the selected QuickLoot item.
+            virtual bool activateQuickLoot() = 0;
+
             virtual void changePointer (const std::string& name) = 0;
 
             virtual void setEnemy (const MWWorld::Ptr& enemy) = 0;
