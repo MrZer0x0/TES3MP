@@ -120,6 +120,8 @@ namespace MWGui
         , mMagickaText(nullptr)
         , mStaminaText(nullptr)
         , mFpsBox(nullptr)
+        , mEnemyName(nullptr)
+        , mEnemySummary(nullptr)
         , mWeapImage(nullptr)
         , mSpellImage(nullptr)
         , mWeapStatus(nullptr)
@@ -146,6 +148,7 @@ namespace MWGui
         , mWorldMouseOver(false)
         , mEnemyActorId(-1)
         , mEnemyHealthTimer(-1)
+        , mEnemyHoverTimer(0.f)
         , mFpsUpdateTimer(0.f)
         , mFpsAccumulatedTime(0.f)
         , mFpsFrameCount(0)
@@ -163,6 +166,8 @@ namespace MWGui
         getWidget(mMagicka, "Magicka");
         getWidget(mStamina, "Stamina");
         getWidget(mEnemyHealth, "EnemyHealth");
+        getWidget(mEnemyName, "EnemyName");
+        getWidget(mEnemySummary, "EnemySummary");
         getWidget(mHealthText, "HealthText");
         getWidget(mMagickaText, "MagickaText");
         getWidget(mStaminaText, "StaminaText");
@@ -514,9 +519,24 @@ namespace MWGui
         if (!player.isEmpty())
             drawState = player.getClass().getCreatureStats(player).getDrawState();
 
+        const bool persistentBoxes = Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
+        if (mWeapBox && mWeapBox->getVisible())
+            mWeapBox->setAlpha(persistentBoxes && drawState != MWMechanics::DrawState_Weapon ? 0.4f : 1.f);
+        if (mSpellBox && mSpellBox->getVisible())
+            mSpellBox->setAlpha(persistentBoxes && drawState != MWMechanics::DrawState_Spell ? 0.4f : 1.f);
+
+        if (mEnemyActorId != -1 && Settings::Manager::getBool("target info panel", "GUI"))
+        {
+            mEnemyHoverTimer += dt;
+            if (mEnemySummary)
+                mEnemySummary->setVisible(mEnemyHoverTimer >= 1.f);
+        }
+
         updateAutoHideBar(mHealthFrame, mHealthBarState, dt, false);
-        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt, drawState == MWMechanics::DrawState_Spell);
-        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt, drawState == MWMechanics::DrawState_Weapon);
+        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt,
+            drawState == MWMechanics::DrawState_Spell);
+        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt,
+            drawState == MWMechanics::DrawState_Weapon);
     }
 
 
@@ -570,14 +590,20 @@ namespace MWGui
             return;
         }
 
+        if (!Settings::Manager::getBool("auto hide resource bars", "GUI"))
+        {
+            state.alpha = 1.f;
+            frame->setVisible(true);
+            applyBarAlpha(frame, 1.f);
+            return;
+        }
+
         state.idleTimer += dt;
 
         const bool isFull = state.modified <= 0 || state.current >= state.modified;
         const float hideDelay = isFull ? 7.f : 20.f;
         const float fadeDuration = 0.35f;
-
-        const bool containsPersistentIcon = frame == mMagickaFrame || frame == mFatigueFrame;
-        const float minimumAlpha = containsPersistentIcon ? 0.4f : 0.f;
+        const float minimumAlpha = 0.f;
 
         float targetAlpha = 1.f;
         if (state.idleTimer > hideDelay)
@@ -837,6 +863,20 @@ namespace MWGui
     void HUD::setEnemy(const MWWorld::Ptr &enemy)
     {
         mEnemyActorId = enemy.getClass().getCreatureStats(enemy).getActorId();
+        mEnemyHoverTimer = 0.f;
+        MWMechanics::CreatureStats& targetStats = enemy.getClass().getCreatureStats(enemy);
+        if (mEnemyName)
+        {
+            mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  Lv. " + MyGUI::utility::toString(targetStats.getLevel()));
+            mEnemyName->setVisible(Settings::Manager::getBool("target info panel", "GUI"));
+        }
+        if (mEnemySummary)
+        {
+            const int hp = static_cast<int>(targetStats.getHealth().getCurrent());
+            const int maxHp = static_cast<int>(targetStats.getHealth().getModified());
+            mEnemySummary->setCaption("HP " + MyGUI::utility::toString(hp) + " / " + MyGUI::utility::toString(maxHp));
+            mEnemySummary->setVisible(false);
+        }
         mEnemyHealthTimer = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarTime")->mValue.getFloat();
         if (!mEnemyHealth->getVisible())
             mWeaponSpellBox->setPosition(mWeaponSpellBox->getPosition() - MyGUI::IntPoint(0,20));
@@ -848,6 +888,9 @@ namespace MWGui
     {
         mEnemyActorId = -1;
         mEnemyHealthTimer = -1;
+        mEnemyHoverTimer = 0.f;
+        if (mEnemyName) mEnemyName->setVisible(false);
+        if (mEnemySummary) mEnemySummary->setVisible(false);
     }
 
     void HUD::clear()

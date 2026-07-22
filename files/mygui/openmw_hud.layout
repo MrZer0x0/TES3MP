@@ -13,7 +13,17 @@
         </Widget>
 
         <!-- Energy bars -->
-        <Widget type="ProgressBar" skin="MW_EnergyBar_Yellow" position="62 157 190 10" align="Bottom Center" name="EnemyHealth">
+        
+        <Widget type="TextBox" skin="SandText" position="70 119 260 18" align="Bottom Center" name="EnemyName">
+            <Property key="TextAlign" value="Center"/>
+            <Property key="Visible" value="false"/>
+        </Widget>
+        <Widget type="TextBox" skin="SandText" position="70 99 260 16" align="Bottom Center" name="EnemySummary">
+            <Property key="TextAlign" value="Center"/>
+            <Property key="Visible" value="false"/>
+            <Property key="Alpha" value="0.8"/>
+        </Widget>
+<Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="125 145 150 4" align="Bottom Center" name="EnemyHealth">
             <Property key="Visible" value="false"/>
         </Widget>
 		

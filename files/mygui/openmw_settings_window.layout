@@ -140,6 +140,18 @@
         </Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
+        <Property key="Caption" value="  GUI  "/>
+        <Widget type="VBox" skin="" position="8 8 340 220">
+          <Widget type="HBox" skin="" position="0 0 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="auto hide resource bars"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Auto-hide health, mana and stamina bars"/></Widget></Widget>
+          <Widget type="HBox" skin="" position="0 32 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Keep weapon and magic icons at 40%"/></Widget></Widget>
+          <Widget type="HBox" skin="" position="0 64 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Compact target name, level and health"/></Widget></Widget>
+          <Widget type="HBox" skin="" position="0 96 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Quick loot overlay (experimental)"/></Widget></Widget>
+          <Widget type="HBox" skin="" position="0 128 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Over-the-shoulder view"/></Widget></Widget>
+          <Widget type="HBox" skin="" position="0 160 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget></Widget>
+        </Widget>
+        <Widget type="TextBox" skin="SandText" position="8 250 340 72"><Property key="Caption" value="Quick loot keys: Q close, F normal mode, W/S select, D drop/remove, E take. The overlay remains experimental until container input is fully connected."/><Property key="TextAlign" value="Left Top"/></Widget>
+      </Widget>
+      <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sAudio}  "/>
         <Widget type="TextBox" skin="NormalText" position="4 4 352 18" align="Left Top">
           <Property key="Caption" value="#{sMaster}"/>
@@ -432,19 +444,6 @@
               <Property key="Caption" value="#{sFar}"/>
               <Property key="TextAlign" value="Right"/>
             </Widget>
-			            <Widget type="HBox" skin="" position="0 276 340 24" align="Left Top">
-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
-                <UserString key="SettingCategory" value="Shaders"/>
-                <UserString key="SettingName" value="hdr lighting"/>
-                <UserString key="SettingType" value="CheckButton"/>
-              </Widget>
-              <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 290 16" align="Left Top">
-                <Property key="Caption" value="HDR image (Need restart client!)"/>
-                <UserString key="ToolTipType" value="Layout"/>
-                <UserString key="ToolTipLayout" value="TextToolTip"/>
-                <UserString key="Caption_Text" value="Enables enhanced shader lighting and ACES-style tone mapping. Disabled by default. Restart the game after changing this option."/>
-              </Widget>
-            </Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
             <Property key="Caption" value="  Water  "/>
@@ -666,6 +665,19 @@
               <UserString key="SettingValueType" value="Float"/>
               <UserString key="SettingLabelWidget" value="MinimumBrightnessText"/>
               <UserString key="SettingLabelCaption" value="Minimum Interior Brightness (%s)"/>
+            </Widget>
+            <Widget type="HBox" skin="" position="0 276 340 24" align="Left Top">
+              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                <UserString key="SettingCategory" value="Shaders"/>
+                <UserString key="SettingName" value="hdr lighting"/>
+                <UserString key="SettingType" value="CheckButton"/>
+              </Widget>
+              <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 290 16" align="Left Top">
+                <Property key="Caption" value="HDR image (enhanced lighting + tone mapping)"/>
+                <UserString key="ToolTipType" value="Layout"/>
+                <UserString key="ToolTipLayout" value="TextToolTip"/>
+                <UserString key="Caption_Text" value="Enables enhanced shader lighting and ACES-style tone mapping. Disabled by default. Restart the game after changing this option."/>
+              </Widget>
             </Widget>
             <Widget type="AutoSizedButton" skin="MW_Button" position="0 310 150 24" align="Top Left" name="LightsResetButton">
               <Property key="Caption" value="Reset To Defaults"/>

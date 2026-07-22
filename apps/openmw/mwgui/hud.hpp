@@ -64,6 +64,7 @@ namespace MWGui
     private:
         MyGUI::ProgressBar *mHealth, *mMagicka, *mStamina, *mEnemyHealth, *mDrowning;
         MyGUI::TextBox *mHealthText, *mMagickaText, *mStaminaText, *mFpsBox;
+        MyGUI::TextBox *mEnemyName, *mEnemySummary;
         MyGUI::Widget *mHealthFrame, *mMagickaFrame, *mFatigueFrame;
         MyGUI::Widget *mWeapBox, *mSpellBox, *mSneakBox;
         ItemWidget *mWeapImage;
@@ -103,6 +104,7 @@ namespace MWGui
 
         int mEnemyActorId;
         float mEnemyHealthTimer;
+        float mEnemyHoverTimer;
 
         float mFpsUpdateTimer;
         float mFpsAccumulatedTime;
