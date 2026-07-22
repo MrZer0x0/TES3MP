@@ -284,6 +284,7 @@ namespace MWRender
         globalDefines["clamp"] = Settings::Manager::getBool("clamp lighting", "Shaders") ? "1" : "0";
         globalDefines["preLightEnv"] = Settings::Manager::getBool("apply lighting to environment maps", "Shaders") ? "1" : "0";
         globalDefines["radialFog"] = Settings::Manager::getBool("radial fog", "Shaders") ? "1" : "0";
+        globalDefines["hdrLighting"] = Settings::Manager::getBool("hdr lighting", "Shaders") ? "1" : "0";
         globalDefines["useGPUShader4"] = "0";
 
         for (auto itr = lightDefines.begin(); itr != lightDefines.end(); itr++)

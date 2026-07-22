@@ -440,19 +440,20 @@ namespace MWGui
     void SettingsWindow::onLightsResetButtonClicked(MyGUI::Widget* _sender)
     {
         std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
-        std::string message = "Resets to default values, would you like to continue? Changes to lighting method will require a restart.";
+        std::string message = "Resets to default values, would you like to continue? Changes to lighting method or HDR image mode will require a restart.";
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons, true);
         int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
         if (selectedButton == 1 || selectedButton == -1)
             return;
 
-        constexpr std::array<const char*, 6> settings = {
+        constexpr std::array<const char*, 7> settings = {
             "light bounds multiplier",
             "maximum light distance",
             "light fade start",
             "minimum interior brightness",
             "max lights",
             "lighting method",
+            "hdr lighting",
         };
         for (const auto& setting : settings)
             Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);

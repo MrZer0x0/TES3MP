@@ -576,9 +576,12 @@ namespace MWGui
         const float hideDelay = isFull ? 7.f : 20.f;
         const float fadeDuration = 0.35f;
 
+        const bool containsPersistentIcon = frame == mMagickaFrame || frame == mFatigueFrame;
+        const float minimumAlpha = containsPersistentIcon ? 0.4f : 0.f;
+
         float targetAlpha = 1.f;
         if (state.idleTimer > hideDelay)
-            targetAlpha = std::max(0.f, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
+            targetAlpha = std::max(minimumAlpha, 1.f - (state.idleTimer - hideDelay) / fadeDuration);
 
         state.alpha = targetAlpha;
         frame->setVisible(state.alpha > 0.f);

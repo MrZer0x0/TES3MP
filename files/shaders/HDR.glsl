@@ -21,7 +21,11 @@ float aces(float x) {
 
 vec3 preLight(vec3 x)
 {
-    return pow(x, vec3(2.2));
+#if @hdrLighting
+    return pow(max(x, vec3(0.0)), vec3(2.2));
+#else
+    return x;
+#endif
 }
 
 // Bloom/Glow эффект - извлекает яркие участки
@@ -38,6 +42,7 @@ vec3 extractBrightness(vec3 color, float threshold)
 
 vec3 toneMap(vec3 x)
 {
+#if @hdrLighting
     // Добавляем bloom для ярких участков
     vec3 bloom = extractBrightness(x, 1.2);
     x = x + bloom;
@@ -52,4 +57,7 @@ vec3 toneMap(vec3 x)
 #endif
 
     return pow(col, vec3(1.0 / 2.2));
+#else
+    return x;
+#endif
 }
