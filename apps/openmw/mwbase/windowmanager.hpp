@@ -56,6 +56,7 @@ namespace MWGui
     class Layout;
 
     class Console;
+    class QuickLoot;
     class SpellWindow;
     class TradeWindow;
     class TravelWindow;

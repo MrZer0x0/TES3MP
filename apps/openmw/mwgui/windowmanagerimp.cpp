@@ -89,6 +89,7 @@
 #include "statswindow.hpp"
 #include "messagebox.hpp"
 #include "tooltips.hpp"
+#include "quickloot.hpp"
 #include "scrollwindow.hpp"
 #include "bookwindow.hpp"
 #include "hud.hpp"
@@ -149,6 +150,7 @@ namespace MWGui
       , mMap(nullptr)
       , mLocalMapRender(nullptr)
       , mToolTips(nullptr)
+      , mQuickLoot(nullptr)
       , mStatsWindow(nullptr)
       , mMessageBoxManager(nullptr)
       , mConsole(nullptr)
@@ -383,6 +385,7 @@ namespace MWGui
         mWindows.push_back(mHud);
 
         mToolTips = new ToolTips();
+        mQuickLoot = new QuickLoot();
 
         mScrollWindow = new ScrollWindow();
         mWindows.push_back(mScrollWindow);
@@ -545,6 +548,7 @@ namespace MWGui
 
             mKeyboardNavigation.reset();
 
+            delete mQuickLoot;
             cleanupGarbage();
 
             mFontLoader.reset();
@@ -909,6 +913,7 @@ namespace MWGui
             mMessageBoxManager->onFrame(frameDuration);
 
         mToolTips->onFrame(frameDuration);
+        mQuickLoot->onFrame(frameDuration);
 
         if (mLocalMapRender)
             mLocalMapRender->cleanupCameras();
@@ -1022,6 +1027,7 @@ namespace MWGui
     void WindowManager::setFocusObject(const MWWorld::Ptr& focus)
     {
         mToolTips->setFocusObject(focus);
+        mQuickLoot->setFocusObject(focus);
 
         if(mHud && (mShowOwned == 2 || mShowOwned == 3))
         {
@@ -1033,6 +1039,7 @@ namespace MWGui
     void WindowManager::setFocusObjectScreenCoords(float min_x, float min_y, float max_x, float max_y)
     {
         mToolTips->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
+        mQuickLoot->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
     }
 
     bool WindowManager::toggleFullHelp()
@@ -1827,6 +1834,7 @@ namespace MWGui
         mMessageBoxManager->clear();
 
         mToolTips->clear();
+        mQuickLoot->clear();
 
         mSelectedSpell.clear();
         mCustomMarkers.clear();

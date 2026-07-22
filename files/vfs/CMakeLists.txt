@@ -7,6 +7,9 @@ set(SDIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(DDIRRELATIVE resources/vfs/textures)
 
 set(TEXTURE_FILES
+    textures/crosshair.dds
+    textures/ownership.dds
+    textures/sneak.dds
     textures/omw_menu_scroll_down.dds
     textures/omw_menu_scroll_up.dds
     textures/omw_menu_scroll_left.dds

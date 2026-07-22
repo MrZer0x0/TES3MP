@@ -444,6 +444,19 @@
               <Property key="Caption" value="#{sFar}"/>
               <Property key="TextAlign" value="Right"/>
             </Widget>
+            <Widget type="HBox" skin="" position="0 242 352 24" align="Left Top">
+              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                <UserString key="SettingCategory" value="Shaders"/>
+                <UserString key="SettingName" value="hdr lighting"/>
+                <UserString key="SettingType" value="CheckButton"/>
+              </Widget>
+              <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 320 16" align="Left Top">
+                <Property key="Caption" value="HDR image (enhanced lighting + tone mapping)"/>
+                <UserString key="ToolTipType" value="Layout"/>
+                <UserString key="ToolTipLayout" value="TextToolTip"/>
+                <UserString key="Caption_Text" value="Enables enhanced shader lighting and ACES-style tone mapping. Disabled by default. Restart required."/>
+              </Widget>
+            </Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318">
             <Property key="Caption" value="  Water  "/>
@@ -666,20 +679,7 @@
               <UserString key="SettingLabelWidget" value="MinimumBrightnessText"/>
               <UserString key="SettingLabelCaption" value="Minimum Interior Brightness (%s)"/>
             </Widget>
-            <Widget type="HBox" skin="" position="0 276 340 24" align="Left Top">
-              <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
-                <UserString key="SettingCategory" value="Shaders"/>
-                <UserString key="SettingName" value="hdr lighting"/>
-                <UserString key="SettingType" value="CheckButton"/>
-              </Widget>
-              <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 290 16" align="Left Top">
-                <Property key="Caption" value="HDR image (enhanced lighting + tone mapping)"/>
-                <UserString key="ToolTipType" value="Layout"/>
-                <UserString key="ToolTipLayout" value="TextToolTip"/>
-                <UserString key="Caption_Text" value="Enables enhanced shader lighting and ACES-style tone mapping. Disabled by default. Restart the game after changing this option."/>
-              </Widget>
-            </Widget>
-            <Widget type="AutoSizedButton" skin="MW_Button" position="0 310 150 24" align="Top Left" name="LightsResetButton">
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 276 150 24" align="Top Left" name="LightsResetButton">
               <Property key="Caption" value="Reset To Defaults"/>
             </Widget>
           </Widget>

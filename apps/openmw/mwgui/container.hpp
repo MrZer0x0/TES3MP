@@ -65,6 +65,7 @@ namespace MWGui
         SortFilterItemModel* mSortModel;
         ItemModel* mModel;
         int mSelectedItem;
+        int mQuickLootIndex;
 
         MyGUI::Button* mDisposeCorpseButton;
         MyGUI::Button* mTakeButton;
@@ -72,6 +73,7 @@ namespace MWGui
 
         void onItemSelected(int index);
         void onBackgroundSelected();
+        void onQuickLootKey(MyGUI::Widget* sender, MyGUI::KeyCode key, MyGUI::Char character);
         void dragItem(MyGUI::Widget* sender, int count);
         void dropItem();
         void onCloseButtonClicked(MyGUI::Widget* _sender);

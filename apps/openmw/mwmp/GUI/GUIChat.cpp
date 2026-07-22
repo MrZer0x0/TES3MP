@@ -102,7 +102,7 @@ namespace mwmp
 
     void GUIChat::onResChange(int width, int height)
     {
-        setCoord(10,10, width-10, height/2);
+        setCoord(10, 40, width-10, height/2); // Original chat layout, shifted 30 px down.
     }
 
     void GUIChat::setFont(const std::string &fntName)
