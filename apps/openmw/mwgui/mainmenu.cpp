@@ -245,6 +245,8 @@ namespace MWGui
         if (!mChatHistory || !mChatHistory->getVisible() || !mwmp::Main::isInitialized())
             return;
 
+        updateChatGeometry();
+
         mwmp::GUIController* controller = mwmp::Main::get().getGUIController();
         if (!controller)
             return;
@@ -261,6 +263,32 @@ namespace MWGui
         mChatHistory->setTextCursor(mChatHistory->getCaption().size());
     }
 
+    void MainMenu::updateChatGeometry()
+    {
+        if (!mChatHistory)
+            return;
+
+        int x = 0;
+        int y = 0;
+        int width = 0;
+        int height = 0;
+
+        if (mwmp::Main::isInitialized())
+        {
+            mwmp::GUIController* controller = mwmp::Main::get().getGUIController();
+            if (controller && controller->getChatHistoryCoord(x, y, width, height))
+            {
+                mChatHistory->setCoord(x, y, width, height);
+                return;
+            }
+        }
+
+        // Fallback for the short period before TES3MP creates the regular chat.
+        const int chatWidth = std::max(300, std::min(620, mWidth / 2 - 30));
+        const int chatHeight = std::max(120, std::min(220, mHeight / 3));
+        mChatHistory->setCoord(20, mHeight - chatHeight - 20, chatWidth, chatHeight);
+    }
+
     void MainMenu::updateMenu()
     {
         setCoord(0,0, mWidth, mHeight);
@@ -274,9 +302,7 @@ namespace MWGui
 
         mVersionText->setVisible(state == MWBase::StateManager::State_NoGame);
 
-        const int chatWidth = std::max(300, std::min(620, mWidth / 2 - 30));
-        const int chatHeight = std::max(120, std::min(220, mHeight / 3));
-        mChatHistory->setCoord(20, mHeight - chatHeight - 20, chatWidth, chatHeight);
+        updateChatGeometry();
         mChatHistory->setVisible(state == MWBase::StateManager::State_Running && isVisible());
 
         std::vector<std::string> buttons;

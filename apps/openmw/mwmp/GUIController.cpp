@@ -4,6 +4,7 @@
 #include <SDL_system.h>
 
 #include <MyGUI_FactoryManager.h>
+#include <MyGUI_EditBox.h>
 #include <MyGUI_Gui.h>
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_InputManager.h>
@@ -226,6 +227,22 @@ bool mwmp::GUIController::getChatEditState()
 std::string mwmp::GUIController::getChatHistoryText() const
 {
     return mChat != nullptr ? mChat->getHistoryText() : std::string();
+}
+
+bool mwmp::GUIController::getChatHistoryCoord(int& x, int& y, int& width, int& height) const
+{
+    if (mChat == nullptr || mChat->mHistory == nullptr)
+        return false;
+
+    const MyGUI::IntCoord coord = mChat->mHistory->getAbsoluteCoord();
+    if (coord.width <= 0 || coord.height <= 0)
+        return false;
+
+    x = coord.left;
+    y = coord.top;
+    width = coord.width;
+    height = coord.height;
+    return true;
 }
 
 void mwmp::GUIController::setChatMainMenuOpen(bool state)

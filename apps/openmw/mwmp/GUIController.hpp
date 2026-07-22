@@ -53,6 +53,7 @@ namespace mwmp
 
         bool getChatEditState();
         std::string getChatHistoryText() const;
+        bool getChatHistoryCoord(int& x, int& y, int& width, int& height) const;
         void setChatMainMenuOpen(bool state);
 
         void update(float dt);

@@ -1,8 +1,10 @@
 #include "quickloot.hpp"
 
 #include <algorithm>
+#include <iomanip>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include <MyGUI_Gui.h>
@@ -45,7 +47,23 @@
 #include "inventoryitemmodel.hpp"
 #include "inventorywindow.hpp"
 #include "itemmodel.hpp"
+#include "itemwidget.hpp"
 #include "pickpocketitemmodel.hpp"
+
+namespace
+{
+    std::string formatWeight(float value)
+    {
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(2) << value;
+        std::string result = stream.str();
+        while (!result.empty() && result.back() == '0')
+            result.pop_back();
+        if (!result.empty() && result.back() == '.')
+            result.pop_back();
+        return result.empty() ? std::string("0") : result;
+    }
+}
 
 namespace MWGui
 {
@@ -53,13 +71,13 @@ namespace MWGui
         : Layout("openmw_quickloot.layout")
         , mQuickLoot(nullptr)
         , mModel(nullptr)
-        , mLabel(nullptr)
-        , mRows{{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}}
+        , mRows{}
         , mSortModel(nullptr)
         , mOpened(false)
         , mShouldOpen(false)
         , mHidden(true)
         , mPlaying(false)
+        , mDismissed(false)
         , mFocusToolTipX(0.f)
         , mFocusToolTipY(0.f)
         , mDelay(0.f)
@@ -72,9 +90,18 @@ namespace MWGui
         , mVisibleStart(0)
     {
         getWidget(mQuickLoot, "QuickLoot");
-        getWidget(mLabel, "Label");
         for (int i = 0; i < sVisibleRows; ++i)
-            getWidget(mRows[static_cast<std::size_t>(i)], "Row" + std::to_string(i));
+        {
+            RowWidgets& row = mRows[static_cast<std::size_t>(i)];
+            const std::string prefix = "Row" + std::to_string(i);
+            getWidget(row.mRoot, prefix);
+            getWidget(row.mMarker, prefix + "Marker");
+            getWidget(row.mIcon, prefix + "Icon");
+            getWidget(row.mCount, prefix + "Count");
+            getWidget(row.mWeight, prefix + "Weight");
+            getWidget(row.mValue, prefix + "Value");
+            getWidget(row.mName, prefix + "Name");
+        }
 
         setVisibleAll(false);
 
@@ -116,46 +143,82 @@ namespace MWGui
     void QuickLoot::refreshRows()
     {
         const int total = getEntryCount();
+        const int itemCount = std::max(0, total - 1);
+        const int visibleItemRows = sVisibleRows - 1;
         mLastIndex = std::max(0, std::min(mLastIndex, total - 1));
 
-        const int maxStart = std::max(0, total - sVisibleRows);
-        if (mLastIndex < mVisibleStart)
-            mVisibleStart = mLastIndex;
-        else if (mLastIndex >= mVisibleStart + sVisibleRows)
-            mVisibleStart = mLastIndex - sVisibleRows + 1;
-        mVisibleStart = std::max(0, std::min(mVisibleStart, maxStart));
+        if (mLastIndex == 0)
+            mVisibleStart = 0;
+        else
+        {
+            const int selectedItem = mLastIndex - 1;
+            if (selectedItem < mVisibleStart)
+                mVisibleStart = selectedItem;
+            else if (selectedItem >= mVisibleStart + visibleItemRows)
+                mVisibleStart = selectedItem - visibleItemRows + 1;
+        }
+        mVisibleStart = std::max(0, std::min(mVisibleStart, std::max(0, itemCount - visibleItemRows)));
 
         for (int rowIndex = 0; rowIndex < sVisibleRows; ++rowIndex)
         {
-            MyGUI::TextBox* row = mRows[static_cast<std::size_t>(rowIndex)];
-            const int entryIndex = mVisibleStart + rowIndex;
-            if (entryIndex >= total)
+            RowWidgets& row = mRows[static_cast<std::size_t>(rowIndex)];
+            const int entryIndex = rowIndex == 0 ? 0 : mVisibleStart + rowIndex;
+            if (entryIndex > itemCount)
             {
-                row->setCaption("");
-                row->setVisible(false);
+                row.mIcon->setItem(MWWorld::Ptr());
+                row.mRoot->setVisible(false);
                 continue;
             }
 
-            std::string caption;
+            const bool selected = entryIndex == mLastIndex;
+            const std::string textSkin = selected ? "SandBrightText" : "SandText";
+            const float alpha = selected ? 1.f : 0.72f;
+
+            row.mMarker->changeWidgetSkin(textSkin);
+            row.mCount->changeWidgetSkin(textSkin);
+            row.mWeight->changeWidgetSkin(textSkin);
+            row.mValue->changeWidgetSkin(textSkin);
+            row.mName->changeWidgetSkin(textSkin);
+            row.mMarker->setAlpha(alpha);
+            row.mCount->setAlpha(alpha);
+            row.mWeight->setAlpha(alpha);
+            row.mValue->setAlpha(alpha);
+            row.mName->setAlpha(alpha);
+            row.mIcon->setAlpha(alpha);
+
             if (entryIndex == 0)
             {
-                caption = "^  Open regular inventory";
+                row.mMarker->setCaption("^");
+                row.mIcon->setItem(MWWorld::Ptr());
+                row.mIcon->setVisible(false);
+                row.mCount->setVisible(false);
+                row.mWeight->setVisible(false);
+                row.mValue->setVisible(false);
+                row.mName->setCoord(20, 0, std::max(80, row.mRoot->getWidth() - 20), 32);
+                row.mName->setCaption(mContainerName.empty() ? std::string("Container") : mContainerName);
             }
             else if (mSortModel)
             {
+                row.mMarker->setCaption(selected ? ">" : "");
                 const ItemStack item = mSortModel->getItem(entryIndex - 1);
-                caption = item.mBase.getClass().getName(item.mBase);
-                if (caption.empty())
-                    caption = "Item";
-                if (item.mCount > 1)
-                    caption += "  x" + std::to_string(item.mCount);
+                std::string name = item.mBase.getClass().getName(item.mBase);
+                if (name.empty())
+                    name = "Item";
+
+                row.mIcon->setVisible(true);
+                row.mIcon->setItem(item.mBase);
+                row.mIcon->setCount(1);
+                row.mCount->setVisible(true);
+                row.mWeight->setVisible(true);
+                row.mValue->setVisible(true);
+                row.mName->setCoord(244, 0, std::max(80, row.mRoot->getWidth() - 244), 32);
+                row.mCount->setCaption("x" + std::to_string(item.mCount));
+                row.mWeight->setCaption(formatWeight(item.mBase.getClass().getWeight(item.mBase)));
+                row.mValue->setCaption(std::to_string(item.mBase.getClass().getValue(item.mBase)) + " g");
+                row.mName->setCaption(name);
             }
 
-            const bool selected = entryIndex == mLastIndex;
-            row->changeWidgetSkin(selected ? "SandBrightText" : "SandText");
-            row->setAlpha(selected ? 1.f : 0.72f);
-            row->setCaption((selected ? "> " : "  ") + caption);
-            row->setVisible(true);
+            row.mRoot->setVisible(true);
         }
     }
 
@@ -313,6 +376,19 @@ namespace MWGui
             Settings::Manager::getString("key quickloot takeall", "MorroUI").c_str());
         const MyGUI::KeyCode takeAll = MWInput::sdlKeyToMyGUI(takeAllKey);
 
+        if (key == MyGUI::KeyCode::Q)
+        {
+            mDismissed = true;
+            clearModels();
+            setVisibleAll(false);
+            return;
+        }
+        if (key == MyGUI::KeyCode::F)
+        {
+            openStandardContainer();
+            return;
+        }
+
         if (key == MyGUI::KeyCode::W || key == MyGUI::KeyCode::ArrowUp)
         {
             handleMouseWheel(1);
@@ -384,7 +460,9 @@ namespace MWGui
     void QuickLoot::setEnabled(bool enabled)
     {
         mEnabled = enabled;
-        if (!mEnabled)
+        if (mEnabled)
+            mDismissed = false;
+        else
         {
             clearModels();
             setVisibleAll(false);
@@ -466,7 +544,7 @@ namespace MWGui
 
         mLastIndex = 0;
         mVisibleStart = 0;
-        mLabel->setCaption(mFocusObject.getClass().getName(mFocusObject));
+        mContainerName = mFocusObject.getClass().getName(mFocusObject);
         refreshRows();
         setVisibleAll(true);
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mQuickLoot);
@@ -522,7 +600,8 @@ namespace MWGui
     {
         const MyGUI::IntSize& viewSize = MyGUI::RenderManager::getInstance().getViewSize();
         const int rows = std::max(1, std::min(sVisibleRows, getEntryCount()));
-        const MyGUI::IntSize tooltipSize(360, 44 + rows * 22 + 8);
+        const int width = std::max(360, std::min(560, viewSize.width - 16));
+        const MyGUI::IntSize tooltipSize(width, 16 + rows * 34);
         setCoord(viewSize.width * 7 / 10 - tooltipSize.width / 2,
             viewSize.height * 6 / 10 - tooltipSize.height / 2,
             tooltipSize.width, tooltipSize.height);
@@ -532,6 +611,8 @@ namespace MWGui
     {
         mFocusObject = MWWorld::Ptr();
         mLastFocusObject = MWWorld::Ptr();
+        mContainerName.clear();
+        mDismissed = false;
         clearModels();
         setVisibleAll(false);
     }
@@ -540,6 +621,9 @@ namespace MWGui
     {
         // The in-game GUI switch is now the single source of truth for the overlay.
         const bool quickLootEnabled = Settings::Manager::getBool("quick loot", "GUI");
+
+        if (focus != mFocusObject)
+            mDismissed = false;
 
         if (!mEnabled || !quickLootEnabled)
         {
@@ -576,6 +660,13 @@ namespace MWGui
 
         mLastFocusObject = mFocusObject;
         mFocusObject = focus;
+
+        if (mDismissed)
+        {
+            clearModels();
+            setVisibleAll(false);
+            return;
+        }
 
         const bool combat = MWBase::Environment::get().getWorld()->getPlayer().isInCombat();
         const bool loot = mFocusObject.getClass().isActor()

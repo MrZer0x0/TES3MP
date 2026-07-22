@@ -62,6 +62,7 @@ namespace MWGui
             void showBackground(bool show);
 
             void updateMenu();
+            void updateChatGeometry();
             void updateChatHistory();
 
             SaveGameDialog* mSaveGameDialog;

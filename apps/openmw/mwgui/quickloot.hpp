@@ -2,6 +2,7 @@
 #define MWGUI_QUICKLOOT_H
 
 #include <array>
+#include <string>
 
 #include "layout.hpp"
 #include "../mwworld/ptr.hpp"
@@ -18,6 +19,8 @@ namespace MyGUI
 
 namespace MWGui
 {
+    class ItemWidget;
+
     class QuickLoot : public Layout
     {
     public:
@@ -52,7 +55,19 @@ namespace MWGui
         void ensureTrapTriggered();
 
     private:
-        static constexpr int sVisibleRows = 6;
+        // One container row plus up to six visible item rows.
+        static constexpr int sVisibleRows = 7;
+
+        struct RowWidgets
+        {
+            MyGUI::Widget* mRoot = nullptr;
+            MyGUI::TextBox* mMarker = nullptr;
+            ItemWidget* mIcon = nullptr;
+            MyGUI::TextBox* mCount = nullptr;
+            MyGUI::TextBox* mWeight = nullptr;
+            MyGUI::TextBox* mValue = nullptr;
+            MyGUI::TextBox* mName = nullptr;
+        };
 
         void playOpenAnimation();
         void playCloseAnimation() const;
@@ -68,8 +83,7 @@ namespace MWGui
 
         MyGUI::Widget* mQuickLoot;
         ItemModel* mModel;
-        MyGUI::TextBox* mLabel;
-        std::array<MyGUI::TextBox*, sVisibleRows> mRows;
+        std::array<RowWidgets, sVisibleRows> mRows;
         SortFilterItemModel* mSortModel;
 
         /// has the current container been "opened"
@@ -78,9 +92,11 @@ namespace MWGui
 
         bool mHidden;
         bool mPlaying;
+        bool mDismissed;
 
         MWWorld::Ptr mFocusObject;
         MWWorld::Ptr mLastFocusObject;
+        std::string mContainerName;
 
         float mFocusToolTipX;
         float mFocusToolTipY;
@@ -97,7 +113,7 @@ namespace MWGui
         bool mEnabled;
         float mFrameDuration;
 
-        /// Global row: 0 is "open regular inventory", item rows begin at 1.
+        /// Global row: 0 is the container name/open action, item rows begin at 1.
         int mLastIndex;
         int mVisibleStart;
     };

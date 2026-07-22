@@ -1,22 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <MyGUI type="Layout">
-    <Widget type="Widget" layer="Popup" position="0 0 360 184" name="_Main">
+    <Widget type="Widget" layer="Popup" position="0 0 560 254" name="_Main">
         <Property key="NeedKey" value="false"/>
-        <Widget type="Widget" skin="HUD_Box" position="0 0 360 184" align="Stretch">
-            <Widget type="TextBox" skin="SandBrightText" position="8 6 344 24" align="Top HStretch" name="Label">
-                <Property key="Caption" value="-"/>
-                <Property key="TextAlign" value="Center"/>
-            </Widget>
-            <Widget type="Widget" skin="" position="8 34 344 140" align="Stretch" name="QuickLoot">
+        <Widget type="Widget" skin="HUD_Box" position="0 0 560 254" align="Stretch">
+            <Widget type="Widget" skin="" position="8 8 544 238" align="Stretch" name="QuickLoot">
                 <Property key="NeedKey" value="true"/>
                 <Property key="NeedMouse" value="false"/>
-                <Widget type="TextBox" skin="SandBrightText" position="0 0 344 20" align="Top HStretch" name="Row0"><Property key="TextAlign" value="Left VCenter"/></Widget>
-                <Widget type="TextBox" skin="SandText" position="0 22 344 20" align="Top HStretch" name="Row1"><Property key="TextAlign" value="Left VCenter"/></Widget>
-                <Widget type="TextBox" skin="SandText" position="0 44 344 20" align="Top HStretch" name="Row2"><Property key="TextAlign" value="Left VCenter"/></Widget>
-                <Widget type="TextBox" skin="SandText" position="0 66 344 20" align="Top HStretch" name="Row3"><Property key="TextAlign" value="Left VCenter"/></Widget>
-                <Widget type="TextBox" skin="SandText" position="0 88 344 20" align="Top HStretch" name="Row4"><Property key="TextAlign" value="Left VCenter"/></Widget>
-                <Widget type="TextBox" skin="SandText" position="0 110 344 20" align="Top HStretch" name="Row5"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                <Widget type="Widget" skin="" position="0 0 544 32" align="Top HStretch" name="Row0">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row0Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row0Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row0Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row0Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row0Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row0Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 34 544 32" align="Top HStretch" name="Row1">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row1Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row1Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row1Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row1Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row1Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row1Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 68 544 32" align="Top HStretch" name="Row2">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row2Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row2Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row2Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row2Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row2Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row2Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 102 544 32" align="Top HStretch" name="Row3">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row3Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row3Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row3Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row3Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row3Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row3Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 136 544 32" align="Top HStretch" name="Row4">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row4Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row4Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row4Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row4Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row4Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row4Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 170 544 32" align="Top HStretch" name="Row5">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row5Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row5Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row5Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row5Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row5Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row5Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
+                <Widget type="Widget" skin="" position="0 204 544 32" align="Top HStretch" name="Row6">
+                    <Property key="NeedMouse" value="false"/>
+                    <Widget type="TextBox" skin="SandText" position="0 0 20 32" align="Left VCenter" name="Row6Marker"><Property key="TextAlign" value="Center"/></Widget>
+                    <Widget type="ItemWidget" skin="MW_ItemIconNoShadow" position="20 2 28 28" align="Left VCenter" name="Row6Icon"><Property key="NeedMouse" value="false"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="52 0 48 32" align="Left VCenter" name="Row6Count"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="104 0 62 32" align="Left VCenter" name="Row6Weight"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="170 0 70 32" align="Left VCenter" name="Row6Value"><Property key="TextAlign" value="Right VCenter"/></Widget>
+                    <Widget type="TextBox" skin="SandText" position="244 0 300 32" align="HStretch VCenter" name="Row6Name"><Property key="TextAlign" value="Left VCenter"/></Widget>
+                </Widget>
             </Widget>
         </Widget>
     </Widget>
