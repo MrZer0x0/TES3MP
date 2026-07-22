@@ -30,9 +30,15 @@ concurrency:
   group: release-builds-${{ github.ref }}
   cancel-in-progress: false
 
+# Глобальные настройки кэширования компилятора и переменных среды
 env:
   BUILD_TYPE: Release
-  CACHE_EPOCH: v3
+  CACHE_EPOCH: v4  # Обновлен эпохальный ключ кэша для сброса устаревших структур
+  CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
+  CCACHE_MAXSIZE: 2G
+  CCACHE_COMPRESS: "true"
+  CCACHE_COMPRESSLEVEL: "6"
+  CCACHE_BASEDIR: ${{ github.workspace }} # Делает кэш перемещаемым (относительные пути), увеличивая hit-rate
 
 jobs:
   windows-x64:
@@ -49,16 +55,29 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Restore Windows downloads and compiler cache
-        uses: actions/cache@v5
+      # 1. Кэширование стабильных Windows зависимостей (редко меняются)
+      - name: Restore Windows dependencies
+        uses: actions/cache@v4
         with:
-          path: |
-            deps
-            ~/.cache/ccache
-            ~/AppData/Local/ccache
-          key: ${{ env.CACHE_EPOCH }}-windows-x64-deps-ccache-${{ hashFiles('CI/**', 'CMakeLists.txt', 'cmake/**') }}
+          path: deps
+          key: ${{ env.CACHE_EPOCH }}-windows-x64-deps-${{ hashFiles('CI/**', 'CMakeLists.txt', 'cmake/**') }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-windows-x64-deps-ccache-
+            ${{ env.CACHE_EPOCH }}-windows-x64-deps-
+
+      # 2. Кэширование ccache для Windows (обновляется на каждом коммите благодаря github.sha в ключе)
+      - name: Restore Windows compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: ${{ env.CACHE_EPOCH }}-windows-x64-ccache-${{ hashFiles('CI/**', 'CMakeLists.txt', 'cmake/**') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-windows-x64-ccache-${{ hashFiles('CI/**', 'CMakeLists.txt', 'cmake/**') }}-
+            ${{ env.CACHE_EPOCH }}-windows-x64-ccache-
+
+      - name: Initialize ccache statistics
+        run: |
+          ccache --zero-stats || true
+          ccache --show-stats || true
 
       - name: Configure dependencies and project
         run: |
@@ -71,11 +90,16 @@ jobs:
           cmake --build MSVC2022_64 --config Release --parallel 2
           cmake --install MSVC2022_64 --config Release
 
+      - name: Display ccache statistics
+        if: always()
+        run: |
+          ccache --show-stats || true
+
       - name: Create ZIP
         shell: pwsh
         run: |
           $name = "ArenaMP-Windows-x64-${{ github.ref_name }}"
-          Compress-Archive -Path "install\*" -DestinationPath "$name.zip" -Force
+          Compress-Archive -Path "install\*" -DestinationPath "${name}.zip" -Force
 
       - name: Upload Windows archive
         uses: actions/upload-artifact@v4
@@ -89,9 +113,6 @@ jobs:
     if: github.event_name == 'push' || inputs.build_linux
     runs-on: ubuntu-22.04
     timeout-minutes: 120
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
-      CCACHE_MAXSIZE: 2G
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,8 +120,8 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Restore Linux downloads
-        uses: actions/cache@v5
+      - name: Restore Linux APT cache
+        uses: actions/cache@v4
         with:
           path: |
             apt-cache
@@ -109,28 +130,44 @@ jobs:
           restore-keys: |
             ${{ env.CACHE_EPOCH }}-linux-jammy-apt-
 
-      - name: Restore Linux compiler and fetched-source cache
+      # 1. Кэширование стабильных собранных источников и CrabNet (редко меняются)
+      - name: Restore Linux fetched sources and CrabNet
         if: github.event_name != 'push' && inputs.clear_build_cache != true
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
-            .cache/ccache
             build/extern/fetched
             ${{ runner.temp }}/CrabNet
-          key: ${{ env.CACHE_EPOCH }}-linux-x64-build-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-${{ github.sha }}
+          key: ${{ env.CACHE_EPOCH }}-linux-x64-sources-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-linux-x64-build-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-
-            ${{ env.CACHE_EPOCH }}-linux-x64-build-
+            ${{ env.CACHE_EPOCH }}-linux-x64-sources-
 
+      # 2. Кэширование ccache для Linux (обновляется на каждом коммите благодаря github.sha)
+      - name: Restore Linux compiler cache
+        if: github.event_name != 'push' && inputs.clear_build_cache != true
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: ${{ env.CACHE_EPOCH }}-linux-x64-ccache-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-
+            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-
+
+      # 3. Кэширование ccache для релизных тегов
       - name: Restore Linux ccache for Release tags
         if: github.event_name == 'push' || inputs.clear_build_cache == true
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: .cache/ccache
           key: ${{ env.CACHE_EPOCH }}-linux-x64-ccache-release-${{ github.sha }}
           restore-keys: |
             ${{ env.CACHE_EPOCH }}-linux-x64-ccache-release-
-            ${{ env.CACHE_EPOCH }}-linux-x64-build-
+            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-
+
+      - name: Initialize ccache statistics
+        run: |
+          ccache --zero-stats || true
+          ccache --show-stats || true
 
       - name: Install dependencies
         run: |
@@ -191,6 +228,10 @@ jobs:
         run: |
           cmake --build build --parallel 2
           cmake --install build
+
+      - name: Display ccache statistics
+        if: always()
+        run: |
           ccache --show-stats || true
 
       - name: Create portable Steam Deck archive
@@ -232,15 +273,13 @@ jobs:
 
   macos-arm64:
     if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
-    runs-on: macos-26
+    runs-on: macos-14  # Исправлено на валидный и стандартный ARM64 Apple Silicon runner (вместо несуществующего macos-26)
     timeout-minutes: 180
     continue-on-error: true
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_CACHE: ${{ github.workspace }}/.cache/homebrew
       MACOSX_DEPLOYMENT_TARGET: 12.0
-      CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
-      CCACHE_MAXSIZE: 2G
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -255,19 +294,19 @@ jobs:
           test "$(uname -m)" = "arm64"
 
       - name: Restore Homebrew downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: .cache/homebrew
           key: ${{ env.CACHE_EPOCH }}-macos-arm64-brew-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}
           restore-keys: |
             ${{ env.CACHE_EPOCH }}-macos-arm64-brew-
 
-      - name: Restore macOS dependencies and compiler cache
+      # 1. Кэширование стабильно собранных зависимостей macOS (MyGUI, TinyXML, CrabNet)
+      - name: Restore macOS dependency builds and CrabNet
         if: github.event_name != 'push' && inputs.clear_build_cache != true
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
-            .cache/ccache
             ${{ runner.temp }}/MyGUI/install
             ${{ runner.temp }}/MyGUI/build
             ${{ runner.temp }}/TinyXML/install
@@ -275,20 +314,36 @@ jobs:
             ${{ runner.temp }}/TinyXML/source
             ${{ runner.temp }}/CrabNet
             build/extern/fetched
-          key: ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-sources-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-
-            ${{ env.CACHE_EPOCH }}-macos-arm64-build-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-sources-
 
+      # 2. Кэширование ccache для macOS (обновляется на каждом коммите благодаря github.sha)
+      - name: Restore macOS compiler cache
+        if: github.event_name != 'push' && inputs.clear_build_cache != true
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-
+
+      # 3. Кэширование ccache для релизных тегов macOS
       - name: Restore macOS ccache for Release tags
         if: github.event_name == 'push' || inputs.clear_build_cache == true
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: .cache/ccache
           key: ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-release-${{ github.sha }}
           restore-keys: |
             ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-release-
-            ${{ env.CACHE_EPOCH }}-macos-arm64-build-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-
+
+      - name: Initialize ccache statistics
+        run: |
+          ccache --zero-stats || true
+          ccache --show-stats || true
 
       - name: Make CI scripts executable
         run: chmod +x CI/macos-arm64/*.sh
@@ -338,6 +393,11 @@ jobs:
 
       - name: Ad-hoc sign application bundle
         run: find build stage -type d -name '*.app' -prune -exec codesign --force --deep --sign - {} \; || true
+
+      - name: Display ccache statistics
+        if: always()
+        run: |
+          ccache --show-stats || true
 
       - name: Collect macOS package and diagnostics
         if: always()
