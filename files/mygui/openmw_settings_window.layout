@@ -172,7 +172,7 @@
         </Widget>
         <Widget type="TextBox" skin="SandText" position="8 256 80 18" align="Left Top"><Property key="Caption" value="100%"/></Widget>
         <Widget type="TextBox" skin="SandText" position="264 256 80 18" align="Right Top"><Property key="Caption" value="250%"/></Widget>
-        <Widget type="TextBox" skin="SandText" position="8 284 336 52" align="HStretch Top"><Property key="Caption" value="All options apply immediately. QuickLoot: Q closes; F or ^ opens inventory; W/S or wheel selects; Activate/Use takes the whole stack."/><Property key="TextAlign" value="Left Top"/></Widget>
+        <Widget type="TextBox" skin="SandText" position="8 284 336 52" align="HStretch Top"><Property key="Caption" value="All options apply immediately. QuickLoot: the first item is selected; wheel or arrow keys move. Select ^ or press F to open the container. Activate/Use takes the whole stack. Q closes. Empty containers stay hidden."/><Property key="TextAlign" value="Left Top"/></Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sAudio}  "/>

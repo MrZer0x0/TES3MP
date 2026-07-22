@@ -40,7 +40,7 @@ namespace MWGui
         /// Select exactly one previous/next QuickLoot row and consume the wheel event.
         bool handleMouseWheel(int rel);
 
-        /// Activate the selected row. Row 0 opens the regular container window.
+        /// Activate the selected row. The container header opens the regular inventory.
         bool activateSelected();
 
         void clear();
@@ -55,7 +55,7 @@ namespace MWGui
         void ensureTrapTriggered();
 
     private:
-        // One container row plus up to six visible item rows.
+        // One container header plus up to six visible item rows.
         static constexpr int sVisibleRows = 7;
 
         struct RowWidgets
@@ -113,7 +113,7 @@ namespace MWGui
         bool mEnabled;
         float mFrameDuration;
 
-        /// Global row: 0 is the container name/open action, item rows begin at 1.
+        /// Global row: 0 is the container header, item rows begin at 1.
         int mLastIndex;
         int mVisibleStart;
     };

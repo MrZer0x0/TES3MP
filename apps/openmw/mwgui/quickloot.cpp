@@ -1,10 +1,8 @@
 #include "quickloot.hpp"
 
 #include <algorithm>
-#include <iomanip>
 #include <limits>
 #include <memory>
-#include <sstream>
 #include <string>
 
 #include <MyGUI_Gui.h>
@@ -49,21 +47,6 @@
 #include "itemmodel.hpp"
 #include "itemwidget.hpp"
 #include "pickpocketitemmodel.hpp"
-
-namespace
-{
-    std::string formatWeight(float value)
-    {
-        std::ostringstream stream;
-        stream << std::fixed << std::setprecision(2) << value;
-        std::string result = stream.str();
-        while (!result.empty() && result.back() == '0')
-            result.pop_back();
-        if (!result.empty() && result.back() == '.')
-            result.pop_back();
-        return result.empty() ? std::string("0") : result;
-    }
-}
 
 namespace MWGui
 {
@@ -145,8 +128,18 @@ namespace MWGui
         const int total = getEntryCount();
         const int itemCount = std::max(0, total - 1);
         const int visibleItemRows = sVisibleRows - 1;
-        mLastIndex = std::max(0, std::min(mLastIndex, total - 1));
 
+        if (itemCount <= 0)
+        {
+            for (RowWidgets& row : mRows)
+            {
+                row.mIcon->setItem(MWWorld::Ptr());
+                row.mRoot->setVisible(false);
+            }
+            return;
+        }
+
+        mLastIndex = std::max(0, std::min(mLastIndex, total - 1));
         if (mLastIndex == 0)
             mVisibleStart = 0;
         else
@@ -176,13 +169,9 @@ namespace MWGui
 
             row.mMarker->changeWidgetSkin(textSkin);
             row.mCount->changeWidgetSkin(textSkin);
-            row.mWeight->changeWidgetSkin(textSkin);
-            row.mValue->changeWidgetSkin(textSkin);
             row.mName->changeWidgetSkin(textSkin);
             row.mMarker->setAlpha(alpha);
             row.mCount->setAlpha(alpha);
-            row.mWeight->setAlpha(alpha);
-            row.mValue->setAlpha(alpha);
             row.mName->setAlpha(alpha);
             row.mIcon->setAlpha(alpha);
 
@@ -194,28 +183,27 @@ namespace MWGui
                 row.mCount->setVisible(false);
                 row.mWeight->setVisible(false);
                 row.mValue->setVisible(false);
-                row.mName->setCoord(20, 0, std::max(80, row.mRoot->getWidth() - 20), 32);
+                row.mName->setVisible(true);
                 row.mName->setCaption(mContainerName.empty() ? std::string("Container") : mContainerName);
             }
-            else if (mSortModel)
+            else
             {
-                row.mMarker->setCaption(selected ? ">" : "");
                 const ItemStack item = mSortModel->getItem(entryIndex - 1);
                 std::string name = item.mBase.getClass().getName(item.mBase);
                 if (name.empty())
                     name = "Item";
 
+                // Compact order: selection marker, icon, item name, stack count.
+                row.mMarker->setCaption(selected ? ">" : "");
                 row.mIcon->setVisible(true);
                 row.mIcon->setItem(item.mBase);
                 row.mIcon->setCount(1);
-                row.mCount->setVisible(true);
-                row.mWeight->setVisible(true);
-                row.mValue->setVisible(true);
-                row.mName->setCoord(244, 0, std::max(80, row.mRoot->getWidth() - 244), 32);
-                row.mCount->setCaption("x" + std::to_string(item.mCount));
-                row.mWeight->setCaption(formatWeight(item.mBase.getClass().getWeight(item.mBase)));
-                row.mValue->setCaption(std::to_string(item.mBase.getClass().getValue(item.mBase)) + " g");
+                row.mName->setVisible(true);
                 row.mName->setCaption(name);
+                row.mCount->setVisible(true);
+                row.mCount->setCaption("x" + std::to_string(item.mCount));
+                row.mWeight->setVisible(false);
+                row.mValue->setVisible(false);
             }
 
             row.mRoot->setVisible(true);
@@ -324,8 +312,16 @@ namespace MWGui
 
         mModel->update();
         mSortModel->update();
-        mLastIndex = std::min(mLastIndex, getEntryCount() - 1);
+        const int remainingItems = getEntryCount() - 1;
+        if (remainingItems <= 0)
+        {
+            setVisibleAll(false);
+            return;
+        }
+
+        mLastIndex = std::min(mLastIndex, remainingItems);
         refreshRows();
+        resize();
     }
 
     void QuickLoot::ensureTrapTriggered()
@@ -389,12 +385,12 @@ namespace MWGui
             return;
         }
 
-        if (key == MyGUI::KeyCode::W || key == MyGUI::KeyCode::ArrowUp)
+        if (key == MyGUI::KeyCode::ArrowUp)
         {
             handleMouseWheel(1);
             return;
         }
-        if (key == MyGUI::KeyCode::S || key == MyGUI::KeyCode::ArrowDown)
+        if (key == MyGUI::KeyCode::ArrowDown)
         {
             handleMouseWheel(-1);
             return;
@@ -452,9 +448,16 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->getInventoryWindow()->updateItemView();
         mModel->update();
         mSortModel->update();
-        mLastIndex = 0;
+        if (getEntryCount() <= 1)
+        {
+            setVisibleAll(false);
+            return;
+        }
+
+        mLastIndex = 1;
         mVisibleStart = 0;
         refreshRows();
+        resize();
     }
 
     void QuickLoot::setEnabled(bool enabled)
@@ -542,7 +545,15 @@ namespace MWGui
         mSortModel->setCategory(SortFilterItemModel::Category_Simple);
         mSortModel->update();
 
-        mLastIndex = 0;
+        // Do not show QuickLoot for empty containers or corpses.
+        if (getEntryCount() <= 1)
+        {
+            setVisibleAll(false);
+            return;
+        }
+
+        // Entry 0 is the container header; entry 1 is the first item.
+        mLastIndex = 1;
         mVisibleStart = 0;
         mContainerName = mFocusObject.getClass().getName(mFocusObject);
         refreshRows();
@@ -599,9 +610,13 @@ namespace MWGui
     void QuickLoot::resize()
     {
         const MyGUI::IntSize& viewSize = MyGUI::RenderManager::getInstance().getViewSize();
-        const int rows = std::max(1, std::min(sVisibleRows, getEntryCount()));
-        const int width = std::max(360, std::min(560, viewSize.width - 16));
-        const MyGUI::IntSize tooltipSize(width, 16 + rows * 34);
+        const int visibleItems = std::min(sVisibleRows - 1, std::max(0, getEntryCount() - 1));
+        if (visibleItems <= 0)
+            return;
+
+        // Compact header plus up to six 30-pixel item rows.
+        const int width = std::max(1, std::min(400, viewSize.width - 16));
+        const MyGUI::IntSize tooltipSize(width, 12 + 28 + visibleItems * 30);
         setCoord(viewSize.width * 7 / 10 - tooltipSize.width / 2,
             viewSize.height * 6 / 10 - tooltipSize.height / 2,
             tooltipSize.width, tooltipSize.height);
@@ -684,7 +699,14 @@ namespace MWGui
         if (mLastFocusObject == mFocusObject && !hide && mSortModel)
         {
             mSortModel->update();
-            mLastIndex = std::min(mLastIndex, getEntryCount() - 1);
+            const int total = getEntryCount();
+            if (total <= 1)
+            {
+                setVisibleAll(false);
+                return;
+            }
+
+            mLastIndex = std::max(0, std::min(mLastIndex, total - 1));
             refreshRows();
             setVisibleAll(true);
             if (MyGUI::InputManager::getInstance().getKeyFocusWidget() == nullptr)
