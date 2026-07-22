@@ -141,15 +141,26 @@
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  GUI  "/>
-        <Widget type="VBox" skin="" position="8 8 340 220">
-          <Widget type="HBox" skin="" position="0 0 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="auto hide resource bars"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Auto-hide health, mana and stamina bars"/></Widget></Widget>
-          <Widget type="HBox" skin="" position="0 32 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Keep weapon and magic icons at 40%"/></Widget></Widget>
-          <Widget type="HBox" skin="" position="0 64 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Compact target name, level and health"/></Widget></Widget>
-          <Widget type="HBox" skin="" position="0 96 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Quick loot overlay (experimental)"/></Widget></Widget>
-          <Widget type="HBox" skin="" position="0 128 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Over-the-shoulder view"/></Widget></Widget>
-          <Widget type="HBox" skin="" position="0 160 330 28"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="32 4 290 18"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget></Widget>
+        <Widget type="ScrollView" skin="MW_ScrollView" position="6 6 348 342" align="Stretch">
+          <Widget type="Widget" skin="" position="8 8 316 326">
+            <Widget type="TextBox" skin="SandBrightText" position="0 0 316 20"><Property key="Caption" value="HUD"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 28 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="auto hide resource bars"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 31 276 20"><Property key="Caption" value="Auto-hide resource bars"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 58 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 61 276 20"><Property key="Caption" value="Keep weapon and spell icons at 40%"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 88 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 91 276 20"><Property key="Caption" value="Compact target name, level and health"/></Widget>
+            <Widget type="TextBox" skin="SandBrightText" position="0 126 316 20"><Property key="Caption" value="Interaction"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 154 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 157 276 20"><Property key="Caption" value="Quick loot keyboard controls"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 182 276 42"><Property key="Caption" value="W/S select, E take, Q close, F normal window"/><Property key="TextAlign" value="Left Top"/></Widget>
+            <Widget type="TextBox" skin="SandBrightText" position="0 230 316 20"><Property key="Caption" value="Camera"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 258 24 24"><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 261 276 20"><Property key="Caption" value="Over-the-shoulder view"/></Widget>
+            <Widget type="AutoSizedButton" skin="MW_Button" position="0 288 24 24"><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget>
+            <Widget type="TextBox" skin="SandText" position="34 291 276 20"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget>
+          </Widget>
         </Widget>
-        <Widget type="TextBox" skin="SandText" position="8 250 340 72"><Property key="Caption" value="Quick loot keys: Q close, F normal mode, W/S select, D drop/remove, E take. The overlay remains experimental until container input is fully connected."/><Property key="TextAlign" value="Left Top"/></Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sAudio}  "/>

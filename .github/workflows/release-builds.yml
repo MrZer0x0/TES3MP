@@ -140,11 +140,12 @@ jobs:
 
   macos-arm64:
     if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
-    runs-on: macos-14
-    timeout-minutes: 120
+    runs-on: macos-14-arm64
+    timeout-minutes: 180
     continue-on-error: true
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
+      MACOSX_DEPLOYMENT_TARGET: 12.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -153,57 +154,31 @@ jobs:
           fetch-depth: 0
 
       - name: Install native ARM64 dependencies
-        run: |
-          brew install cmake ninja ccache qt@5 boost sdl2 openal-soft ffmpeg \
-            bullet open-scene-graph mygui lz4 tinyxml libunshield pkg-config
-          echo "$(brew --prefix qt@5)/bin" >> "$GITHUB_PATH"
+        run: CI/macos-arm64/install-deps.sh
 
       - name: Build CrabNet ARM64
         run: |
+          set -euxo pipefail
           git clone --depth 1 https://github.com/TES3MP/CrabNet "$HOME/CrabNet"
           cmake -S "$HOME/CrabNet" -B "$HOME/CrabNet/build" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
             -DCRABNET_ENABLE_DLL=OFF \
             -DCRABNET_ENABLE_SAMPLES=OFF
-          cmake --build "$HOME/CrabNet/build" --parallel 3
+          cmake --build "$HOME/CrabNet/build" --parallel "$(sysctl -n hw.logicalcpu)"
 
       - name: Configure native ARM64 application
-        run: |
-          QT_PREFIX="$(brew --prefix qt@5)"
-          PREFIX_PATH="${QT_PREFIX};$(brew --prefix boost);$(brew --prefix bullet);$(brew --prefix open-scene-graph);$(brew --prefix mygui);$(brew --prefix ffmpeg);$(brew --prefix sdl2);$(brew --prefix openal-soft);$(brew --prefix lz4);$(brew --prefix tinyxml)"
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
-            -DCMAKE_PREFIX_PATH="$PREFIX_PATH" \
-            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/stage" \
-            -DOPENMW_OSX_DEPLOYMENT=ON \
-            -DBUILD_OPENCS=OFF \
-            -DBUILD_WIZARD=OFF \
-            -DUSE_SYSTEM_TINYXML=ON \
-            -DOPENMW_USE_SYSTEM_MYGUI=ON \
-            -DOPENMW_USE_SYSTEM_OSG=ON \
-            -DOPENMW_USE_SYSTEM_BULLET=ON \
-            -DRakNet_LIBRARY_RELEASE="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
-            -DRakNet_LIBRARY_DEBUG="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
-            -DRakNet_INCLUDE_DIR="$HOME/CrabNet/Source"
+        run: CI/macos-arm64/configure.sh
 
       - name: Build and package DMG
-        run: |
-          cmake --build build --parallel 3
-          cmake --install build
-          cpack --config build/CPackConfig.cmake -G DragNDrop
+        run: CI/macos-arm64/build-package.sh
 
-      - name: Collect macOS packages
+      - name: Ad-hoc sign application bundle
         run: |
-          mkdir -p artifacts
-          find build -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.zip' \) -exec cp {} artifacts/ \;
-          if ! find artifacts -type f | grep -q .; then
-            tar -C stage -czf "artifacts/ArenaMP-macOS-arm64-${GITHUB_REF_NAME}.tar.gz" .
-          fi
+          find build stage -type d -name '*.app' -prune -exec codesign --force --deep --sign - {} \; || true
 
-      - name: Upload macOS ARM64 archive
+      - name: Upload macOS ARM64 package
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental

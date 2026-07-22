@@ -5,6 +5,8 @@
 #include "apps/openmw/mwgui/windowmanagerimp.hpp"
 #include "apps/openmw/mwinput/inputmanagerimp.hpp"
 #include <MyGUI_InputManager.h>
+#include <MyGUI_RenderManager.h>
+#include <algorithm>
 #include <components/openmw-mp/TimedLog.hpp>
 
 #include "../Networking.hpp"
@@ -102,7 +104,7 @@ namespace mwmp
 
     void GUIChat::onResChange(int width, int height)
     {
-        setCoord(10,10, width-10, height/2);
+        setCoord(10, std::max(30, height - 180), std::min(430, width - 20), 150);
     }
 
     void GUIChat::setFont(const std::string &fntName)
@@ -187,6 +189,11 @@ namespace mwmp
     void GUIChat::setEditState(bool state)
     {
         editState = state;
+        const MyGUI::IntSize view = MyGUI::RenderManager::getInstance().getViewSize();
+        if (editState)
+            setCoord(10, std::max(30, view.height - 230), std::max(400, view.width - 20), 200);
+        else
+            setCoord(10, std::max(30, view.height - 180), std::min(430, view.width - 20), 150);
         mCommandLine->setVisible(editState);
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(editState ? mCommandLine : nullptr);
     }

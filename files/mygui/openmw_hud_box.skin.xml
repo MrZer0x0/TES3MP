@@ -67,8 +67,7 @@
     </Resource>
 
     <!-- Defines owned crosshair color -->
-    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair_Owned" texture="textures\crosshair.dds">
-        <Property key="Colour" value="#{setting=GUI,color crosshair owned}"/>
+    <Resource type="AutoSizedResourceSkin" name="HUD_Crosshair_Owned" texture="textures\ownership.dds">
         <BasisSkin type="MainSkin">
             <State name="normal"/>
         </BasisSkin>
