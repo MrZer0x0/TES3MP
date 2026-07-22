@@ -2,65 +2,218 @@ name: Release builds
 
 on:
   workflow_dispatch:
-  pull_request:
+    inputs:
+      build_windows:
+        description: Build Windows x64
+        type: boolean
+        default: true
+      build_linux:
+        description: Build Linux x64 / Steam Deck
+        type: boolean
+        default: true
+      build_macos_arm64:
+        description: Build macOS ARM64 (experimental)
+        type: boolean
+        default: false
+      clear_build_cache:
+        description: Ignore/refresh compiled build caches
+        type: boolean
+        default: false
   push:
-    branches: [Main]
-    tags: ['v*']
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-builds-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   BUILD_TYPE: Release
-  CMAKE_BUILD_TYPE: Release
-  CACHE_EPOCH: v6
-  CCACHE_MAXSIZE: 2G
+  CACHE_EPOCH: v3
 
 jobs:
+  windows-x64:
+    if: github.event_name == 'push' || inputs.build_windows
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Restore Windows downloads and compiler cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            ~/.cache/ccache
+            ~/AppData/Local/ccache
+          key: ${{ env.CACHE_EPOCH }}-windows-x64-deps-ccache-${{ hashFiles('CI/**', 'CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-windows-x64-deps-ccache-
+
+      - name: Configure dependencies and project
+        run: |
+          set -euxo pipefail
+          ./CI/before_script.msvc.sh -c Release -p x64 -v 2022 -V -i "$GITHUB_WORKSPACE/install"
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          cmake --build MSVC2022_64 --config Release --parallel 2
+          cmake --install MSVC2022_64 --config Release
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          $name = "ArenaMP-Windows-x64-${{ github.ref_name }}"
+          Compress-Archive -Path "install\*" -DestinationPath "$name.zip" -Force
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Windows-x64-${{ github.ref_name }}
+          path: ArenaMP-Windows-x64-${{ github.ref_name }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
   linux-steamdeck-x64:
-    name: Linux / Steam Deck x86_64
+    if: github.event_name == 'push' || inputs.build_linux
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
       CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
-      BUILD_JOBS: 2
+      CCACHE_MAXSIZE: 2G
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Restore Linux ccache
+      - name: Restore Linux downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            apt-cache
+            ~/.cache/apt
+          key: ${{ env.CACHE_EPOCH }}-linux-jammy-apt-${{ hashFiles('CI/install_debian_deps.sh', '.github/workflows/release-builds.yml') }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-linux-jammy-apt-
+
+      - name: Restore Linux compiler and fetched-source cache
+        if: github.event_name != 'push' && inputs.clear_build_cache != true
+        uses: actions/cache@v5
+        with:
+          path: |
+            .cache/ccache
+            build/extern/fetched
+            ${{ runner.temp }}/CrabNet
+          key: ${{ env.CACHE_EPOCH }}-linux-x64-build-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-linux-x64-build-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/CMakeLists.txt', 'apps/**/CMakeLists.txt', 'extern/**/CMakeLists.txt') }}-
+            ${{ env.CACHE_EPOCH }}-linux-x64-build-
+
+      - name: Restore Linux ccache for Release tags
+        if: github.event_name == 'push' || inputs.clear_build_cache == true
         uses: actions/cache@v5
         with:
           path: .cache/ccache
-          key: ${{ env.CACHE_EPOCH }}-linux-x64-ccache-${{ github.sha }}
+          key: ${{ env.CACHE_EPOCH }}-linux-x64-ccache-release-${{ github.sha }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-
+            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-release-
             ${{ env.CACHE_EPOCH }}-linux-x64-build-
 
       - name: Install dependencies
-        run: bash CI/linux/install-deps.sh
+        run: |
+          set -euxo pipefail
+          sudo CI/install_debian_deps.sh gcc openmw-deps openmw-deps-dynamic
+          sudo apt-get update -yq
+          sudo apt-get install -y --no-install-recommends libluajit-5.1-dev ninja-build
 
-      - name: Prepare bundled CrabNet/RakNet
-        run: bash CI/ensure-bundled-deps.sh
+      - name: Prepare clean Release tree
+        if: github.event_name == 'push' || inputs.clear_build_cache == true
+        run: rm -rf build stage package actions-artifacts
+
+      - name: Build CrabNet
+        run: |
+          set -euxo pipefail
+          CRABNET_DIR="$RUNNER_TEMP/CrabNet"
+          if [ ! -d "$CRABNET_DIR/.git" ]; then
+            git clone --depth 1 https://github.com/TES3MP/CrabNet "$CRABNET_DIR"
+          else
+            git -C "$CRABNET_DIR" fetch --depth 1 origin
+            git -C "$CRABNET_DIR" reset --hard FETCH_HEAD
+          fi
+          cmake -S "$CRABNET_DIR" -B "$CRABNET_DIR/build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCRABNET_ENABLE_DLL=OFF \
+            -DCRABNET_ENABLE_SAMPLES=OFF
+          cmake --build "$CRABNET_DIR/build" --parallel 2
+
+          # TES3MP 0.8.x ignores the externally supplied RakNet variables in
+          # parts of the build and expects this legacy tree unconditionally.
+          rm -rf "$GITHUB_WORKSPACE/extern/raknet"
+          mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
+          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStaticd.a"
 
       - name: Configure
-        run: bash CI/linux/configure.sh
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/stage" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DUSE_SYSTEM_TINYXML=ON \
+            -DOPENMW_USE_SYSTEM_MYGUI=ON \
+            -DOPENMW_USE_SYSTEM_OSG=ON \
+            -DOPENMW_USE_SYSTEM_BULLET=ON \
+            -DRakNet_LIBRARY_RELEASE="$RUNNER_TEMP/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_LIBRARY_DEBUG="$RUNNER_TEMP/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_INCLUDE_DIR="$RUNNER_TEMP/CrabNet/Source"
 
-      - name: Build and package
-        run: bash CI/linux/build-package.sh
+      - name: Build and install
+        run: |
+          cmake --build build --parallel 2
+          cmake --install build
+          ccache --show-stats || true
 
-      - name: Collect Linux diagnostics
+      - name: Create portable Steam Deck archive
+        run: |
+          set -euxo pipefail
+          name="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}"
+          rm -rf package
+          mkdir -p package
+          cp -a stage/. package/
+          cat > package/STEAM_DECK_README.txt <<'EOF'
+          ArenaMP Linux x86_64 build for Steam Deck Desktop Mode / SteamOS.
+          Add the launcher or tes3mp binary as a Non-Steam Game if desired.
+          Morrowind data files are not included.
+          EOF
+          tar --numeric-owner -C package -czf "${name}.tar.gz" .
+
+      - name: Collect Linux package and diagnostics
         if: always()
         run: |
           set +e
           mkdir -p actions-artifacts/linux-steamdeck
-          [ -d artifacts ] && cp -a artifacts/. actions-artifacts/linux-steamdeck/
+          archive="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}.tar.gz"
+          [ -f "$archive" ] && cp "$archive" actions-artifacts/linux-steamdeck/
           [ -f build/CMakeCache.txt ] && cp build/CMakeCache.txt actions-artifacts/linux-steamdeck/
           ccache --show-stats > actions-artifacts/linux-steamdeck/ccache-stats.txt 2>&1 || true
           find build -maxdepth 3 -type f 2>/dev/null | sort > actions-artifacts/linux-steamdeck/build-files.txt || true
@@ -72,25 +225,28 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaMP-Linux-x86_64-SteamDeck
-          path: actions-artifacts/linux-steamdeck/*
-          if-no-files-found: warn
+          name: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}
+          path: actions-artifacts/linux-steamdeck/
+          if-no-files-found: error
           retention-days: 30
 
   macos-arm64:
-    name: macOS arm64
-    runs-on: macos-26-arm64
-    timeout-minutes: 150
+    if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
+    runs-on: macos-26
+    timeout-minutes: 180
+    continue-on-error: true
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_CACHE: ${{ github.workspace }}/.cache/homebrew
+      MACOSX_DEPLOYMENT_TARGET: 12.0
       CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
-      MACOSX_DEPLOYMENT_TARGET: '12.0'
+      CCACHE_MAXSIZE: 2G
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Verify native ARM64 runner
         run: |
@@ -98,29 +254,89 @@ jobs:
           sw_vers
           test "$(uname -m)" = "arm64"
 
-      - name: Restore macOS caches
+      - name: Restore Homebrew downloads
+        uses: actions/cache@v5
+        with:
+          path: .cache/homebrew
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-brew-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-macos-arm64-brew-
+
+      - name: Restore macOS dependencies and compiler cache
+        if: github.event_name != 'push' && inputs.clear_build_cache != true
         uses: actions/cache@v5
         with:
           path: |
-            .cache/homebrew
             .cache/ccache
             ${{ runner.temp }}/MyGUI/install
-          key: ${{ env.CACHE_EPOCH }}-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-${{ github.sha }}
+            ${{ runner.temp }}/MyGUI/build
+            ${{ runner.temp }}/TinyXML/install
+            ${{ runner.temp }}/TinyXML/build
+            ${{ runner.temp }}/TinyXML/source
+            ${{ runner.temp }}/CrabNet
+            build/extern/fetched
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-
-            ${{ env.CACHE_EPOCH }}-macos-arm64-deps-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-build-
+
+      - name: Restore macOS ccache for Release tags
+        if: github.event_name == 'push' || inputs.clear_build_cache == true
+        uses: actions/cache@v5
+        with:
+          path: .cache/ccache
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-release-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-macos-arm64-ccache-release-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-build-
+
+      - name: Make CI scripts executable
+        run: chmod +x CI/macos-arm64/*.sh
 
       - name: Install native ARM64 dependencies
         run: bash CI/macos-arm64/install-deps.sh
 
-      - name: Prepare bundled CrabNet/RakNet
-        run: bash CI/ensure-bundled-deps.sh
+      - name: Prepare clean Release tree
+        if: github.event_name == 'push' || inputs.clear_build_cache == true
+        run: rm -rf build stage artifacts actions-artifacts
 
-      - name: Configure
+      - name: Build CrabNet ARM64
+        run: |
+          set -euxo pipefail
+          CRABNET_DIR="$RUNNER_TEMP/CrabNet"
+          if [ ! -d "$CRABNET_DIR/.git" ]; then
+            git clone --depth 1 https://github.com/TES3MP/CrabNet "$CRABNET_DIR"
+          else
+            git -C "$CRABNET_DIR" fetch --depth 1 origin
+            git -C "$CRABNET_DIR" reset --hard FETCH_HEAD
+          fi
+          cmake -S "$CRABNET_DIR" -B "$CRABNET_DIR/build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCRABNET_ENABLE_DLL=OFF \
+            -DCRABNET_ENABLE_SAMPLES=OFF
+          cmake --build "$CRABNET_DIR/build" --parallel "$(sysctl -n hw.logicalcpu)"
+
+          # Preserve the legacy path expected by TES3MP's CMake files.
+          rm -rf "$GITHUB_WORKSPACE/extern/raknet"
+          mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
+          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStaticd.a"
+
+      - name: Configure native ARM64 application
         run: bash CI/macos-arm64/configure.sh
 
-      - name: Build and package
+      - name: Build and package DMG
         run: bash CI/macos-arm64/build-package.sh
+
+      - name: Ad-hoc sign application bundle
+        run: find build stage -type d -name '*.app' -prune -exec codesign --force --deep --sign - {} \; || true
 
       - name: Collect macOS package and diagnostics
         if: always()
@@ -139,7 +355,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaMP-macOS-arm64
-          path: actions-artifacts/macos-arm64/*
-          if-no-files-found: warn
+          name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental
+          path: actions-artifacts/macos-arm64/
+          if-no-files-found: error
           retention-days: 30
