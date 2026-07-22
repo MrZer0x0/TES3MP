@@ -275,9 +275,9 @@ jobs:
             ${{ runner.temp }}/TinyXML/source
             ${{ runner.temp }}/CrabNet
             build/extern/fetched
-          key: ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CI/patch-crabnet-macos.sh', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}
           restore-keys: |
-            ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CI/patch-crabnet-macos.sh', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-
             ${{ env.CACHE_EPOCH }}-macos-arm64-build-
 
       - name: Restore macOS ccache for Release tags
@@ -291,7 +291,18 @@ jobs:
             ${{ env.CACHE_EPOCH }}-macos-arm64-build-
 
       - name: Make CI scripts executable
-        run: chmod +x CI/macos-arm64/*.sh
+        run: chmod +x CI/macos-arm64/*.sh CI/patch-crabnet-macos.sh
+
+      - name: Verify bundled Bullet CI configuration
+        run: |
+          set -euo pipefail
+          if grep -Eq '(^|[[:space:]])bullet([[:space:]]|\\|$)' CI/macos-arm64/install-deps.sh; then
+            echo "Homebrew Bullet must not be installed on macOS; use the bundled double-precision build." >&2
+            exit 1
+          fi
+          grep -q 'OPENMW_USE_SYSTEM_BULLET:BOOL=OFF' CI/macos-arm64/configure.sh
+          grep -q 'USE_DOUBLE_PRECISION:BOOL=ON' CI/macos-arm64/configure.sh
+          grep -q 'left -= 1' CI/patch-crabnet-macos.sh
 
       - name: Install native ARM64 dependencies
         run: bash CI/macos-arm64/install-deps.sh

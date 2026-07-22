@@ -4,16 +4,18 @@ set -euo pipefail
 CRABNET_DIR="${1:?usage: patch-crabnet-macos.sh <CrabNet source directory>}"
 MEMORY_POOL_HEADER="$CRABNET_DIR/include/raknet/DS_MemoryPool.h"
 TABLE_SOURCE="$CRABNET_DIR/Source/DS_Table.cpp"
+RAND_SOURCE="$CRABNET_DIR/Source/Utils/Rand.cpp"
 
-python3 - "$MEMORY_POOL_HEADER" "$TABLE_SOURCE" <<'PY'
+python3 - "$MEMORY_POOL_HEADER" "$TABLE_SOURCE" "$RAND_SOURCE" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 memory_pool = Path(sys.argv[1])
 table_source = Path(sys.argv[2])
+rand_source = Path(sys.argv[3])
 
-for path in (memory_pool, table_source):
+for path in (memory_pool, table_source, rand_source):
     if not path.is_file():
         raise SystemExit(f"CrabNet compatibility patch: missing {path}")
 
@@ -53,4 +55,14 @@ if "#include <stdlib.h>" not in text:
     print(f"Patched {table_source}")
 else:
     print(f"Already compatible: {table_source}")
+
+text = rand_source.read_text(encoding="utf-8")
+# Fix the old typo flagged by modern AppleClang. The intended operation is to
+# decrement the remaining random-number state, not assign negative one.
+patched = text.replace("left =- 1;", "left -= 1;")
+if patched != text:
+    rand_source.write_text(patched, encoding="utf-8")
+    print(f"Patched {rand_source}")
+else:
+    print(f"Already compatible: {rand_source}")
 PY

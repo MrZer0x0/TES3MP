@@ -4,8 +4,10 @@ set -euo pipefail
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_CACHE="${HOMEBREW_CACHE:-$HOME/Library/Caches/Homebrew}"
 
+echo "ArenaMP macOS: using bundled Bullet with double precision (Homebrew Bullet is intentionally disabled)"
+
 brew install cmake ninja ccache qt@5 boost sdl2-compat openal-soft ffmpeg \
-  bullet open-scene-graph lz4 unshield pkgconf luajit freetype
+  open-scene-graph lz4 unshield pkgconf luajit freetype
 
 if [[ -n "${GITHUB_PATH:-}" ]]; then
   echo "$(brew --prefix qt@5)/bin" >> "$GITHUB_PATH"
