@@ -29,7 +29,7 @@ option(BUILD_OPENMW             "Build OpenMW" ON)
 option(BUILD_LAUNCHER           "Build Launcher" ON)
 option(BUILD_WIZARD             "Build Installation Wizard" ON)
 option(BUILD_MWINIIMPORTER      "Build MWiniImporter" ON)
-option(BUILD_OPENCS             "Build OpenMW Construction Set" ON)
+option(BUILD_OPENCS             "Build OpenMW Construction Set" OFF)
 option(BUILD_ESSIMPORTER        "Build ESS (Morrowind save game) importer" ON)
 option(BUILD_BSATOOL            "Build BSA extractor" ON)
 option(BUILD_ESMTOOL            "Build ESM inspector" ON)
@@ -40,7 +40,7 @@ option(BUILD_UNITTESTS          "Enable Unittests with Google C++ Unittest" OFF)
 option(BUILD_BENCHMARKS         "Build benchmarks with Google Benchmark" OFF)
 option(BUILD_OPENMW_MP          "Build OpenMW-MP" ON)
 option(BUILD_BROWSER            "Build tes3mp Server Browser" ON)
-option(BUILD_MASTER             "Build tes3mp Master Server" OFF)
+option(BUILD_MASTER             "Build tes3mp Master Server" ON)
 
 set(OpenGL_GL_PREFERENCE LEGACY)  # Use LEGACY as we use GL2; GLNVD is for GL3 and up.
 
