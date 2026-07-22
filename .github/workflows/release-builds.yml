@@ -161,6 +161,16 @@ jobs:
             -DCRABNET_ENABLE_SAMPLES=OFF
           cmake --build "$CRABNET_DIR/build" --parallel 2
 
+          # TES3MP 0.8.x ignores the externally supplied RakNet variables in
+          # parts of the build and expects this legacy tree unconditionally.
+          rm -rf "$GITHUB_WORKSPACE/extern/raknet"
+          mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
+          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStaticd.a"
+
       - name: Configure
         run: |
           cmake -S . -B build -G Ninja \
@@ -309,6 +319,15 @@ jobs:
             -DCRABNET_ENABLE_DLL=OFF \
             -DCRABNET_ENABLE_SAMPLES=OFF
           cmake --build "$CRABNET_DIR/build" --parallel "$(sysctl -n hw.logicalcpu)"
+
+          # Preserve the legacy path expected by TES3MP's CMake files.
+          rm -rf "$GITHUB_WORKSPACE/extern/raknet"
+          mkdir -p "$GITHUB_WORKSPACE/extern/raknet/include" "$GITHUB_WORKSPACE/extern/raknet/lib"
+          cp -a "$CRABNET_DIR/Source/." "$GITHUB_WORKSPACE/extern/raknet/include/"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStatic.a"
+          cp "$CRABNET_DIR/build/lib/libRakNetLibStatic.a" \
+            "$GITHUB_WORKSPACE/extern/raknet/lib/libRakNetLibStaticd.a"
 
       - name: Configure native ARM64 application
         run: bash CI/macos-arm64/configure.sh

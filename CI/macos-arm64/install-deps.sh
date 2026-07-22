@@ -5,7 +5,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_CACHE="${HOMEBREW_CACHE:-$HOME/Library/Caches/Homebrew}"
 
 brew install cmake ninja ccache qt@5 boost sdl2 openal-soft ffmpeg \
-  bullet open-scene-graph lz4 libunshield pkg-config luajit
+  bullet open-scene-graph lz4 unshield pkg-config luajit
 
 echo "$(brew --prefix qt@5)/bin" >> "$GITHUB_PATH"
 
