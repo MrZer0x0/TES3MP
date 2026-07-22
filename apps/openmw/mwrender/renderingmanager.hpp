@@ -132,6 +132,7 @@ namespace MWRender
         void setSunColour(const osg::Vec4f& diffuse, const osg::Vec4f& specular);
 
         void configureAmbient(const ESM::Cell* cell);
+        void setCellInterior(bool interior);
         void configureFog(const ESM::Cell* cell);
         void configureFog(float fogDepth, float underwaterFog, float dlFactor, float dlOffset, const osg::Vec4f& colour);
 

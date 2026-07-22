@@ -583,6 +583,11 @@ namespace MWRender
         mSky->setMoonColour(red);
     }
 
+    void RenderingManager::setCellInterior(bool interior)
+    {
+        mStateUpdater->setInterior(interior);
+    }
+
     void RenderingManager::configureAmbient(const ESM::Cell *cell)
     {
         // Authoritative cell flag; do not infer interiors from sun direction in shaders.

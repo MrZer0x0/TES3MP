@@ -48,6 +48,7 @@ namespace MWGui
         void setCrosshairOwned(bool owned);
 
         void onFrame(float dt) override;
+        void onResChange(int width, int height) override;
 
         void setCellName(const std::string& cellName);
 
@@ -126,7 +127,7 @@ namespace MWGui
         bool mHmsBaseVisible;
 
         void registerBarChange(AutoHideBarState& state, int current, int modified);
-        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt);
+        void updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible);
         void applyBarAlpha(MyGUI::Widget* widget, float alpha);
 
         void onWorldClicked(MyGUI::Widget* _sender);

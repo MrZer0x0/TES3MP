@@ -418,6 +418,13 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->toggleVisible(GW_Magic);
     }
 
+
+    void HUD::onResChange(int width, int height)
+    {
+        mMainWidget->setSize(width, height);
+        updatePositions();
+    }
+
     void HUD::setCellName(const std::string& cellName)
     {
         if (mCellName != cellName)
@@ -502,23 +509,34 @@ namespace MWGui
             mDrowningFlash->setAlpha(intensity);
         }
 
-        updateAutoHideBar(mHealthFrame, mHealthBarState, dt);
-        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt);
-        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt);
+        MWMechanics::DrawState_ drawState = MWMechanics::DrawState_Nothing;
+        const MWWorld::Ptr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+        if (!player.isEmpty())
+            drawState = player.getClass().getCreatureStats(player).getDrawState();
+
+        updateAutoHideBar(mHealthFrame, mHealthBarState, dt, false);
+        updateAutoHideBar(mMagickaFrame, mMagickaBarState, dt, drawState == MWMechanics::DrawState_Spell);
+        updateAutoHideBar(mFatigueFrame, mStaminaBarState, dt, drawState == MWMechanics::DrawState_Weapon);
     }
 
 
     void HUD::registerBarChange(AutoHideBarState& state, int current, int modified)
     {
-        const bool changed = !state.initialized || state.current != current || state.modified != modified;
+        const bool firstUpdate = !state.initialized;
+        const bool maximumChanged = state.initialized && state.modified != modified;
+        const bool valueDecreased = state.initialized && current < state.current;
+
         state.current = current;
         state.modified = modified;
         state.initialized = true;
 
-        if (changed)
+        // Show a bar when the resource is actually spent/damaged or its maximum changes.
+        // Passive regeneration must not continuously restart the auto-hide timer.
+        if (firstUpdate || maximumChanged || valueDecreased)
+        {
             state.idleTimer = 0.f;
-
-        state.alpha = 1.f;
+            state.alpha = 1.f;
+        }
     }
 
     void HUD::applyBarAlpha(MyGUI::Widget* widget, float alpha)
@@ -529,7 +547,7 @@ namespace MWGui
         widget->setAlpha(std::max(0.f, std::min(1.f, alpha)));
     }
 
-    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt)
+    void HUD::updateAutoHideBar(MyGUI::Widget* frame, AutoHideBarState& state, float dt, bool forceVisible)
     {
         if (!frame || !state.initialized)
             return;
@@ -537,6 +555,18 @@ namespace MWGui
         if (!mHmsBaseVisible)
         {
             frame->setVisible(false);
+            return;
+        }
+
+        // Keep the relevant resource bar visible for as long as the player is
+        // actively holding a weapon or has magic readied. Start the normal
+        // auto-hide delay only after the weapon/spell is put away.
+        if (forceVisible)
+        {
+            state.idleTimer = 0.f;
+            state.alpha = 1.f;
+            frame->setVisible(true);
+            applyBarAlpha(frame, 1.f);
             return;
         }
 
@@ -753,18 +783,12 @@ namespace MWGui
 
     void HUD::updatePositions()
     {
-        int weapDx = 0, spellDx = 0, sneakDx = 0;
+        int weapDx = 0, spellDx = 0;
         if (!mHealth->getVisible())
-            sneakDx = spellDx = weapDx = mWeapBoxBaseLeft - mHealthManaStaminaBaseLeft;
+            spellDx = weapDx = mWeapBoxBaseLeft - mHealthManaStaminaBaseLeft;
 
         if (!mWeapBox->getVisible())
-        {
             spellDx += mSpellBoxBaseLeft - mWeapBoxBaseLeft;
-            sneakDx = spellDx;
-        }
-
-        if (!mSpellBox->getVisible())
-            sneakDx += mSneakBoxBaseLeft - mSpellBoxBaseLeft;
 
         mWeaponVisible = mWeapBox->getVisible();
         mSpellVisible = mSpellBox->getVisible();
@@ -773,9 +797,10 @@ namespace MWGui
 
         mWeapBox->setPosition(mWeapBoxBaseLeft - weapDx, mWeapBox->getTop());
         mSpellBox->setPosition(mSpellBoxBaseLeft - spellDx, mSpellBox->getTop());
-        mSneakBox->setPosition(mSneakBoxBaseLeft - sneakDx, mSneakBox->getTop());
 
         const MyGUI::IntSize& viewSize = MyGUI::RenderManager::getInstance().getViewSize();
+        mSneakBox->setPosition((viewSize.width - mSneakBox->getWidth()) / 2,
+                               (viewSize.height - mSneakBox->getHeight()) / 2);
 
         // effect box can have variable width -> variable left coordinate
         int effectsDx = 0;

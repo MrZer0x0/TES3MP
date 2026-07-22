@@ -471,9 +471,11 @@ namespace MWWorld
                 navigator->update(player.getRefData().getPosition().asVec3());
 
                 if (!cell->isExterior() && !(cell->getCell()->mData.mFlags & ESM::Cell::QuasiEx))
-                {
                     mRendering.configureAmbient(cell->getCell());
-                }
+                else
+                    // Reset the shader-side interior flag when returning outdoors.
+                    // Without this, underwater caustics remain disabled after an interior transition.
+                    mRendering.setCellInterior(false);
 
                 /*
                     Start of tes3mp addition
