@@ -140,7 +140,7 @@ jobs:
 
   macos-arm64:
     if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
-    runs-on: macos-14-arm64
+    runs-on: macos-latest
     timeout-minutes: 180
     continue-on-error: true
     env:
