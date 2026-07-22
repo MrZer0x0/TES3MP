@@ -45,20 +45,24 @@ namespace MWGui
 {
     QuickLoot::QuickLoot() :
         Layout("openmw_quickloot.layout")
-        , mFocusToolTipX(0.0)
-        , mFocusToolTipY(0.0)
+        , mQuickLoot(nullptr)
+        , mModel(nullptr)
+        , mLabel(nullptr)
+        , mSortModel(nullptr)
+        , mOpened(false)
+        , mShouldOpen(false)
+        , mHidden(true)
+        , mPlaying(false)
+        , mFocusToolTipX(0.0f)
+        , mFocusToolTipY(0.0f)
         , mHorizontalScrollIndex(0)
-        , mDelay(0.0)
-        , mRemainingDelay(0.0)
+        , mDelay(0.0f)
+        , mRemainingDelay(0.0f)
         , mLastMouseX(0)
         , mLastMouseY(0)
         , mEnabled(true)
         , mFrameDuration(0.f)
-        , mQuickLoot(nullptr)
-        , mModel(nullptr)
-        , mSortModel(nullptr)
         , mLastIndex(0)
-        , mPlaying(false)
     {
         getWidget(mQuickLoot, "QuickLoot");
         getWidget(mLabel, "Label");
@@ -84,17 +88,19 @@ namespace MWGui
 
     void QuickLoot::notifyMouseWheel(int rel)
     {
-        if (rel < 0)
+        if (!mSortModel || mSortModel->getItemCount() == 0)
         {
-            mLastIndex++;
-            if (mSortModel && mLastIndex >= mSortModel->getItemCount())
-                mLastIndex = mSortModel->getItemCount()-1;
+            mLastIndex = 0;
+            return;
         }
-        else 
+
+        const int count = static_cast<int>(mSortModel->getItemCount());
+        if (rel < 0)
+            mLastIndex = std::min(mLastIndex + 1, count - 1);
+        else
             mLastIndex = std::max(0, mLastIndex - 1);
 
-        mQuickLoot->forceItemFocused(mLastIndex);
-        mQuickLoot->update();
+        mLastIndex = mQuickLoot->forceItemFocused(mLastIndex);
     }
 
     bool QuickLoot::checkOwned()
@@ -112,17 +118,23 @@ namespace MWGui
 
     void QuickLoot::onItemSelected(int index)
     {
-        if (!mModel) 
+        if (!mModel || !mSortModel || index < 0
+            || index >= static_cast<int>(mSortModel->getItemCount()))
             return;
 
         if (!MWBase::Environment::get().getWindowManager()->isAllowed(MWGui::GW_Inventory))
             return;
-        
+
+        const ItemModel::ModelIndex sourceIndex = mSortModel->mapToSource(index);
+        if (sourceIndex < 0 || sourceIndex >= static_cast<int>(mModel->getItemCount()))
+            return;
+
         mOpened = true;
         ensureTrapTriggered();
         MWMechanics::diseaseContact(MWMechanics::getPlayer(), mFocusObject);
-        
-        const ItemStack& item = mModel->getItem(mSortModel->mapToSource(index));
+
+        // Keep a copy: moving the item may invalidate references owned by the model.
+        const ItemStack item = mModel->getItem(sourceIndex);
 
         MWWorld::Ptr object = item.mBase;
         int count = 1;
@@ -148,7 +160,16 @@ namespace MWGui
         }
 
         mQuickLoot->update();
-        mQuickLoot->forceItemFocused(index);
+        if (mSortModel->getItemCount() > 0)
+        {
+            mLastIndex = mQuickLoot->forceItemFocused(
+                std::min(index, static_cast<int>(mSortModel->getItemCount()) - 1));
+        }
+        else
+        {
+            mLastIndex = 0;
+            setVisibleAll(false);
+        }
     }
 
     void QuickLoot::ensureTrapTriggered()
@@ -196,12 +217,39 @@ namespace MWGui
         }
     }
 
-    void QuickLoot::onKeyButtonPressed(MyGUI::Widget* sender, MyGUI::KeyCode key)
+    void QuickLoot::onKeyButtonPressed(MyGUI::Widget*, MyGUI::KeyCode key, MyGUI::Char)
     {
-        SDL_Keycode quickkey = SDL_GetKeyFromName(Settings::Manager::getString("key quickloot takeall", "MorroUI").c_str());
-        MyGUI::KeyCode kc = MWInput::sdlKeyToMyGUI(quickkey);
+        const SDL_Keycode takeAllKey = SDL_GetKeyFromName(
+            Settings::Manager::getString("key quickloot takeall", "MorroUI").c_str());
+        const SDL_Keycode takeKey = SDL_GetKeyFromName(
+            Settings::Manager::getString("key quickloot take", "MorroUI").c_str());
+        const MyGUI::KeyCode takeAll = MWInput::sdlKeyToMyGUI(takeAllKey);
+        const MyGUI::KeyCode take = MWInput::sdlKeyToMyGUI(takeKey);
 
-        if (static_cast<int>(key.getValue()) == static_cast<int>(kc.getValue())) // take all
+        if (key == MyGUI::KeyCode::W || key == MyGUI::KeyCode::ArrowUp)
+        {
+            notifyMouseWheel(1);
+            return;
+        }
+        if (key == MyGUI::KeyCode::S || key == MyGUI::KeyCode::ArrowDown)
+        {
+            notifyMouseWheel(-1);
+            return;
+        }
+        if (key == MyGUI::KeyCode::Return
+            || static_cast<int>(key.getValue()) == static_cast<int>(take.getValue()))
+        {
+            onItemSelected(mLastIndex);
+            return;
+        }
+        if (key == MyGUI::KeyCode::D)
+        {
+            MWBase::Environment::get().getWindowManager()->messageBox(
+                "D is disabled: server-safe item deletion is not available");
+            return;
+        }
+
+        if (static_cast<int>(key.getValue()) == static_cast<int>(takeAll.getValue())) // take all
         {
             if (!mModel) return;
 
@@ -252,6 +300,8 @@ namespace MWGui
     void QuickLoot::setEnabled(bool enabled)
     {
         mEnabled = enabled;
+        if (!mEnabled)
+            setVisibleAll(false);
     }
 
     void QuickLoot::onFrame(float frameDuration)
@@ -436,7 +486,11 @@ namespace MWGui
     {
         bool quickloot = Settings::Manager::getBool ("enable quickloot", "MorroUI");
 
-        if (!mEnabled || !quickloot) return;
+        if (!mEnabled || !quickloot)
+        {
+            setVisibleAll(false);
+            return;
+        }
 
         auto player = MWMechanics::getPlayer();
 
@@ -484,11 +538,10 @@ namespace MWGui
                 mQuickLoot->update();
                 if (mSortModel->getItemCount())
                 {
-                    mQuickLoot->forceItemFocused(mLastIndex);
-                    mQuickLoot->update();
+                    mLastIndex = mQuickLoot->forceItemFocused(mLastIndex);
 
-                    if (mLastIndex >= mSortModel->getItemCount())
-                        mLastIndex = mSortModel->getItemCount()-1;
+                    if (mLastIndex >= static_cast<int>(mSortModel->getItemCount()))
+                        mLastIndex = static_cast<int>(mSortModel->getItemCount()) - 1;
 
                     setVisibleAll(true);
                     if (MyGUI::InputManager::getInstance().getKeyFocusWidget() == nullptr)

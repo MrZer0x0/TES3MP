@@ -26,7 +26,7 @@ namespace MWGui
         bool isVisible() const { return mMainWidget->getVisible() && mQuickLoot->getVisible(); }
 
         bool isPlaying() const { return mPlaying;}
-        void setPlaying(bool playing) { mPlaying = false; }
+        void setPlaying(bool playing) { mPlaying = playing; }
 
         void notifyMouseWheel(int rel);
 
@@ -70,7 +70,7 @@ namespace MWGui
         /// Adjust position for a tooltip so that it doesn't leave the screen and does not obscure the mouse cursor
         void position(MyGUI::IntPoint& position, MyGUI::IntSize size, MyGUI::IntSize viewportSize);
 
-        void onKeyButtonPressed(MyGUI::Widget* sender, MyGUI::KeyCode key);
+        void onKeyButtonPressed(MyGUI::Widget* sender, MyGUI::KeyCode key, MyGUI::Char character);
         void onItemSelected(int index);
 
         int mHorizontalScrollIndex;
