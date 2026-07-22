@@ -1,0 +1,44 @@
+--- tes3mp_orig/CMakeLists.txt	2026-07-22 19:41:06.000000000 +0000
++++ tes3mp_work/CMakeLists.txt	2026-07-22 18:10:28.842222671 +0000
+@@ -428,7 +428,18 @@
+ ENDIF(BUILD_OPENMW OR BUILD_OPENCS)
+ # End of tes3mp addition
+ 
+-set(BOOST_COMPONENTS system filesystem program_options iostreams)
++set(BOOST_COMPONENTS filesystem program_options iostreams)
++if(APPLE)
++    # Homebrew Boost 1.90+ no longer provides Boost.System as a
++    # separate library on macOS, while this legacy project still uses
++    # CMake's FindBoost module and would otherwise fail with
++    # "Could NOT find Boost (missing: system)". Boost.System is
++    # header-only in these Boost versions, so do not require the
++    # component library on Apple platforms.
++    add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY -DBOOST_SYSTEM_NO_LIB)
++else()
++    list(INSERT BOOST_COMPONENTS 0 system)
++endif()
+ if(WIN32)
+     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} locale)
+     if(MSVC)
+--- tes3mp_orig/cmake/CMakeLists.txt	2026-07-22 19:41:06.000000000 +0000
++++ tes3mp_work/cmake/CMakeLists.txt	2026-07-22 18:10:28.842222671 +0000
+@@ -429,7 +429,18 @@
+ ENDIF(BUILD_OPENMW OR BUILD_OPENCS)
+ # End of tes3mp addition
+ 
+-set(BOOST_COMPONENTS system filesystem program_options iostreams)
++set(BOOST_COMPONENTS filesystem program_options iostreams)
++if(APPLE)
++    # Homebrew Boost 1.90+ no longer provides Boost.System as a
++    # separate library on macOS, while this legacy project still uses
++    # CMake's FindBoost module and would otherwise fail with
++    # "Could NOT find Boost (missing: system)". Boost.System is
++    # header-only in these Boost versions, so do not require the
++    # component library on Apple platforms.
++    add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY -DBOOST_SYSTEM_NO_LIB)
++else()
++    list(INSERT BOOST_COMPONENTS 0 system)
++endif()
+ if(WIN32)
+     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} locale)
+     if(MSVC)

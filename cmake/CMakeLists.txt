@@ -429,7 +429,18 @@ ELSE(BUILD_OPENMW OR BUILD_OPENCS)
 ENDIF(BUILD_OPENMW OR BUILD_OPENCS)
 # End of tes3mp addition
 
-set(BOOST_COMPONENTS system filesystem program_options iostreams)
+set(BOOST_COMPONENTS filesystem program_options iostreams)
+if(APPLE)
+    # Homebrew Boost 1.90+ no longer provides Boost.System as a
+    # separate library on macOS, while this legacy project still uses
+    # CMake's FindBoost module and would otherwise fail with
+    # "Could NOT find Boost (missing: system)". Boost.System is
+    # header-only in these Boost versions, so do not require the
+    # component library on Apple platforms.
+    add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY -DBOOST_SYSTEM_NO_LIB)
+else()
+    list(INSERT BOOST_COMPONENTS 0 system)
+endif()
 if(WIN32)
     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} locale)
     if(MSVC)
