@@ -1,8 +1,10 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 cmake --build build --parallel "$(sysctl -n hw.logicalcpu)"
 cmake --install build
 cpack --config build/CPackConfig.cmake -G DragNDrop
+ccache --show-stats || true
 
 mkdir -p artifacts
 find build -maxdepth 2 -type f -name '*.dmg' -exec cp {} artifacts/ \;
