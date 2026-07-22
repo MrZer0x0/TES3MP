@@ -1,0 +1,212 @@
+name: Release builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_windows:
+        description: Build Windows x64
+        type: boolean
+        default: true
+      build_linux:
+        description: Build Linux x64 / Steam Deck
+        type: boolean
+        default: true
+      build_macos_arm64:
+        description: Build macOS ARM64 (experimental)
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-builds-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  windows-x64:
+    if: github.event_name == 'push' || inputs.build_windows
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure dependencies and project
+        run: |
+          set -euxo pipefail
+          ./CI/before_script.msvc.sh \
+            -c Release \
+            -p x64 \
+            -v 2022 \
+            -V \
+            -i "$GITHUB_WORKSPACE/install"
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          cmake --build MSVC2022_64 --config Release --parallel 2
+          cmake --install MSVC2022_64 --config Release
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          $name = "ArenaMP-Windows-x64-${{ github.ref_name }}"
+          Compress-Archive -Path "install\*" -DestinationPath "$name.zip" -Force
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Windows-x64-${{ github.ref_name }}
+          path: ArenaMP-Windows-x64-${{ github.ref_name }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  linux-steamdeck-x64:
+    if: github.event_name == 'push' || inputs.build_linux
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo CI/install_debian_deps.sh gcc openmw-deps openmw-deps-dynamic
+
+      - name: Build CrabNet
+        run: |
+          git clone --depth 1 https://github.com/TES3MP/CrabNet "$HOME/CrabNet"
+          cmake -S "$HOME/CrabNet" -B "$HOME/CrabNet/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCRABNET_ENABLE_DLL=OFF \
+            -DCRABNET_ENABLE_SAMPLES=OFF
+          cmake --build "$HOME/CrabNet/build" --parallel 2
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/stage" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DUSE_SYSTEM_TINYXML=ON \
+            -DOPENMW_USE_SYSTEM_MYGUI=ON \
+            -DOPENMW_USE_SYSTEM_OSG=ON \
+            -DOPENMW_USE_SYSTEM_BULLET=ON \
+            -DRakNet_LIBRARY_RELEASE="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_LIBRARY_DEBUG="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_INCLUDE_DIR="$HOME/CrabNet/Source"
+
+      - name: Build and install
+        run: |
+          cmake --build build --parallel 2
+          cmake --install build
+
+      - name: Create portable Steam Deck archive
+        run: |
+          set -euxo pipefail
+          name="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}"
+          mkdir -p package
+          cp -a stage/. package/
+          cat > package/STEAM_DECK_README.txt <<'EOF'
+          ArenaMP Linux x86_64 build for Steam Deck Desktop Mode / SteamOS.
+          Add the launcher or tes3mp binary as a Non-Steam Game if desired.
+          Morrowind data files are not included.
+          EOF
+          tar --numeric-owner -C package -czf "${name}.tar.gz" .
+
+      - name: Upload Linux / Steam Deck archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}
+          path: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  macos-arm64:
+    if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
+    runs-on: macos-14
+    timeout-minutes: 120
+    continue-on-error: true
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install native ARM64 dependencies
+        run: |
+          brew install cmake ninja ccache qt@5 boost sdl2 openal-soft ffmpeg \
+            bullet open-scene-graph mygui lz4 tinyxml libunshield pkg-config
+          echo "$(brew --prefix qt@5)/bin" >> "$GITHUB_PATH"
+
+      - name: Build CrabNet ARM64
+        run: |
+          git clone --depth 1 https://github.com/TES3MP/CrabNet "$HOME/CrabNet"
+          cmake -S "$HOME/CrabNet" -B "$HOME/CrabNet/build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCRABNET_ENABLE_DLL=OFF \
+            -DCRABNET_ENABLE_SAMPLES=OFF
+          cmake --build "$HOME/CrabNet/build" --parallel 3
+
+      - name: Configure native ARM64 application
+        run: |
+          QT_PREFIX="$(brew --prefix qt@5)"
+          PREFIX_PATH="${QT_PREFIX};$(brew --prefix boost);$(brew --prefix bullet);$(brew --prefix open-scene-graph);$(brew --prefix mygui);$(brew --prefix ffmpeg);$(brew --prefix sdl2);$(brew --prefix openal-soft);$(brew --prefix lz4);$(brew --prefix tinyxml)"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+            -DCMAKE_PREFIX_PATH="$PREFIX_PATH" \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/stage" \
+            -DOPENMW_OSX_DEPLOYMENT=ON \
+            -DBUILD_OPENCS=OFF \
+            -DBUILD_WIZARD=OFF \
+            -DUSE_SYSTEM_TINYXML=ON \
+            -DOPENMW_USE_SYSTEM_MYGUI=ON \
+            -DOPENMW_USE_SYSTEM_OSG=ON \
+            -DOPENMW_USE_SYSTEM_BULLET=ON \
+            -DRakNet_LIBRARY_RELEASE="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_LIBRARY_DEBUG="$HOME/CrabNet/build/lib/libRakNetLibStatic.a" \
+            -DRakNet_INCLUDE_DIR="$HOME/CrabNet/Source"
+
+      - name: Build and package DMG
+        run: |
+          cmake --build build --parallel 3
+          cmake --install build
+          cpack --config build/CPackConfig.cmake -G DragNDrop
+
+      - name: Collect macOS packages
+        run: |
+          mkdir -p artifacts
+          find build -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.zip' \) -exec cp {} artifacts/ \;
+          if ! find artifacts -type f | grep -q .; then
+            tar -C stage -czf "artifacts/ArenaMP-macOS-arm64-${GITHUB_REF_NAME}.tar.gz" .
+          fi
+
+      - name: Upload macOS ARM64 archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
