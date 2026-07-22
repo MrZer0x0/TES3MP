@@ -2,7 +2,6 @@
 set -euo pipefail
 
 rm -rf build stage
-rm -rf build stage
 mkdir -p build stage
 
 QT_PREFIX="$(brew --prefix qt@5)"

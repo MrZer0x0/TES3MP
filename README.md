@@ -89,7 +89,7 @@ macOS-сборка использует встроенный TinyXML из `exter
 
 ## GitHub Actions
 
-Workflow находится в `.github/workflows/build-unix.yml`.
+Workflow находится в `.github/workflows/release-builds.yml`. Старый падающий workflow должен быть заменён именно этим файлом, иначе GitHub продолжит запускать прежние шаги.
 
 Он запускает две независимые задачи:
 

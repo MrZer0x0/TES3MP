@@ -30,7 +30,7 @@
 #include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/creaturestats.hpp"
 
-#include "../mwinput/inputmanagerimp.hpp"
+#include "../mwinput/sdlmappings.hpp"
 
 #include "../mwrender/animation.hpp"
 
@@ -199,9 +199,9 @@ namespace MWGui
     void QuickLoot::onKeyButtonPressed(MyGUI::Widget* sender, MyGUI::KeyCode key)
     {
         SDL_Keycode quickkey = SDL_GetKeyFromName(Settings::Manager::getString("key quickloot takeall", "MorroUI").c_str());
-        OIS::KeyCode kc = MWBase::Environment::get().getInputManager()->sdl2OISKeyCode(quickkey);
+        MyGUI::KeyCode kc = MWInput::sdlKeyToMyGUI(quickkey);
 
-        if (static_cast<int>(key.getValue()) == static_cast<int>(kc)) // take all 
+        if (static_cast<int>(key.getValue()) == static_cast<int>(kc.getValue())) // take all
         {
             if (!mModel) return;
 

@@ -2,10 +2,6 @@ name: Build Linux and macOS
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches: [Main]
-    tags: ['v*']
 
 permissions:
   contents: read
@@ -15,14 +11,16 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  BUILD_TYPE: Release
   CMAKE_BUILD_TYPE: Release
+  CACHE_EPOCH: v6
   CCACHE_MAXSIZE: 2G
 
 jobs:
   linux-x64:
     name: Linux x86_64
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CCACHE_DIR: ${{ github.workspace }}/.cache/ccache
       BUILD_JOBS: 2
@@ -32,17 +30,20 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - uses: actions/cache@v5
+      - name: Restore Linux ccache
+        uses: actions/cache@v5
         with:
           path: .cache/ccache
-          key: v4-linux-x64-ccache-${{ github.sha }}
-          restore-keys: v4-linux-x64-ccache-
-
-      - name: Prepare bundled dependencies
-        run: CI/ensure-bundled-deps.sh
+          key: ${{ env.CACHE_EPOCH }}-linux-x64-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_EPOCH }}-linux-x64-ccache-
+            ${{ env.CACHE_EPOCH }}-linux-x64-build-
 
       - name: Install dependencies
         run: bash CI/linux/install-deps.sh
+
+      - name: Prepare bundled CrabNet/RakNet
+        run: bash CI/ensure-bundled-deps.sh
 
       - name: Configure
         run: bash CI/linux/configure.sh
@@ -50,7 +51,8 @@ jobs:
       - name: Build and package
         run: bash CI/linux/build-package.sh
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-Linux-x86_64
           path: artifacts/*
@@ -60,7 +62,7 @@ jobs:
   macos-arm64:
     name: macOS arm64
     runs-on: macos-26-arm64
-    timeout-minutes: 120
+    timeout-minutes: 150
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_CACHE: ${{ github.workspace }}/.cache/homebrew
@@ -72,22 +74,29 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - uses: actions/cache@v5
+      - name: Verify native ARM64 runner
+        run: |
+          uname -a
+          sw_vers
+          test "$(uname -m)" = "arm64"
+
+      - name: Restore macOS caches
+        uses: actions/cache@v5
         with:
           path: |
             .cache/homebrew
             .cache/ccache
             ${{ runner.temp }}/MyGUI/install
-          key: v4-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-${{ github.sha }}
+          key: ${{ env.CACHE_EPOCH }}-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-${{ github.sha }}
           restore-keys: |
-            v4-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-
-            v4-macos-arm64-deps-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-deps-${{ hashFiles('CI/macos-arm64/install-deps.sh') }}-
+            ${{ env.CACHE_EPOCH }}-macos-arm64-deps-
 
-      - name: Prepare bundled dependencies
-        run: CI/ensure-bundled-deps.sh
-
-      - name: Install dependencies
+      - name: Install native ARM64 dependencies
         run: bash CI/macos-arm64/install-deps.sh
+
+      - name: Prepare bundled CrabNet/RakNet
+        run: bash CI/ensure-bundled-deps.sh
 
       - name: Configure
         run: bash CI/macos-arm64/configure.sh
@@ -95,7 +104,8 @@ jobs:
       - name: Build and package
         run: bash CI/macos-arm64/build-package.sh
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload macOS ARM64 artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-macOS-arm64
           path: artifacts/*
