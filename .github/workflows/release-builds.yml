@@ -260,6 +260,9 @@ jobs:
             .cache/ccache
             ${{ runner.temp }}/MyGUI/install
             ${{ runner.temp }}/MyGUI/build
+            ${{ runner.temp }}/TinyXML/install
+            ${{ runner.temp }}/TinyXML/build
+            ${{ runner.temp }}/TinyXML/source
             ${{ runner.temp }}/CrabNet
             build/extern/fetched
           key: ${{ env.CACHE_EPOCH }}-macos-arm64-build-${{ hashFiles('CI/macos-arm64/**', 'CMakeLists.txt', 'cmake/**', 'apps/**/CMakeLists.txt', 'components/**/CMakeLists.txt') }}-${{ github.sha }}

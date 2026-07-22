@@ -6,7 +6,8 @@ mkdir -p build stage
 QT_PREFIX="$(brew --prefix qt@5)"
 MYGUI_PREFIX="${RUNNER_TEMP:-$HOME}/MyGUI/install"
 CRABNET_DIR="${RUNNER_TEMP:-$HOME}/CrabNet"
-PREFIX_PATH="${QT_PREFIX};${MYGUI_PREFIX};$(brew --prefix boost);$(brew --prefix bullet);$(brew --prefix open-scene-graph);$(brew --prefix ffmpeg);$(brew --prefix sdl2);$(brew --prefix openal-soft);$(brew --prefix lz4);$(brew --prefix tinyxml);$(brew --prefix luajit)"
+TINYXML_PREFIX="${RUNNER_TEMP:-$HOME}/TinyXML/install"
+PREFIX_PATH="${QT_PREFIX};${MYGUI_PREFIX};$(brew --prefix boost);$(brew --prefix bullet);$(brew --prefix open-scene-graph);$(brew --prefix ffmpeg);$(brew --prefix sdl2);$(brew --prefix openal-soft);$(brew --prefix lz4);${TINYXML_PREFIX};$(brew --prefix luajit)"
 
 cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
@@ -20,6 +21,10 @@ cmake -S . -B build -G Ninja \
   -DBUILD_OPENCS=OFF \
   -DBUILD_WIZARD=OFF \
   -DUSE_SYSTEM_TINYXML=ON \
+  -DTinyXML_INCLUDE_DIR="$TINYXML_PREFIX/include" \
+  -DTinyXML_LIBRARY="$TINYXML_PREFIX/lib/libtinyxml.a" \
+  -DTINYXML_INCLUDE_DIR="$TINYXML_PREFIX/include" \
+  -DTINYXML_LIBRARY="$TINYXML_PREFIX/lib/libtinyxml.a" \
   -DOPENMW_USE_SYSTEM_MYGUI=ON \
   -DOPENMW_USE_SYSTEM_OSG=ON \
   -DOPENMW_USE_SYSTEM_BULLET=ON \
