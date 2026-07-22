@@ -274,12 +274,20 @@ Launcher::ServerDialog::ServerConfig Launcher::ServerDialog::readServerConfig() 
     ServerConfig result;
     result.localAddress = QStringLiteral("0.0.0.0");
     result.port = QStringLiteral("25565");
-    result.serverHomePath = QDir(applicationBasePath()).filePath(QStringLiteral("server"));
-    result.configPath = QDir(applicationBasePath()).filePath(QStringLiteral("tes3mp-server.cfg"));
+    const QDir baseDir(applicationBasePath());
+    const QDir userDir(baseDir.filePath(QStringLiteral("userdata")));
 
+    result.serverHomePath = baseDir.filePath(QStringLiteral("server"));
+    result.configPath = userDir.filePath(QStringLiteral("tes3mp-server.cfg"));
+
+    // Load from lowest to highest priority. Userdata config is last, so
+    // launcher-side server settings prefer the same portable userdata folder
+    // as the game and wizard settings.
     QStringList configCandidates;
-    configCandidates << QDir(applicationBasePath()).filePath(QStringLiteral("tes3mp-server.cfg"))
-                     << QDir(applicationBasePath()).filePath(QStringLiteral("tes3mp-server-default.cfg"));
+    configCandidates << baseDir.filePath(QStringLiteral("tes3mp-server-default.cfg"))
+                     << userDir.filePath(QStringLiteral("tes3mp-server-default.cfg"))
+                     << baseDir.filePath(QStringLiteral("tes3mp-server.cfg"))
+                     << userDir.filePath(QStringLiteral("tes3mp-server.cfg"));
 
     for (const QString& configPath : configCandidates)
     {
@@ -323,7 +331,6 @@ Launcher::ServerDialog::ServerConfig Launcher::ServerDialog::readServerConfig() 
         }
     }
 
-    QDir baseDir(applicationBasePath());
     if (QDir::isRelativePath(result.serverHomePath))
         result.serverHomePath = baseDir.absoluteFilePath(result.serverHomePath);
     else
@@ -444,11 +451,15 @@ void Launcher::ServerDialog::cleanupOldLogsIfNeeded()
     if (!logDir.exists())
         return;
 
-    const QStringList logFiles = logDir.entryList(QStringList() << QStringLiteral("*.log"), QDir::Files);
+    const QStringList logFiles = logDir.entryList(
+        QStringList() << QStringLiteral("tes3mp-client-*.log")
+                      << QStringLiteral("tes3mp-server-*.log"),
+        QDir::Files);
     for (const QString& fileName : logFiles)
         logDir.remove(fileName);
 
-    appendStatusLine(tr("Old log files were cleaned up."));
+    if (!logFiles.isEmpty())
+        appendStatusLine(tr("Old timestamped log files were cleaned up."));
 }
 
 void Launcher::ServerDialog::appendStatusLine(const QString& text)

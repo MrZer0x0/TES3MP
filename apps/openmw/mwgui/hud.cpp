@@ -7,6 +7,7 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_ScrollView.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -520,10 +521,12 @@ namespace MWGui
             drawState = player.getClass().getCreatureStats(player).getDrawState();
 
         const bool persistentBoxes = Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
+        const float weaponSpellBoxAlpha = std::clamp(
+            Settings::Manager::getFloat("weapon spell box transparency", "GUI"), 0.f, 1.f);
         if (mWeapBox && mWeapBox->getVisible())
-            mWeapBox->setAlpha(persistentBoxes && !mFatigueFrame->getVisible() ? 0.4f : 1.f);
+            mWeapBox->setAlpha(persistentBoxes ? weaponSpellBoxAlpha : 1.f);
         if (mSpellBox && mSpellBox->getVisible())
-            mSpellBox->setAlpha(persistentBoxes && !mMagickaFrame->getVisible() ? 0.4f : 1.f);
+            mSpellBox->setAlpha(persistentBoxes ? weaponSpellBoxAlpha : 1.f);
 
         if (mEnemyActorId != -1 && Settings::Manager::getBool("target info panel", "GUI"))
         {

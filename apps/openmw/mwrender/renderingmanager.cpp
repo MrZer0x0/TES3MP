@@ -1211,11 +1211,17 @@ namespace MWRender
             {
                 if (Settings::Manager::getBool("view over shoulder", "Camera"))
                 {
-                    if (!mViewOverShoulderController)
-                        mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
+                    // Recreate the controller so all offsets/crosshair/dynamic-distance state is refreshed.
+                    mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
                 }
                 else
                     mViewOverShoulderController.reset();
+            }
+            else if (setting.first == "Camera" && (setting.second == "auto switch shoulder"
+                || setting.second == "view over shoulder offset"))
+            {
+                if (Settings::Manager::getBool("view over shoulder", "Camera"))
+                    mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
             }
             else if (setting.first == "Terrain" && setting.second == "distant terrain")
             {

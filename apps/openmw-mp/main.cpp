@@ -176,8 +176,7 @@ int main(int argc, char *argv[])
     {
         // Redirect cout and cerr to tes3mp server log
 
-        logfile.open(boost::filesystem::path(
-                cfgMgr.getLogPath() / "/tes3mp-server-" += TimedLog::getFilenameTimestamp() += ".log"));
+        logfile.open(boost::filesystem::path(cfgMgr.getLogPath() / "tes3mp-server.log"));
 
         coutsb.open(Tee(logfile, oldcout));
         cerrsb.open(Tee(logfile, oldcerr));

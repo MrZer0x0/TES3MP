@@ -404,16 +404,9 @@ int main(int argc, char**argv)
         End of tes3mp addition
     */
 
-    /*
-        Start of tes3mp change (major)
-
-        Instead of logging information in openmw.log, use a more descriptive filename
-        that includes a timestamp
-    */
-    return wrapApplication(&runApplication, argc, argv, "/tes3mp-client-" + TimedLog::getFilenameTimestamp());
-    /*
-        End of tes3mp change (major)
-    */
+    // Keep one stable client log in the active userdata/log directory.
+    // Do not include a date/time suffix, otherwise every launch creates a new file.
+    return wrapApplication(&runApplication, argc, argv, "tes3mp-client.log");
 }
 
 // Platform specific for Windows when there is no console built into the executable.

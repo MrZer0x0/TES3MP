@@ -685,8 +685,7 @@ void Launcher::AdvancedPage::slotOsgPatchControlChanged()
 
 void Launcher::AdvancedPage::loadSettingBool(QCheckBox *checkbox, const std::string &setting, const std::string &group)
 {
-    if (Settings::Manager::getBool(setting, group))
-        checkbox->setCheckState(Qt::Checked);
+    checkbox->setCheckState(Settings::Manager::getBool(setting, group) ? Qt::Checked : Qt::Unchecked);
 }
 
 void Launcher::AdvancedPage::saveSettingBool(QCheckBox *checkbox, const std::string &setting, const std::string &group)
