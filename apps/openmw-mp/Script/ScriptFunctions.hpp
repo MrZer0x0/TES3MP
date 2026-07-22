@@ -152,6 +152,45 @@ public:
             WORLDSTATEAPI
     };
 
+    inline static const ScriptFunctionAddress functionAddresses[]{
+            {"CreateTimer",         ScriptFunctions::CreateTimer},
+            {"CreateTimerEx",       ScriptFunctions::CreateTimerEx},
+            {"MakePublic",          ScriptFunctions::MakePublic},
+            {"CallPublic",          ScriptFunctions::CallPublic},
+
+            {"StartTimer",          ScriptFunctions::StartTimer},
+            {"StopTimer",           ScriptFunctions::StopTimer},
+            {"RestartTimer",        ScriptFunctions::RestartTimer},
+            {"FreeTimer",           ScriptFunctions::FreeTimer},
+            {"IsTimerElapsed",      ScriptFunctions::IsTimerElapsed},
+
+            ACTORAPI,
+            BOOKAPI,
+            CELLAPI,
+            CHARCLASSAPI,
+            CHATAPI,
+            DIALOGUEAPI,
+            FACTIONAPI,
+            GUIAPI,
+            ITEMAPI,
+            MECHANICSAPI,
+            MISCELLANEOUSAPI,
+            POSITIONAPI,
+            QUESTAPI,
+            RECORDSDYNAMICAPI,
+            SHAPESHIFTAPI,
+            SERVERAPI,
+            SETTINGSAPI,
+            SPELLAPI,
+            STATAPI,
+            OBJECTAPI,
+            WORLDSTATEAPI
+    };
+
+    static_assert(sizeof(functionAddresses) / sizeof(functionAddresses[0])
+            == sizeof(functions) / sizeof(functions[0]),
+        "Function signature and address tables must stay in sync");
+
     static constexpr ScriptCallbackData callbacks[]{
             {"OnServerInit",             Callback<>()},
             {"OnServerPostInit",         Callback<>()},
