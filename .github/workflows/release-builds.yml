@@ -87,7 +87,10 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euxo pipefail
           sudo CI/install_debian_deps.sh gcc openmw-deps openmw-deps-dynamic
+          sudo apt-get update -yq
+          sudo apt-get install -y --no-install-recommends libluajit-5.1-dev
 
       - name: Build CrabNet
         run: |
@@ -130,11 +133,31 @@ jobs:
           EOF
           tar --numeric-owner -C package -czf "${name}.tar.gz" .
 
-      - name: Upload Linux / Steam Deck archive
+      - name: Collect Linux package and diagnostics
+        if: always()
+        run: |
+          set +e
+          mkdir -p actions-artifacts/linux-steamdeck
+          archive="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}.tar.gz"
+          [ -f "$archive" ] && cp "$archive" actions-artifacts/linux-steamdeck/
+          [ -f build/CMakeCache.txt ] && cp build/CMakeCache.txt actions-artifacts/linux-steamdeck/
+          find build -maxdepth 3 -type f 2>/dev/null | sort > actions-artifacts/linux-steamdeck/build-files.txt || true
+          {
+            echo "workflow=${GITHUB_WORKFLOW}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "ref=${GITHUB_REF}"
+            echo "commit=${GITHUB_SHA}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "generated_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > actions-artifacts/linux-steamdeck/BUILD_INFO.txt
+
+      - name: Upload Linux / Steam Deck artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}
-          path: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}.tar.gz
+          path: actions-artifacts/linux-steamdeck/
           if-no-files-found: error
           retention-days: 30
 
@@ -178,10 +201,35 @@ jobs:
         run: |
           find build stage -type d -name '*.app' -prune -exec codesign --force --deep --sign - {} \; || true
 
-      - name: Upload macOS ARM64 package
+      - name: Collect macOS package and diagnostics
+        if: always()
+        run: |
+          set +e
+          mkdir -p actions-artifacts/macos-arm64
+          if [ -d artifacts ]; then
+            cp -a artifacts/. actions-artifacts/macos-arm64/
+          fi
+          if [ -d build ]; then
+            find build -maxdepth 3 -type f \
+              \( -name '*.dmg' -o -name '*.app' -o -name 'CMakeCache.txt' \) \
+              -print > actions-artifacts/macos-arm64/build-files.txt 2>/dev/null || true
+            cp build/CMakeCache.txt actions-artifacts/macos-arm64/ 2>/dev/null || true
+          fi
+          {
+            echo "workflow=${GITHUB_WORKFLOW}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "ref=${GITHUB_REF}"
+            echo "commit=${GITHUB_SHA}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "generated_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > actions-artifacts/macos-arm64/BUILD_INFO.txt
+
+      - name: Upload macOS ARM64 artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental
-          path: artifacts/*
+          path: actions-artifacts/macos-arm64/
           if-no-files-found: error
           retention-days: 30

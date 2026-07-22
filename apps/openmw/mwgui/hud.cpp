@@ -521,9 +521,9 @@ namespace MWGui
 
         const bool persistentBoxes = Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
         if (mWeapBox && mWeapBox->getVisible())
-            mWeapBox->setAlpha(persistentBoxes && !mFatigueFrame->getVisible() ? 0.4f : 1.f);
+            mWeapBox->setAlpha(persistentBoxes && drawState != MWMechanics::DrawState_Weapon ? 0.4f : 1.f);
         if (mSpellBox && mSpellBox->getVisible())
-            mSpellBox->setAlpha(persistentBoxes && !mMagickaFrame->getVisible() ? 0.4f : 1.f);
+            mSpellBox->setAlpha(persistentBoxes && drawState != MWMechanics::DrawState_Spell ? 0.4f : 1.f);
 
         if (mEnemyActorId != -1 && Settings::Manager::getBool("target info panel", "GUI"))
         {

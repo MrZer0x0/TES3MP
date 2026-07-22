@@ -2,7 +2,6 @@
 
 #include <MyGUI_InputManager.h>
 #include <MyGUI_Button.h>
-#include <components/settings/settings.hpp>
 
 /*
     Start of tes3mp addition
@@ -54,7 +53,6 @@ namespace MWGui
         , mSortModel(nullptr)
         , mModel(nullptr)
         , mSelectedItem(-1)
-        , mQuickLootIndex(0)
     {
         getWidget(mDisposeCorpseButton, "DisposeCorpseButton");
         getWidget(mTakeButton, "TakeButton");
@@ -63,7 +61,6 @@ namespace MWGui
         getWidget(mItemView, "ItemView");
         mItemView->eventBackgroundClicked += MyGUI::newDelegate(this, &ContainerWindow::onBackgroundSelected);
         mItemView->eventItemClicked += MyGUI::newDelegate(this, &ContainerWindow::onItemSelected);
-        mMainWidget->eventKeyButtonPressed += MyGUI::newDelegate(this, &ContainerWindow::onQuickLootKey);
 
         mDisposeCorpseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onDisposeCorpseButtonClicked);
         mCloseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onCloseButtonClicked);
@@ -72,36 +69,6 @@ namespace MWGui
         setCoord(200,0,600,300);
     }
 
-
-    void ContainerWindow::onQuickLootKey(MyGUI::Widget*, MyGUI::KeyCode key, MyGUI::Char)
-    {
-        if (!Settings::Manager::getBool("quick loot", "GUI") || !mSortModel)
-            return;
-
-        const int count = static_cast<int>(mSortModel->getItemCount());
-        if (key == MyGUI::KeyCode::Q)
-        {
-            onCloseButtonClicked(nullptr);
-            return;
-        }
-        if (key == MyGUI::KeyCode::F)
-        {
-            Settings::Manager::setBool("quick loot", "GUI", false);
-            MWBase::Environment::get().getWindowManager()->messageBox("Quick loot: normal container mode");
-            return;
-        }
-        if (count <= 0)
-            return;
-
-        if (key == MyGUI::KeyCode::W || key == MyGUI::KeyCode::ArrowUp)
-            mQuickLootIndex = (mQuickLootIndex + count - 1) % count;
-        else if (key == MyGUI::KeyCode::S || key == MyGUI::KeyCode::ArrowDown)
-            mQuickLootIndex = (mQuickLootIndex + 1) % count;
-        else if (key == MyGUI::KeyCode::E || key == MyGUI::KeyCode::Return)
-            onItemSelected(mQuickLootIndex);
-        else if (key == MyGUI::KeyCode::D)
-            MWBase::Environment::get().getWindowManager()->messageBox("D is disabled: server-safe item deletion is not available");
-    }
     void ContainerWindow::onItemSelected(int index)
     {
         if (mDragAndDrop->mIsOnDragAndDrop)
@@ -275,7 +242,6 @@ namespace MWGui
 
         mItemView->setModel (mSortModel);
         mItemView->resetScrollBars();
-        mQuickLootIndex = 0;
 
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mCloseButton);
 
