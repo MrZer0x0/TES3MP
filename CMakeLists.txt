@@ -1,11 +1,11 @@
-# Allow using MSVC_DEBUG_INFORMATION_FORMAT instead of string-replacing /Zi for ccache compatibility
-# Yes, this really does need to be here
+cmake_minimum_required(VERSION 3.10)
+
+# Allow using MSVC_DEBUG_INFORMATION_FORMAT instead of string-replacing /Zi for ccache compatibility.
 if(POLICY CMP0141)
     cmake_policy(SET CMP0141 NEW)
 endif()
 
-project(OpenMW)
-cmake_minimum_required(VERSION 3.1.0)
+project(OpenMW LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -837,13 +837,15 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
     set(CPACK_PACKAGE_VERSION_PATCH ${OPENMW_VERSION_RELEASE})
 
     set(INSTALLED_OPENMW_APP "\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}")
-    set(INSTALLED_OPENCS_APP "\${CMAKE_INSTALL_PREFIX}/${OPENCS_BUNDLE_NAME}")
+    if(BUILD_OPENCS)
+        set(INSTALLED_OPENCS_APP "\${CMAKE_INSTALL_PREFIX}/${OPENCS_BUNDLE_NAME}")
+    endif()
 
     install(CODE "
         set(BU_CHMOD_BUNDLE_ITEMS ON)
         set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
         include(BundleUtilities)
-        cmake_minimum_required(VERSION 3.1)
+        cmake_minimum_required(VERSION 3.10)
     " COMPONENT Runtime)
 
     set(ABSOLUTE_PLUGINS "")
@@ -891,22 +893,36 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
     endfunction (install_plugins_for_bundle)
 
     install_plugins_for_bundle("${APP_BUNDLE_NAME}" PLUGINS)
-    install_plugins_for_bundle("${OPENCS_BUNDLE_NAME}" OPENCS_PLUGINS)
-
     set(PLUGINS ${PLUGINS} "${INSTALLED_OPENMW_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
-    set(OPENCS_PLUGINS ${OPENCS_PLUGINS} "${INSTALLED_OPENCS_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
+
+    if(BUILD_OPENCS)
+        install_plugins_for_bundle("${OPENCS_BUNDLE_NAME}" OPENCS_PLUGINS)
+        set(OPENCS_PLUGINS ${OPENCS_PLUGINS} "${INSTALLED_OPENCS_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
+    endif()
 
     install(CODE "
-        function(gp_item_default_embedded_path_override item  default_embedded_path_var)
+        function(gp_item_default_embedded_path_override item default_embedded_path_var)
             if (\${item} MATCHES ${OSG_PLUGIN_PREFIX_DIR})
-              set(path \"@executable_path/../PlugIns/${OSG_PLUGIN_PREFIX_DIR}\")
-              set(\${default_embedded_path_var} \"\${path}\" PARENT_SCOPE)
+                set(path \"@executable_path/../PlugIns/${OSG_PLUGIN_PREFIX_DIR}\")
+                set(\${default_embedded_path_var} \"\${path}\" PARENT_SCOPE)
             endif()
         endfunction()
 
         fixup_bundle(\"${INSTALLED_OPENMW_APP}\" \"${PLUGINS}\" \"\")
-        fixup_bundle(\"${INSTALLED_OPENCS_APP}\" \"${OPENCS_PLUGINS}\" \"\")
         " COMPONENT Runtime)
+
+    if(BUILD_OPENCS)
+        install(CODE "
+            function(gp_item_default_embedded_path_override item default_embedded_path_var)
+                if (\${item} MATCHES ${OSG_PLUGIN_PREFIX_DIR})
+                    set(path \"@executable_path/../PlugIns/${OSG_PLUGIN_PREFIX_DIR}\")
+                    set(\${default_embedded_path_var} \"\${path}\" PARENT_SCOPE)
+                endif()
+            endfunction()
+
+            fixup_bundle(\"${INSTALLED_OPENCS_APP}\" \"${OPENCS_PLUGINS}\" \"\")
+            " COMPONENT Runtime)
+    endif()
     include(CPack)
 elseif(NOT APPLE)
     get_generator_is_multi_config(multi_config)
