@@ -128,8 +128,10 @@
 	}
 #endif
 
-	// GCC 12+ provides _xgetbv via <immintrin.h>; clang always has it
-#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ < 12
+	// GCC 11+ provides _xgetbv via <immintrin.h>; clang always has it.
+	// Defining our fallback on GCC 11 conflicts with xsaveintrin.h because
+	// GCC declares the intrinsic with a signed 64-bit return type.
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ < 11
 	FORCE_INLINE unsigned long long _xgetbv(unsigned int index)
 	{
 		unsigned int eax, edx;
