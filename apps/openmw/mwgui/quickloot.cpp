@@ -198,9 +198,17 @@ namespace MWGui
 
                 // Compact order: selection marker, icon, item name, stack count.
                 row.mMarker->setCaption(selected ? ">" : "");
-                row.mIcon->setVisible(true);
+
+                // Rebind the texture every time a row is populated. ItemWidget caches
+                // the icon path, while MyGUI may release or postpone the underlying
+                // texture when the overlay was hidden. Clearing first prevents the
+                // barely-visible/stale icon state seen on the first QuickLoot frame.
+                row.mIcon->setVisible(false);
+                row.mIcon->setItem(MWWorld::Ptr());
                 row.mIcon->setItem(item.mBase);
                 row.mIcon->setCount(1);
+                row.mIcon->setAlpha(1.f);
+                row.mIcon->setVisible(true);
                 row.mName->setVisible(true);
                 row.mName->setCaption(name);
                 row.mCount->setVisible(true);
@@ -618,16 +626,16 @@ namespace MWGui
         if (visibleItems <= 0)
             return;
 
-        constexpr int outerPadding = 6;
-        constexpr int headerHeight = 26;
-        constexpr int itemHeight = 28;
-        constexpr int markerWidth = 18;
-        constexpr int iconSize = 24;
+        constexpr int outerPadding = 5;
+        constexpr int headerHeight = 24;
+        constexpr int itemHeight = 26;
+        constexpr int markerWidth = 16;
+        constexpr int iconSize = 20;
         constexpr int iconLeft = markerWidth;
         constexpr int nameLeft = iconLeft + iconSize + 4;
         constexpr int headerNameLeft = markerWidth + 4;
-        constexpr int nameCountGap = 8;
-        constexpr int rightPadding = 8;
+        constexpr int nameCountGap = 6;
+        constexpr int rightPadding = 7;
 
         // Fit the box to the longest currently visible row instead of reserving a
         // fixed 400-pixel column. A small minimum keeps short names readable, while
@@ -642,8 +650,10 @@ namespace MWGui
                 nameLeft + nameWidth + nameCountGap + countWidth + rightPadding);
         }
 
-        const int maxOuterWidth = std::max(1, std::min(340, viewSize.width - 16));
-        const int minOuterWidth = std::min(220, maxOuterWidth);
+        // Start narrower for ordinary containers, but keep enough headroom for
+        // long translated or modded item names instead of clipping them early.
+        const int maxOuterWidth = std::max(1, std::min(480, viewSize.width - 16));
+        const int minOuterWidth = std::min(200, maxOuterWidth);
         const int outerWidth = std::max(minOuterWidth,
             std::min(desiredInnerWidth + outerPadding * 2, maxOuterWidth));
         const int outerHeight = outerPadding * 2 + headerHeight + visibleItems * itemHeight;
@@ -669,14 +679,14 @@ namespace MWGui
 
             if (header)
             {
-                row.mIcon->setCoord(iconLeft, 1, iconSize, iconSize);
+                row.mIcon->setCoord(iconLeft, (rowHeight - iconSize) / 2, iconSize, iconSize);
                 row.mName->setCoord(headerNameLeft, 0,
                     std::max(1, innerWidth - headerNameLeft - rightPadding), rowHeight);
                 row.mCount->setCoord(0, 0, 0, 0);
             }
             else
             {
-                row.mIcon->setCoord(iconLeft, 2, iconSize, iconSize);
+                row.mIcon->setCoord(iconLeft, (rowHeight - iconSize) / 2, iconSize, iconSize);
 
                 const int countWidth = std::max(28,
                     std::min(56, row.mCount->getTextSize().width + 4));
