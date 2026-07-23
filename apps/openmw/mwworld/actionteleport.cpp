@@ -1,11 +1,14 @@
 #include "actionteleport.hpp"
 
+#include <list>
+
 /*
     Start of tes3mp addition
 
     Include additional headers for multiplayer purposes
 */
 #include <components/openmw-mp/TimedLog.hpp>
+#include <components/settings/settings.hpp>
 #include "../mwbase/windowmanager.hpp"
 #include "../mwmp/Main.hpp"
 #include "../mwmp/Networking.hpp"
@@ -40,16 +43,17 @@ namespace MWWorld
         {
             // Find any NPCs that are following the actor and teleport them with him
             std::set<MWWorld::Ptr> followers;
-            getFollowers(actor, followers, true);
+            const bool includeHostilePursuers = Settings::Manager::getBool("combat pursuit through doors", "Game");
+            getFollowers(actor, followers, includeHostilePursuers);
 
             for (std::set<MWWorld::Ptr>::iterator it = followers.begin(); it != followers.end(); ++it)
-                teleport(*it);
+                teleport(*it, actor);
         }
 
         teleport(actor);
     }
 
-    void ActionTeleport::teleport(const Ptr &actor)
+    void ActionTeleport::teleport(const Ptr& actor, const Ptr& teleportTarget)
     {
         MWBase::World* world = MWBase::Environment::get().getWorld();
         actor.getClass().getCreatureStats(actor).land(actor == world->getPlayerPtr());
@@ -79,23 +83,23 @@ namespace MWWorld
                 If this is a DedicatedActor, get their new cell and override their stored cell with it
                 so their cell change is approved in World::moveObject()
             */
-            MWWorld::CellStore *newCellStore;
-            mwmp::CellController *cellController = mwmp::Main::get().getCellController();
+            MWWorld::CellStore* newCellStore = nullptr;
+            mwmp::CellController* cellController = mwmp::Main::get().getCellController();
+            const bool isCombatPursuer = !teleportTarget.isEmpty()
+                && actor.getClass().getCreatureStats(actor).getAiSequence().isInCombat(teleportTarget);
 
-            if (actor.getClass().getCreatureStats(actor).getAiSequence().isInCombat(world->getPlayerPtr()))
-                actor.getClass().getCreatureStats(actor).getAiSequence().stopCombat();
-            else if (mCellName.empty())
+            if (mCellName.empty())
             {
                 int cellX;
                 int cellY;
-                world->positionToIndex(mPosition.pos[0],mPosition.pos[1],cellX,cellY);
+                world->positionToIndex(mPosition.pos[0], mPosition.pos[1], cellX, cellY);
 
                 newCellStore = world->getExterior(cellX, cellY);
                 if (cellController->isDedicatedActor(actor))
                     cellController->getDedicatedActor(actor)->cell = *newCellStore->getCell();
 
-                world->moveObject(actor,world->getExterior(cellX,cellY),
-                    mPosition.pos[0],mPosition.pos[1],mPosition.pos[2]);
+                world->moveObject(actor, newCellStore,
+                    mPosition.pos[0], mPosition.pos[1], mPosition.pos[2]);
             }
             else
             {
@@ -103,7 +107,7 @@ namespace MWWorld
                 if (cellController->isDedicatedActor(actor))
                     cellController->getDedicatedActor(actor)->cell = *newCellStore->getCell();
 
-                world->moveObject(actor,world->getInterior(mCellName),mPosition.pos[0],mPosition.pos[1],mPosition.pos[2]);
+                world->moveObject(actor, newCellStore, mPosition.pos[0], mPosition.pos[1], mPosition.pos[2]);
             }
             /*
                 Start of tes3mp change (minor)
@@ -140,10 +144,14 @@ namespace MWWorld
             actorList->addCellChangeActor(baseActor);
             actorList->sendCellChangeActors();
 
-            // Send ActorAI to bring all players in the new cell up to speed with this follower
+            // Send ActorAI to bring all players in the new cell up to speed. Hostile
+            // pursuers keep AiCombat; ordinary followers keep AiFollow.
             actorList->cell = baseActor.cell;
-            baseActor.aiAction = mwmp::BaseActorList::FOLLOW;
-            baseActor.aiTarget = MechanicsHelper::getTarget(world->getPlayerPtr());
+            baseActor.aiAction = isCombatPursuer
+                ? mwmp::BaseActorList::COMBAT : mwmp::BaseActorList::FOLLOW;
+            const MWWorld::Ptr aiTarget = !teleportTarget.isEmpty()
+                ? teleportTarget : world->getPlayerPtr();
+            baseActor.aiTarget = MechanicsHelper::getTarget(aiTarget);
             actorList->addAiActor(baseActor);
             actorList->sendAiActors();
             /*
@@ -154,7 +162,16 @@ namespace MWWorld
 
     void ActionTeleport::getFollowers(const MWWorld::Ptr& actor, std::set<MWWorld::Ptr>& out, bool includeHostiles) {
         std::set<MWWorld::Ptr> followers;
-        MWBase::Environment::get().getMechanicsManager()->getActorsFollowing(actor, followers);
+        MWBase::MechanicsManager* mechanics = MWBase::Environment::get().getMechanicsManager();
+        mechanics->getActorsFollowing(actor, followers);
+
+        // Combat pursuers are deliberately collected separately instead of pretending that
+        // AiCombat is an AiFollow package. This keeps ally/follower semantics unchanged.
+        if (includeHostiles)
+        {
+            const std::list<MWWorld::Ptr> pursuers = mechanics->getActorsFighting(actor);
+            followers.insert(pursuers.begin(), pursuers.end());
+        }
 
         for(std::set<MWWorld::Ptr>::iterator it = followers.begin();it != followers.end();++it)
         {
@@ -162,7 +179,11 @@ namespace MWWorld
 
             std::string script = follower.getClass().getScript(follower);
 
-            if (!includeHostiles && follower.getClass().getCreatureStats(follower).getAiSequence().isInCombat(actor))
+            const bool isHostilePursuer = follower.getClass().getCreatureStats(follower).getAiSequence().isInCombat(actor);
+            if (!includeHostiles && isHostilePursuer)
+                continue;
+            if (isHostilePursuer && mwmp::Main::isInitialized()
+                && !mwmp::Main::get().getCellController()->isLocalActor(follower))
                 continue;
 
             if (!script.empty() && follower.getRefData().getLocals().getIntVar(script, "stayoutside") == 1)

@@ -602,12 +602,14 @@ void LocalPlayer::updateAnimFlags(bool forceUpdate)
     using namespace MWMechanics;
 
     static bool wasRunning = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Run);
-    static bool wasSneaking = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Sneak);
+    static bool wasSneaking = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Sneak)
+        || ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceSneak);
     static bool wasForceJumping = ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceJump);
     static bool wasForceMoveJumping = ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceMoveJump);
 
     bool isRunning = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Run);
-    bool isSneaking = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Sneak);
+    bool isSneaking = ptrNpcStats.getMovementFlag(CreatureStats::Flag_Sneak)
+        || ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceSneak);
     bool isForceJumping = ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceJump);
     bool isForceMoveJumping = ptrNpcStats.getMovementFlag(CreatureStats::Flag_ForceMoveJump);
     
