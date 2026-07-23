@@ -914,9 +914,8 @@ namespace MWGui
         MWMechanics::CreatureStats& targetStats = enemy.getClass().getCreatureStats(enemy);
         if (mEnemyName)
         {
-            const std::string levelLabel = MWBase::Environment::get().getWindowManager()->getGameSettingString("sLevel", "Level");
-            mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  " + levelLabel + " "
-                + MyGUI::utility::toString(targetStats.getLevel()));
+            mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  "
+                + MyGUI::utility::toString(targetStats.getLevel()) + " lvl");
             mEnemyName->setVisible(Settings::Manager::getBool("target info panel", "GUI"));
         }
         if (mEnemySummary)

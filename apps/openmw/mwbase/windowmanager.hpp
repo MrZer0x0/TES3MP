@@ -365,6 +365,12 @@ namespace MWBase
             /// Consume the mouse wheel while QuickLoot is visible so it cannot zoom the camera.
             virtual bool handleQuickLootMouseWheel(int rel) = 0;
 
+            /// Handle only QuickLoot shortcuts.
+            virtual bool handleQuickLootKeyPress(MyGUI::KeyCode key) = 0;
+
+            /// True only while the QuickLoot overlay is actually visible for the focused container.
+            virtual bool isQuickLootVisible() const = 0;
+
             virtual void changePointer (const std::string& name) = 0;
 
             virtual void setEnemy (const MWWorld::Ptr& enemy) = 0;

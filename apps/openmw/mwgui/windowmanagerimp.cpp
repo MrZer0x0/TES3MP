@@ -1052,6 +1052,16 @@ namespace MWGui
         return mQuickLoot && mQuickLoot->handleMouseWheel(rel);
     }
 
+    bool WindowManager::handleQuickLootKeyPress(MyGUI::KeyCode key)
+    {
+        return mQuickLoot && mQuickLoot->handleKeyPress(key);
+    }
+
+    bool WindowManager::isQuickLootVisible() const
+    {
+        return mQuickLoot && mQuickLoot->isVisible();
+    }
+
     bool WindowManager::toggleFullHelp()
     {
         return mToolTips->toggleFullHelp();

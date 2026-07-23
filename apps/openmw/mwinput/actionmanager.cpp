@@ -67,6 +67,14 @@ namespace MWInput
             return;
         }
 
+        // QuickLoot is shown only while the player is looking at a non-empty container.
+        // Keep W/S state tracked by the binding system, but suppress forward/backward
+        // movement for exactly that visible interval. This also handles the case where
+        // W or S was already held before the overlay appeared and resumes movement as
+        // soon as the player looks away and the overlay closes.
+        const bool blockForwardBackward =
+            MWBase::Environment::get().getWindowManager()->isQuickLootVisible();
+
         // Configure player movement according to keyboard input. Actual movement will
         // be done in the physics system.
         if (MWBase::Environment::get().getInputManager()->getControlSwitch("playercontrols"))
@@ -82,7 +90,12 @@ namespace MWInput
                 player.setLeftRight(mBindingsManager->actionIsActive(A_MoveRight) ? 1 : -1);
             }
 
-            if (mBindingsManager->actionIsActive(A_MoveForward) != mBindingsManager->actionIsActive(A_MoveBackward))
+            if (blockForwardBackward)
+            {
+                // Do not let W/S move the player while QuickLoot is visible.
+                player.setForwardBackward(0);
+            }
+            else if (mBindingsManager->actionIsActive(A_MoveForward) != mBindingsManager->actionIsActive(A_MoveBackward))
             {
                 alwaysRunAllowed = true;
                 triedToMove = true;
@@ -160,8 +173,8 @@ namespace MWInput
                 player.setRunState(mBindingsManager->actionIsActive(A_Run));
         }
 
-        if (mBindingsManager->actionIsActive(A_MoveForward) ||
-            mBindingsManager->actionIsActive(A_MoveBackward) ||
+        if ((!blockForwardBackward && (mBindingsManager->actionIsActive(A_MoveForward) ||
+                mBindingsManager->actionIsActive(A_MoveBackward))) ||
             mBindingsManager->actionIsActive(A_MoveLeft) ||
             mBindingsManager->actionIsActive(A_MoveRight) ||
             mBindingsManager->actionIsActive(A_Jump) ||
