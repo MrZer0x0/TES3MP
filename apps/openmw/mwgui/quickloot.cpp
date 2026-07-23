@@ -27,6 +27,7 @@
 #include "../mwmechanics/character.hpp"
 #include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/disease.hpp"
+#include "../mwmechanics/movement.hpp"
 #include "../mwmechanics/npcstats.hpp"
 
 #include "../mwinput/sdlmappings.hpp"
