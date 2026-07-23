@@ -1028,6 +1028,8 @@ namespace MWGui
     {
         mToolTips->setFocusObject(focus);
         mQuickLoot->setFocusObject(focus);
+        if (mHud)
+            mHud->setFocusObject(focus);
 
         if(mHud && (mShowOwned == 2 || mShowOwned == 3))
         {
@@ -1040,6 +1042,8 @@ namespace MWGui
     {
         mToolTips->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
         mQuickLoot->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
+        if (mHud)
+            mHud->setFocusObjectScreenCoords(min_x, min_y, max_x, max_y);
     }
 
     bool WindowManager::activateQuickLoot()

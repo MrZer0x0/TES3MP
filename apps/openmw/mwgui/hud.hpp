@@ -58,6 +58,8 @@ namespace MWGui
 
         void setEnemy(const MWWorld::Ptr& enemy);
         void resetEnemy();
+        void setFocusObject(const MWWorld::Ptr& focus);
+        void setFocusObjectScreenCoords(float min_x, float min_y, float max_x, float max_y);
 
         void clear() override;
 
@@ -104,6 +106,9 @@ namespace MWGui
 
         int mEnemyActorId;
         float mEnemyHealthTimer;
+        MWWorld::Ptr mFocusActor;
+        float mFocusActorScreenX;
+        float mFocusActorScreenY;
 
         float mFpsUpdateTimer;
         float mFpsAccumulatedTime;

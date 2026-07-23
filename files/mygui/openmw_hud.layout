@@ -15,18 +15,18 @@
         <!-- Energy bars -->
         
         <!-- Compact target panel above the player's health bar -->
-        <Widget type="TextBox" skin="SandText" position="15 128 250 20" align="Center Bottom" name="EnemyName">
+        <Widget type="TextBox" skin="SandText" position="0 0 260 20" align="Left Top" name="EnemyName">
             <Property key="NeedMouse" value="false"/>
             <Property key="TextAlign" value="Center"/>
             <Property key="TextShadow" value="true"/>
             <Property key="TextShadowColour" value="0 0 0"/>
             <Property key="Visible" value="false"/>
         </Widget>
-        <Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="50 150 180 16" align="Center Bottom" name="EnemyHealth">
+        <Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="0 0 220 16" align="Left Top" name="EnemyHealth">
             <Property key="NeedMouse" value="false"/>
             <Property key="Visible" value="false"/>
         </Widget>
-        <Widget type="TextBox" skin="SandBrightText" position="50 150 180 16" align="Center Bottom" name="EnemySummary">
+        <Widget type="TextBox" skin="SandBrightText" position="0 0 220 16" align="Left Top" name="EnemySummary">
             <Property key="NeedMouse" value="false"/>
             <Property key="TextAlign" value="Center"/>
             <Property key="TextShadow" value="true"/>
