@@ -833,8 +833,22 @@ std::string OMW::Engine::loadSettings (Settings::Manager & settings)
 
     // load user settings if they exist
     const std::string settingspath = settingsPath.string();
+    settings.setUserSettingsPath(settingspath);
     if (boost::filesystem::exists(settingspath))
         settings.loadUser(settingspath);
+
+    // ArenaMP migration: previous builds could leave the compact target panel
+    // disabled in an existing user settings file. Enable it once after upgrading,
+    // then preserve all later user choices normally.
+    const Settings::CategorySettingValueMap::key_type migrationKey
+        = std::make_pair(std::string("GUI"), std::string("target info panel default v1"));
+    if (Settings::Manager::mUserSettings.find(migrationKey) == Settings::Manager::mUserSettings.end())
+    {
+        Settings::Manager::setBool("target info panel", "GUI", true);
+        Settings::Manager::setBool("target info panel default v1", "GUI", true);
+        settings.saveUser(settingspath);
+        Settings::Manager::resetPendingChanges();
+    }
 
     return settingspath;
 }

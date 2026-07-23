@@ -588,8 +588,15 @@ namespace MWGui
 
         if (getSettingType(_sender) == checkButtonType)
         {
-            Settings::Manager::setBool(getSettingName(_sender), getSettingCategory(_sender), newState);
+            const std::string settingName = getSettingName(_sender);
+            const std::string settingCategory = getSettingCategory(_sender);
+            Settings::Manager::setBool(settingName, settingCategory, newState);
             apply();
+
+            // Persist this HUD preference immediately. This prevents it from
+            // reverting after reconnects, crashes or forced client shutdowns.
+            if (settingCategory == "GUI" && settingName == "target info panel")
+                Settings::Manager::saveUser();
             return;
         }
     }
