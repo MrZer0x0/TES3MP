@@ -72,7 +72,7 @@ namespace MWGui
         , mEnabled(true)
         , mFrameDuration(0.f)
         , mStationaryTime(0.f)
-        , mStationaryDelay(1.5f)
+        , mStationaryDelay(0.65f)
         , mReadyToShow(false)
         , mHasLastPlayerPosition(false)
         , mLastPlayerX(0.f)
@@ -108,6 +108,7 @@ namespace MWGui
         // Use the same appearance delay as ordinary tooltips.
         mDelay = Settings::Manager::getFloat("tooltip delay", "GUI");
         mRemainingDelay = mDelay;
+        mStationaryDelay = std::max(0.f, Settings::Manager::getFloat("quick loot stationary delay", "GUI"));
     }
 
     QuickLoot::~QuickLoot()
