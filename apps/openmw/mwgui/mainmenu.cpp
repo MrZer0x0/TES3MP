@@ -30,7 +30,6 @@ namespace MWGui
         : WindowBase("openmw_mainmenu.layout")
         , mWidth (w), mHeight (h)
         , mVFS(vfs), mButtonBox(nullptr)
-        , mPauseBrandBackdrop(nullptr)
         , mPauseBrandText(nullptr)
         , mChatHistory(nullptr)
         , mBackground(nullptr)
@@ -39,13 +38,11 @@ namespace MWGui
         , mSaveGameDialog(nullptr)
     {
         getWidget(mVersionText, "VersionText");
-        getWidget(mPauseBrandBackdrop, "PauseBrandBackdrop");
         getWidget(mPauseBrandText, "PauseBrandText");
         getWidget(mChatHistory, "MenuChatHistory");
         mVersionText->setCaption(versionDescription);
-        mPauseBrandText->setCaption(versionDescription);
+        mPauseBrandText->setCaption("ArenaMP (fork TES3MP 0.8.1)");
 
-        mPauseBrandBackdrop->setAlpha(0.45f);
         mPauseBrandText->setTextShadow(true);
         mPauseBrandText->setTextShadowColour(MyGUI::Colour::Black);
 
@@ -101,7 +98,6 @@ namespace MWGui
         const bool inGameMenu = MWBase::Environment::get().getStateManager()->getState()
             == MWBase::StateManager::State_Running;
         mChatHistory->setVisible(visible && inGameMenu);
-        mPauseBrandBackdrop->setVisible(visible && inGameMenu);
         mPauseBrandText->setVisible(visible && inGameMenu);
 
         if (mwmp::Main::isInitialized() && mwmp::Main::get().getGUIController() != nullptr)
@@ -315,13 +311,11 @@ namespace MWGui
         const bool inGameMenu = (state == MWBase::StateManager::State_Running);
         mVersionText->setVisible(state == MWBase::StateManager::State_NoGame);
 
-        const int brandWidth = std::min(620, std::max(420, mWidth / 2));
-        const int brandHeight = 72;
+        const int brandWidth = std::min(500, std::max(360, mWidth / 3));
+        const int brandHeight = 28;
         const int brandX = (mWidth - brandWidth) / 2;
-        const int brandY = std::max(52, mHeight / 8);
-        mPauseBrandBackdrop->setCoord(brandX - 18, brandY - 10, brandWidth + 36, brandHeight + 20);
+        const int brandY = std::max(36, mHeight / 10);
         mPauseBrandText->setCoord(brandX, brandY, brandWidth, brandHeight);
-        mPauseBrandBackdrop->setVisible(inGameMenu && isVisible());
         mPauseBrandText->setVisible(inGameMenu && isVisible());
 
         updateChatGeometry();

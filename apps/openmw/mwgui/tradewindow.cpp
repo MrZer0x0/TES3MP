@@ -328,13 +328,17 @@ namespace MWGui
 
         bool offerAccepted = mTrading.haggle(player, mPtr, mCurrentBalance, mCurrentMerchantOffer);
 
-        // apply disposition change if merchant is NPC
+        // Apply disposition and play a voiced reaction if the merchant is an NPC.
+        // Persuasion voice topics provide race/gender-specific positive and angry lines,
+        // while DialogueManager handles subtitles and TES3MP actor-sound synchronization.
         if (mPtr.getClass().isNpc()) {
             int dispositionDelta = offerAccepted
                 ? gmst.find("iBarterSuccessDisposition")->mValue.getInteger()
                 : gmst.find("iBarterFailDisposition")->mValue.getInteger();
 
             MWBase::Environment::get().getDialogueManager()->applyBarterDispositionChange(dispositionDelta);
+            MWBase::Environment::get().getDialogueManager()->say(mPtr,
+                offerAccepted ? "Admire Success" : "Taunt Success");
         }
 
         // display message on haggle failure

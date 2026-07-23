@@ -2,6 +2,7 @@
 
 #include <MyGUI_InputManager.h>
 #include <MyGUI_Button.h>
+#include <MyGUI_EditBox.h>
 
 #include <cmath>
 
@@ -57,18 +58,18 @@ namespace MWGui
         , mModel(nullptr)
         , mSelectedItem(-1)
     {
-        getWidget(mDisposeCorpseButton, "DisposeCorpseButton");
         getWidget(mTakeButton, "TakeButton");
         getWidget(mCloseButton, "CloseButton");
+        getWidget(mFilterEdit, "FilterEdit");
         getWidget(mEncumbranceBar, "EncumbranceBar");
 
         getWidget(mItemView, "ItemView");
         mItemView->eventBackgroundClicked += MyGUI::newDelegate(this, &ContainerWindow::onBackgroundSelected);
         mItemView->eventItemClicked += MyGUI::newDelegate(this, &ContainerWindow::onItemSelected);
 
-        mDisposeCorpseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onDisposeCorpseButtonClicked);
         mCloseButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onCloseButtonClicked);
         mTakeButton->eventMouseButtonClick += MyGUI::newDelegate(this, &ContainerWindow::onTakeAllButtonClicked);
+        mFilterEdit->eventEditTextChange += MyGUI::newDelegate(this, &ContainerWindow::onNameFilterChanged);
 
         setCoord(200,0,600,300);
     }
@@ -241,9 +242,9 @@ namespace MWGui
             mModel = new ContainerItemModel(container);
         }
 
-        mDisposeCorpseButton->setVisible(loot);
-
         mSortModel = new SortFilterItemModel(mModel);
+        mFilterEdit->setCaption("");
+        mSortModel->setNameFilter("");
 
         mItemView->setModel (mSortModel);
         mItemView->resetScrollBars();
@@ -476,6 +477,16 @@ namespace MWGui
     void ContainerWindow::onReferenceUnavailable()
     {
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Container);
+    }
+
+    void ContainerWindow::onNameFilterChanged(MyGUI::EditBox* sender)
+    {
+        if (!mSortModel)
+            return;
+
+        mSortModel->setNameFilter(sender->getCaption());
+        mItemView->update();
+        mItemView->resetScrollBars();
     }
 
     void ContainerWindow::updateEncumbranceBar()

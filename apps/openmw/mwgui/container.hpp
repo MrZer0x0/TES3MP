@@ -8,6 +8,7 @@
 
 namespace MyGUI
 {
+    class EditBox;
     class Gui;
     class Widget;
 }
@@ -71,9 +72,9 @@ namespace MWGui
         ItemModel* mModel;
         int mSelectedItem;
 
-        MyGUI::Button* mDisposeCorpseButton;
         MyGUI::Button* mTakeButton;
         MyGUI::Button* mCloseButton;
+        MyGUI::EditBox* mFilterEdit;
         Widgets::MWDynamicStat* mEncumbranceBar;
 
         void onItemSelected(int index);
@@ -83,6 +84,7 @@ namespace MWGui
         void onCloseButtonClicked(MyGUI::Widget* _sender);
         void onTakeAllButtonClicked(MyGUI::Widget* _sender);
         void onDisposeCorpseButtonClicked(MyGUI::Widget* sender);
+        void onNameFilterChanged(MyGUI::EditBox* sender);
         void updateEncumbranceBar();
 
         /// @return is taking the item allowed?

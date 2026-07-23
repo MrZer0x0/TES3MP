@@ -492,7 +492,9 @@ namespace MWGui
         }
 
         const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
-        const bool focusedTargetPanel = targetInfoPanel && !mFocusActor.isEmpty();
+        const bool focusedTargetAlive = !mFocusActor.isEmpty()
+            && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead();
+        const bool focusedTargetPanel = targetInfoPanel && focusedTargetAlive;
 
         mEnemyHealthTimer -= dt;
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0 && !focusedTargetPanel)
@@ -891,7 +893,8 @@ namespace MWGui
 
     void HUD::setFocusObject(const MWWorld::Ptr& focus)
     {
-        if (!focus.isEmpty() && focus.getClass().isActor() && focus != MWMechanics::getPlayer())
+        if (!focus.isEmpty() && focus.getClass().isActor() && focus != MWMechanics::getPlayer()
+            && !focus.getClass().getCreatureStats(focus).isDead())
             mFocusActor = focus;
         else
             mFocusActor = MWWorld::Ptr();
@@ -917,7 +920,8 @@ namespace MWGui
     void HUD::updateEnemyHealthBar()
     {
         const bool usingFocusActor = Settings::Manager::getBool("target info panel", "GUI")
-            && !mFocusActor.isEmpty();
+            && !mFocusActor.isEmpty()
+            && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead();
 
         MWWorld::Ptr enemy;
         if (usingFocusActor)
@@ -929,6 +933,16 @@ namespace MWGui
             return;
 
         MWMechanics::CreatureStats& stats = enemy.getClass().getCreatureStats(enemy);
+        if (stats.isDead() || stats.getHealth().getCurrent() <= 0.f)
+        {
+            mEnemyHealth->setVisible(false);
+            if (mEnemyName)
+                mEnemyName->setVisible(false);
+            if (mEnemySummary)
+                mEnemySummary->setVisible(false);
+            return;
+        }
+
         const float maximumHealth = stats.getHealth().getModified();
         const float currentHealth = stats.getHealth().getCurrent();
         const int maximumHealthPoints = std::max(1, static_cast<int>(std::lround(maximumHealth)));

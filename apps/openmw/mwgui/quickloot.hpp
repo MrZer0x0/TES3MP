@@ -119,6 +119,17 @@ namespace MWGui
         bool mEnabled;
         float mFrameDuration;
 
+        // QuickLoot must not interrupt traversal or combat. It becomes available
+        // only after the player has remained stationary while focusing the same
+        // container for a short dwell period.
+        float mStationaryTime;
+        float mStationaryDelay;
+        bool mReadyToShow;
+        bool mHasLastPlayerPosition;
+        float mLastPlayerX;
+        float mLastPlayerY;
+        float mLastPlayerZ;
+
         /// Global row: 0 is the container header, item rows begin at 1.
         int mLastIndex;
         int mVisibleStart;

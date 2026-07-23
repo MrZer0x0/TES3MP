@@ -1,6 +1,9 @@
 #include "actionteleport.hpp"
 
+#include <algorithm>
 #include <list>
+
+#include <components/misc/rng.hpp>
 
 /*
     Start of tes3mp addition
@@ -173,6 +176,16 @@ namespace MWWorld
             followers.insert(pursuers.begin(), pursuers.end());
         }
 
+        std::size_t hostilePursuerCount = 0;
+        const int maxHostilePursuers = std::max(0,
+            Settings::Manager::getInt("combat pursuit max actors", "Game"));
+        const float guaranteedDistance = std::max(0.f,
+            Settings::Manager::getFloat("combat pursuit guaranteed distance", "Game"));
+        const float maximumDoorDistance = std::max(guaranteedDistance,
+            Settings::Manager::getFloat("combat pursuit door max distance", "Game"));
+        const float minimumChance = std::max(0.f, std::min(1.f,
+            Settings::Manager::getFloat("combat pursuit minimum chance", "Game")));
+
         for(std::set<MWWorld::Ptr>::iterator it = followers.begin();it != followers.end();++it)
         {
             MWWorld::Ptr follower = *it;
@@ -189,8 +202,37 @@ namespace MWWorld
             if (!script.empty() && follower.getRefData().getLocals().getIntVar(script, "stayoutside") == 1)
                 continue;
 
-            if ((follower.getRefData().getPosition().asVec3() - actor.getRefData().getPosition().asVec3()).length2() > 800 * 800)
+            const float distance = (follower.getRefData().getPosition().asVec3()
+                - actor.getRefData().getPosition().asVec3()).length();
+
+            if (isHostilePursuer)
+            {
+                // Only NPCs and humanoid/bipedal creatures may chase through a door.
+                // Very close attackers always follow; farther attackers roll a decreasing chance.
+                const bool humanoid = follower.getClass().isNpc() || follower.getClass().isBipedal(follower);
+                if (!humanoid || maxHostilePursuers == 0 || hostilePursuerCount >= static_cast<std::size_t>(maxHostilePursuers))
+                    continue;
+                if (distance > maximumDoorDistance)
+                    continue;
+
+                float pursuitChance = 1.f;
+                if (distance > guaranteedDistance && maximumDoorDistance > guaranteedDistance)
+                {
+                    const float normalizedDistance = std::min(1.f,
+                        (distance - guaranteedDistance) / (maximumDoorDistance - guaranteedDistance));
+                    pursuitChance = 1.f - normalizedDistance * (1.f - minimumChance);
+                }
+
+                if (Misc::Rng::rollClosedProbability() > pursuitChance)
+                    continue;
+
+                ++hostilePursuerCount;
+            }
+            else if (distance > 800.f)
+            {
+                // Keep the original follower teleport radius.
                 continue;
+            }
 
             out.emplace(follower);
         }

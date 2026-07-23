@@ -1,6 +1,7 @@
 #include "quickloot.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -69,6 +70,13 @@ namespace MWGui
         , mLastMouseY(0)
         , mEnabled(true)
         , mFrameDuration(0.f)
+        , mStationaryTime(0.f)
+        , mStationaryDelay(1.5f)
+        , mReadyToShow(false)
+        , mHasLastPlayerPosition(false)
+        , mLastPlayerX(0.f)
+        , mLastPlayerY(0.f)
+        , mLastPlayerZ(0.f)
         , mLastIndex(0)
         , mVisibleStart(0)
     {
@@ -490,6 +498,9 @@ namespace MWGui
             mDismissed = false;
         else
         {
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            mHasLastPlayerPosition = false;
             clearModels();
             setVisibleAll(false);
         }
@@ -498,6 +509,58 @@ namespace MWGui
     void QuickLoot::onFrame(float frameDuration)
     {
         mFrameDuration = frameDuration;
+
+        if (!mEnabled || mFocusObject.isEmpty())
+        {
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            mHasLastPlayerPosition = false;
+            return;
+        }
+
+        const MWWorld::Ptr playerPtr = MWMechanics::getPlayer();
+        MWWorld::Player& player = MWBase::Environment::get().getWorld()->getPlayer();
+        const MWMechanics::Movement& movement = playerPtr.getClass().getMovementSettings(playerPtr);
+        const ESM::Position& playerPosition = playerPtr.getRefData().getPosition();
+
+        const bool movementRequested = player.getAutoMove()
+            || std::abs(movement.mPosition[0]) > 0.01f
+            || std::abs(movement.mPosition[1]) > 0.01f
+            || std::abs(movement.mPosition[2]) > 0.01f;
+
+        bool positionChanged = false;
+        if (mHasLastPlayerPosition)
+        {
+            const float dx = playerPosition.pos[0] - mLastPlayerX;
+            const float dy = playerPosition.pos[1] - mLastPlayerY;
+            const float dz = playerPosition.pos[2] - mLastPlayerZ;
+            // One world unit is below visible movement and filters tiny physics jitter.
+            positionChanged = dx * dx + dy * dy + dz * dz > 1.f;
+        }
+
+        mLastPlayerX = playerPosition.pos[0];
+        mLastPlayerY = playerPosition.pos[1];
+        mLastPlayerZ = playerPosition.pos[2];
+        mHasLastPlayerPosition = true;
+
+        const bool suppressOverlay = movementRequested || positionChanged
+            || player.isInCombat()
+            || MWBase::Environment::get().getWindowManager()->isGuiMode();
+
+        if (suppressOverlay)
+        {
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            if (isVisible())
+            {
+                clearModels();
+                setVisibleAll(false);
+            }
+            return;
+        }
+
+        mStationaryTime = std::min(mStationaryDelay, mStationaryTime + frameDuration);
+        mReadyToShow = mStationaryTime >= mStationaryDelay;
     }
 
     void QuickLoot::setVisibleAll(bool visible)
@@ -719,6 +782,9 @@ namespace MWGui
         mLastFocusObject = MWWorld::Ptr();
         mContainerName.clear();
         mDismissed = false;
+        mStationaryTime = 0.f;
+        mReadyToShow = false;
+        mHasLastPlayerPosition = false;
         clearModels();
         setVisibleAll(false);
     }
@@ -729,12 +795,20 @@ namespace MWGui
         const bool quickLootEnabled = Settings::Manager::getBool("quick loot", "GUI");
 
         if (focus != mFocusObject)
+        {
             mDismissed = false;
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            mHasLastPlayerPosition = false;
+        }
 
         if (!mEnabled || !quickLootEnabled)
         {
             mLastFocusObject = mFocusObject;
             mFocusObject = focus;
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            mHasLastPlayerPosition = false;
             clearModels();
             setVisibleAll(false);
             return;
@@ -751,6 +825,9 @@ namespace MWGui
         {
             mLastFocusObject = mFocusObject;
             mFocusObject = focus;
+            mStationaryTime = 0.f;
+            mReadyToShow = false;
+            mHasLastPlayerPosition = false;
             clearModels();
             setVisibleAll(false);
             return;
@@ -775,6 +852,13 @@ namespace MWGui
         }
 
         const bool combat = MWBase::Environment::get().getWorld()->getPlayer().isInCombat();
+        if (combat || !mReadyToShow)
+        {
+            clearModels();
+            setVisibleAll(false);
+            return;
+        }
+
         const bool loot = mFocusObject.getClass().isActor()
             && mFocusObject.getClass().getCreatureStats(mFocusObject).isDead()
             && mFocusObject.getClass().getCreatureStats(mFocusObject).isDeathAnimationFinished();
