@@ -45,6 +45,8 @@ namespace MWGui
 
             MyGUI::Widget* mButtonBox;
             MyGUI::TextBox* mVersionText;
+            MyGUI::Widget* mPauseBrandBackdrop;
+            MyGUI::TextBox* mPauseBrandText;
             MyGUI::EditBox* mChatHistory;
             std::string mLastChatHistory;
 

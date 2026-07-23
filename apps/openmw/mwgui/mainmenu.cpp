@@ -30,6 +30,8 @@ namespace MWGui
         : WindowBase("openmw_mainmenu.layout")
         , mWidth (w), mHeight (h)
         , mVFS(vfs), mButtonBox(nullptr)
+        , mPauseBrandBackdrop(nullptr)
+        , mPauseBrandText(nullptr)
         , mChatHistory(nullptr)
         , mBackground(nullptr)
         , mVideoBackground(nullptr)
@@ -37,14 +39,22 @@ namespace MWGui
         , mSaveGameDialog(nullptr)
     {
         getWidget(mVersionText, "VersionText");
+        getWidget(mPauseBrandBackdrop, "PauseBrandBackdrop");
+        getWidget(mPauseBrandText, "PauseBrandText");
         getWidget(mChatHistory, "MenuChatHistory");
         mVersionText->setCaption(versionDescription);
+        mPauseBrandText->setCaption(versionDescription);
+
+        mPauseBrandBackdrop->setAlpha(0.45f);
+        mPauseBrandText->setTextShadow(true);
+        mPauseBrandText->setTextShadowColour(MyGUI::Colour::Black);
 
         mChatHistory->setOverflowToTheLeft(false);
         mChatHistory->setEditWordWrap(true);
         mChatHistory->setEditReadOnly(true);
         mChatHistory->setTextShadow(true);
         mChatHistory->setTextShadowColour(MyGUI::Colour::Black);
+        mChatHistory->setProperty("InvertSelected", "false");
 
         mHasAnimatedMenu = mVFS->exists("video/menu_background.bik");
 
@@ -91,6 +101,8 @@ namespace MWGui
         const bool inGameMenu = MWBase::Environment::get().getStateManager()->getState()
             == MWBase::StateManager::State_Running;
         mChatHistory->setVisible(visible && inGameMenu);
+        mPauseBrandBackdrop->setVisible(visible && inGameMenu);
+        mPauseBrandText->setVisible(visible && inGameMenu);
 
         if (mwmp::Main::isInitialized() && mwmp::Main::get().getGUIController() != nullptr)
             mwmp::Main::get().getGUIController()->setChatMainMenuOpen(visible && inGameMenu);
@@ -300,7 +312,17 @@ namespace MWGui
 
         MWBase::StateManager::State state = MWBase::Environment::get().getStateManager()->getState();
 
+        const bool inGameMenu = (state == MWBase::StateManager::State_Running);
         mVersionText->setVisible(state == MWBase::StateManager::State_NoGame);
+
+        const int brandWidth = std::min(620, std::max(420, mWidth / 2));
+        const int brandHeight = 72;
+        const int brandX = (mWidth - brandWidth) / 2;
+        const int brandY = std::max(52, mHeight / 8);
+        mPauseBrandBackdrop->setCoord(brandX - 18, brandY - 10, brandWidth + 36, brandHeight + 20);
+        mPauseBrandText->setCoord(brandX, brandY, brandWidth, brandHeight);
+        mPauseBrandBackdrop->setVisible(inGameMenu && isVisible());
+        mPauseBrandText->setVisible(inGameMenu && isVisible());
 
         updateChatGeometry();
         mChatHistory->setVisible(state == MWBase::StateManager::State_Running && isVisible());

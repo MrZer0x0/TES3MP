@@ -18,7 +18,7 @@
         <Property key="WordWrap" value="true"/>
         <Property key="MultiLine" value="true"/>
         <Property key="MaxTextLength" value="10000000"/>
-        <Property key="InvertSelected" value="true"/>
+        <Property key="InvertSelected" value="false"/>
         <Child type="TextBox" skin="TES3MP_EditClient" offset="0 0 492 20" align="Stretch" name="Client"/>
         <Child type="ScrollBar" skin="MW_VScroll" offset="494 3 14 14" align="Right VStretch" name="VScroll"/>
     </Resource>
