@@ -3,6 +3,8 @@
 #include <MyGUI_InputManager.h>
 #include <MyGUI_Button.h>
 
+#include <cmath>
+
 /*
     Start of tes3mp addition
 
@@ -43,6 +45,7 @@
 #include "pickpocketitemmodel.hpp"
 #include "draganddrop.hpp"
 #include "tooltips.hpp"
+#include "widgets.hpp"
 
 namespace MWGui
 {
@@ -57,6 +60,7 @@ namespace MWGui
         getWidget(mDisposeCorpseButton, "DisposeCorpseButton");
         getWidget(mTakeButton, "TakeButton");
         getWidget(mCloseButton, "CloseButton");
+        getWidget(mEncumbranceBar, "EncumbranceBar");
 
         getWidget(mItemView, "ItemView");
         mItemView->eventBackgroundClicked += MyGUI::newDelegate(this, &ContainerWindow::onBackgroundSelected);
@@ -247,6 +251,7 @@ namespace MWGui
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mCloseButton);
 
         setTitle(container.getClass().getName(container));
+        updateEncumbranceBar();
     }
 
     void ContainerWindow::resetReference()
@@ -255,6 +260,14 @@ namespace MWGui
         mItemView->setModel(nullptr);
         mModel = nullptr;
         mSortModel = nullptr;
+    }
+
+    void ContainerWindow::onFrame(float dt)
+    {
+        (void)dt;
+        checkReferenceAvailable();
+        if (!mPtr.isEmpty())
+            updateEncumbranceBar();
     }
 
     void ContainerWindow::onClose()
@@ -463,6 +476,16 @@ namespace MWGui
     void ContainerWindow::onReferenceUnavailable()
     {
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Container);
+    }
+
+    void ContainerWindow::updateEncumbranceBar()
+    {
+        if (mPtr.isEmpty() || !mEncumbranceBar)
+            return;
+
+        float capacity = mPtr.getClass().getCapacity(mPtr);
+        float encumbrance = mPtr.getClass().getEncumbrance(mPtr);
+        mEncumbranceBar->setValue(std::ceil(encumbrance), static_cast<int>(capacity));
     }
 
     bool ContainerWindow::onTakeItem(const ItemStack &item, int count)

@@ -402,12 +402,12 @@ namespace MWGui
             return true;
         }
 
-        if (key == MyGUI::KeyCode::ArrowUp)
+        if (key == MyGUI::KeyCode::ArrowUp || key == MyGUI::KeyCode::W)
         {
             handleMouseWheel(1);
             return true;
         }
-        if (key == MyGUI::KeyCode::ArrowDown)
+        if (key == MyGUI::KeyCode::ArrowDown || key == MyGUI::KeyCode::S)
         {
             handleMouseWheel(-1);
             return true;
@@ -418,7 +418,7 @@ namespace MWGui
             return true;
         }
 
-        // D and all ordinary movement keys intentionally have no QuickLoot action.
+        // D and the remaining movement keys intentionally have no QuickLoot action.
         if (static_cast<int>(key.getValue()) != static_cast<int>(takeAll.getValue()))
             return false;
 

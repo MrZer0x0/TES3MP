@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <numeric>
 #include <array>
+#include <cstdlib>
 
 #include <components/debug/debuglog.hpp>
 #include <components/misc/stringops.hpp>
@@ -78,6 +79,8 @@ namespace
 
     const char* checkButtonType = "CheckButton";
     const char* sliderType = "Slider";
+    const char* shadowPresetType = "ShadowPreset";
+    const char* shadowMapQualityType = "ShadowMapQuality";
 
     std::string getSettingType(MyGUI::Widget* widget)
     {
@@ -123,6 +126,51 @@ namespace
         else
             box->setIndexSelected(MyGUI::ITEM_NONE);
     }
+
+    constexpr std::array<int, 8> shadowMapResolutions = { 64, 128, 256, 512, 1024, 2048, 4096, 8192 };
+    constexpr std::array<const char*, 8> shadowMapQualityNames =
+        { "Simplified", "Very low", "Low", "Balanced", "High", "Very high", "Detailed", "Maximum" };
+    constexpr std::array<const char*, 6> shadowPresetNames =
+        { "Disabled", "Actor", "NPC", "Object", "Terrain", "Indoor" };
+
+    size_t getShadowPresetPosition()
+    {
+        if (!Settings::Manager::getBool("enable shadows", "Shadows"))
+            return 0;
+        if (Settings::Manager::getBool("enable indoor shadows", "Shadows"))
+            return 5;
+        if (Settings::Manager::getBool("terrain shadows", "Shadows"))
+            return 4;
+        if (Settings::Manager::getBool("object shadows", "Shadows"))
+            return 3;
+        if (Settings::Manager::getBool("actor shadows", "Shadows"))
+            return 2;
+        return 1;
+    }
+
+    size_t getShadowMapQualityPosition()
+    {
+        const int resolution = Settings::Manager::getInt("shadow map resolution", "Shadows");
+        size_t best = 0;
+        int bestDistance = std::abs(resolution - shadowMapResolutions[0]);
+        for (size_t i = 1; i < shadowMapResolutions.size(); ++i)
+        {
+            const int distance = std::abs(resolution - shadowMapResolutions[i]);
+            if (distance < bestDistance)
+            {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    std::string getShadowMapQualityLabel(size_t position)
+    {
+        position = std::min(position, shadowMapResolutions.size() - 1);
+        return std::string(shadowMapQualityNames[position]) + " - "
+            + MyGUI::utility::toString(shadowMapResolutions[position]);
+    }
 }
 
 namespace MWGui
@@ -144,7 +192,27 @@ namespace MWGui
                 if (init)
                     current->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onButtonToggled);
             }
-            if (type == sliderType)
+            if (type == shadowPresetType)
+            {
+                MyGUI::ScrollBar* scroll = current->castType<MyGUI::ScrollBar>();
+                const size_t position = getShadowPresetPosition();
+                scroll->setScrollPosition(position);
+                if (init)
+                    scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
+                if (scroll->getVisible())
+                    updateSliderLabel(scroll, shadowPresetNames[position]);
+            }
+            else if (type == shadowMapQualityType)
+            {
+                MyGUI::ScrollBar* scroll = current->castType<MyGUI::ScrollBar>();
+                const size_t position = getShadowMapQualityPosition();
+                scroll->setScrollPosition(position);
+                if (init)
+                    scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
+                if (scroll->getVisible())
+                    updateSliderLabel(scroll, getShadowMapQualityLabel(position));
+            }
+            else if (type == sliderType)
             {
                 /*
                     Start of tes3mp addition
@@ -539,7 +607,34 @@ namespace MWGui
 
     void SettingsWindow::onSliderChangePosition(MyGUI::ScrollBar* scroller, size_t pos)
     {
-        if (getSettingType(scroller) == "Slider")
+        const std::string type = getSettingType(scroller);
+
+        if (type == shadowPresetType)
+        {
+            pos = std::min(pos, shadowPresetNames.size() - 1);
+
+            Settings::Manager::setBool("enable shadows", "Shadows", pos >= 1);
+            Settings::Manager::setBool("player shadows", "Shadows", pos >= 1);
+            Settings::Manager::setBool("actor shadows", "Shadows", pos >= 2);
+            Settings::Manager::setBool("object shadows", "Shadows", pos >= 3);
+            Settings::Manager::setBool("terrain shadows", "Shadows", pos >= 4);
+            Settings::Manager::setBool("enable indoor shadows", "Shadows", pos >= 5);
+
+            updateSliderLabel(scroller, shadowPresetNames[pos]);
+            apply();
+            return;
+        }
+
+        if (type == shadowMapQualityType)
+        {
+            pos = std::min(pos, shadowMapResolutions.size() - 1);
+            Settings::Manager::setInt("shadow map resolution", "Shadows", shadowMapResolutions[pos]);
+            updateSliderLabel(scroller, getShadowMapQualityLabel(pos));
+            apply();
+            return;
+        }
+
+        if (type == sliderType)
         {
             std::string valueStr;
             std::string valueType = getSettingValueType(scroller);

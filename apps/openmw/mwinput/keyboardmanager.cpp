@@ -48,9 +48,9 @@ namespace MWInput
         {
             MWBase::WindowManager* windowManager = MWBase::Environment::get().getWindowManager();
 
-            // QuickLoot remains a non-modal HUD overlay. It handles only its explicit
-            // shortcuts here and never owns MyGUI key focus, so movement bindings such
-            // as W/S continue to reach the player while the overlay is visible.
+            // QuickLoot remains a non-modal HUD overlay. While visible it explicitly
+            // consumes W/S for list navigation; ActionManager suppresses forward/backward
+            // movement until the overlay closes.
             if (!windowManager->isGuiMode() && windowManager->handleQuickLootKeyPress(kc))
                 consumed = true;
             else if (windowManager->injectKeyPress(kc, 0, arg.repeat))

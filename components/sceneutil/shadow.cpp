@@ -70,6 +70,12 @@ namespace SceneUtil
             mShadowTechnique->disableDebugHUD();
     }
 
+    void ShadowManager::setShadowCastingMasks(unsigned int outdoorShadowCastingMask, unsigned int indoorShadowCastingMask)
+    {
+        mOutdoorShadowCastingMask = outdoorShadowCastingMask;
+        mIndoorShadowCastingMask = indoorShadowCastingMask;
+    }
+
     void ShadowManager::disableShadowsForStateSet(osg::ref_ptr<osg::StateSet> stateset)
     {
         if (!Settings::Manager::getBool("enable shadows", "Shadows"))

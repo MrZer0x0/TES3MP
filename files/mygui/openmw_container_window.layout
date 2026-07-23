@@ -6,10 +6,14 @@
         <Property key="Visible" value="false"/>
 
         <!-- Items -->
-        <Widget type="ItemView" skin="MW_ItemView" position="5 5 575 225" name="ItemView" align="Left Top Stretch">
+        <Widget type="ItemView" skin="MW_ItemView" position="5 5 575 220" name="ItemView" align="Left Top Stretch">
         </Widget>
 
-        <Widget type="HBox" position="0 235 580 28" align="Right Bottom">
+        <!-- Container encumbrance / capacity -->
+        <Widget type="MWDynamicStat" skin="MW_ChargeBar_Blue" position="5 232 160 24" name="EncumbranceBar" align="Left Bottom">
+        </Widget>
+
+        <Widget type="HBox" position="170 232 410 28" align="Right Bottom">
             <Widget type="Spacer"/>
             <Widget type="AutoSizedButton" skin="MW_Button" name="DisposeCorpseButton" align="Right Bottom">
                 <Property key="Caption" value="#{sDisposeofCorpse}"/>

@@ -14,6 +14,11 @@ namespace MyGUI
 
 namespace MWGui
 {
+    namespace Widgets
+    {
+        class MWDynamicStat;
+    }
+
     class ContainerWindow;
     class ItemView;
     class SortFilterItemModel;
@@ -31,7 +36,7 @@ namespace MWGui
         void onClose() override;
         void clear() override { resetReference(); }
 
-        void onFrame(float dt) override { checkReferenceAvailable(); }
+        void onFrame(float dt) override;
 
         void resetReference() override;
 
@@ -69,6 +74,7 @@ namespace MWGui
         MyGUI::Button* mDisposeCorpseButton;
         MyGUI::Button* mTakeButton;
         MyGUI::Button* mCloseButton;
+        Widgets::MWDynamicStat* mEncumbranceBar;
 
         void onItemSelected(int index);
         void onBackgroundSelected();
@@ -77,6 +83,7 @@ namespace MWGui
         void onCloseButtonClicked(MyGUI::Widget* _sender);
         void onTakeAllButtonClicked(MyGUI::Widget* _sender);
         void onDisposeCorpseButtonClicked(MyGUI::Widget* sender);
+        void updateEncumbranceBar();
 
         /// @return is taking the item allowed?
         bool onTakeItem(const ItemStack& item, int count);

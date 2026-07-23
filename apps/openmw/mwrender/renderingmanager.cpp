@@ -1312,7 +1312,28 @@ namespace MWRender
             mViewer->stopThreading();
 
             if (refreshShadowSettings && mShadowManager)
+            {
+                int outdoorShadowCastingMask = Mask_Scene;
+                if (Settings::Manager::getBool("actor shadows", "Shadows"))
+                    outdoorShadowCastingMask |= Mask_Actor;
+                if (Settings::Manager::getBool("player shadows", "Shadows"))
+                    outdoorShadowCastingMask |= Mask_Player;
+                if (Settings::Manager::getBool("terrain shadows", "Shadows"))
+                    outdoorShadowCastingMask |= Mask_Terrain;
+
+                // Keep the established indoor rule: actors/player can cast indoors,
+                // while world objects remain an outdoor-only category.
+                const int indoorShadowCastingMask = outdoorShadowCastingMask;
+                if (Settings::Manager::getBool("object shadows", "Shadows"))
+                    outdoorShadowCastingMask |= (Mask_Object | Mask_Static);
+
+                mShadowManager->setShadowCastingMasks(outdoorShadowCastingMask, indoorShadowCastingMask);
                 mShadowManager->setupShadowSettings();
+                if (mSky->isEnabled())
+                    mShadowManager->enableOutdoorMode();
+                else
+                    mShadowManager->enableIndoorMode();
+            }
 
             auto defines = mResourceSystem->getSceneManager()->getShaderManager().getGlobalDefines();
 

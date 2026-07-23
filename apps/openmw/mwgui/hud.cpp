@@ -491,8 +491,11 @@ namespace MWGui
             mFpsFrameCount = 0;
         }
 
+        const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
+        const bool focusedTargetPanel = targetInfoPanel && !mFocusActor.isEmpty();
+
         mEnemyHealthTimer -= dt;
-        if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0 && mFocusActor.isEmpty())
+        if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0 && !focusedTargetPanel)
         {
             mEnemyHealth->setVisible(false);
         }
@@ -502,12 +505,12 @@ namespace MWGui
 
         mSpellIcons->updateWidgets(mEffectBox, true);
 
-        if ((!mFocusActor.isEmpty() || mEnemyActorId != -1) && mEnemyHealth->getVisible())
+        if ((focusedTargetPanel || mEnemyActorId != -1) && mEnemyHealth->getVisible())
         {
             updateEnemyHealthBar();
         }
 
-        if (!mFocusActor.isEmpty() && Settings::Manager::getBool("target info panel", "GUI"))
+        if (focusedTargetPanel)
         {
             mEnemyHealth->setVisible(true);
             if (mEnemyName)
@@ -529,8 +532,7 @@ namespace MWGui
         if (!player.isEmpty())
             drawState = player.getClass().getCreatureStats(player).getDrawState();
 
-        const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
-        const bool showFocusedTargetInfo = targetInfoPanel && !mFocusActor.isEmpty() && mEnemyHealth->getVisible();
+        const bool showFocusedTargetInfo = focusedTargetPanel && mEnemyHealth->getVisible();
         if (mEnemyName)
             mEnemyName->setVisible(showFocusedTargetInfo);
         if (mEnemySummary)
@@ -894,7 +896,9 @@ namespace MWGui
         else
             mFocusActor = MWWorld::Ptr();
 
-        if (mFocusActor.isEmpty() && mEnemyHealthTimer < 0.f)
+        const bool focusedTargetPanel = Settings::Manager::getBool("target info panel", "GUI")
+            && !mFocusActor.isEmpty();
+        if (!focusedTargetPanel && mEnemyHealthTimer < 0.f)
         {
             mEnemyHealth->setVisible(false);
             if (mEnemyName)
@@ -912,9 +916,10 @@ namespace MWGui
 
     void HUD::updateEnemyHealthBar()
     {
-        MWWorld::Ptr enemy;
-        const bool usingFocusActor = !mFocusActor.isEmpty();
+        const bool usingFocusActor = Settings::Manager::getBool("target info panel", "GUI")
+            && !mFocusActor.isEmpty();
 
+        MWWorld::Ptr enemy;
         if (usingFocusActor)
             enemy = mFocusActor;
         else if (mEnemyActorId != -1)
@@ -926,14 +931,15 @@ namespace MWGui
         MWMechanics::CreatureStats& stats = enemy.getClass().getCreatureStats(enemy);
         const float maximumHealth = stats.getHealth().getModified();
         const float currentHealth = stats.getHealth().getCurrent();
-        const float healthRatio = maximumHealth > 0.f ? currentHealth / maximumHealth : 0.f;
-        const int healthPercent = static_cast<int>(std::lround(
-            std::max(0.f, std::min(1.f, healthRatio)) * 100.f));
+        const int maximumHealthPoints = std::max(1, static_cast<int>(std::lround(maximumHealth)));
+        const int currentHealthPoints = std::max(0, std::min(maximumHealthPoints,
+            static_cast<int>(std::lround(currentHealth))));
 
-        mEnemyHealth->setProgressRange(100);
-        mEnemyHealth->setProgressPosition(static_cast<size_t>(healthPercent));
+        mEnemyHealth->setProgressRange(static_cast<size_t>(maximumHealthPoints));
+        mEnemyHealth->setProgressPosition(static_cast<size_t>(currentHealthPoints));
 
-        static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
+        static const float fNPCHealthBarFade = MWBase::Environment::get().getWorld()->getStore()
+            .get<ESM::GameSetting>().find("fNPCHealthBarFade")->mValue.getFloat();
         const float alpha = usingFocusActor ? 1.f
             : (fNPCHealthBarFade > 0.f
                 ? std::max(0.f, std::min(1.f, mEnemyHealthTimer / fNPCHealthBarFade))
@@ -942,19 +948,20 @@ namespace MWGui
 
         if (usingFocusActor)
         {
-            // Hovered actor: replace the ordinary name tooltip with the full compact target panel.
-            mEnemyHealth->setSize(220, 16);
+            // Hovered actor: compact nameplate above the actor.
+            mEnemyHealth->setSize(190, 16);
             if (mEnemyName)
             {
-                mEnemyName->setSize(260, 20);
+                mEnemyName->setSize(240, 20);
                 mEnemyName->setCaption(enemy.getClass().getName(enemy) + "  -  "
                     + MyGUI::utility::toString(stats.getLevel()) + " lvl");
                 mEnemyName->setAlpha(alpha);
             }
             if (mEnemySummary)
             {
-                mEnemySummary->setSize(220, 16);
-                mEnemySummary->setCaption(MyGUI::utility::toString(healthPercent) + "%");
+                mEnemySummary->setSize(190, 16);
+                mEnemySummary->setCaption(MyGUI::utility::toString(currentHealthPoints) + " / "
+                    + MyGUI::utility::toString(maximumHealthPoints));
                 mEnemySummary->setAlpha(alpha);
             }
 
@@ -975,7 +982,7 @@ namespace MWGui
         }
         else
         {
-            // Combat feedback: only a thin red strip, exactly as wide as the player's health bar.
+            // Combat feedback when the compact target panel is disabled: a thin red bar above player health.
             if (mEnemyName)
                 mEnemyName->setVisible(false);
             if (mEnemySummary)
