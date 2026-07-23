@@ -4,6 +4,8 @@
 #include <array>
 #include <string>
 
+#include <MyGUI_KeyCode.h>
+
 #include "layout.hpp"
 #include "../mwworld/ptr.hpp"
 
@@ -42,6 +44,10 @@ namespace MWGui
 
         /// Activate the selected row. The container header opens the regular inventory.
         bool activateSelected();
+
+        /// Handle QuickLoot-specific keyboard input. This declaration is part of the
+        /// WindowManager/QuickLoot interface and must stay in sync with quickloot.cpp.
+        bool handleKeyPress(MyGUI::KeyCode key);
 
         void clear();
 

@@ -88,8 +88,10 @@ namespace MWGui
 
         setVisibleAll(false);
 
+        // QuickLoot is a HUD overlay, not a GUI mode. Never take keyboard focus:
+        // doing so makes MyGUI consume key releases and disables W/S movement.
         mQuickLoot->eventKeyButtonPressed += MyGUI::newDelegate(this, &QuickLoot::onKeyButtonPressed);
-        mQuickLoot->setNeedKeyFocus(true);
+        mQuickLoot->setNeedKeyFocus(false);
         mQuickLoot->setNeedMouseFocus(false);
         mMainWidget->setNeedMouseFocus(false);
         mMainWidget->setNeedKeyFocus(false);
@@ -378,8 +380,11 @@ namespace MWGui
         }
     }
 
-    void QuickLoot::onKeyButtonPressed(MyGUI::Widget*, MyGUI::KeyCode key, MyGUI::Char)
+    bool QuickLoot::handleKeyPress(MyGUI::KeyCode key)
     {
+        if (!isVisible())
+            return false;
+
         const SDL_Keycode takeAllKey = SDL_GetKeyFromName(
             Settings::Manager::getString("key quickloot takeall", "MorroUI").c_str());
         const MyGUI::KeyCode takeAll = MWInput::sdlKeyToMyGUI(takeAllKey);
@@ -389,36 +394,36 @@ namespace MWGui
             mDismissed = true;
             clearModels();
             setVisibleAll(false);
-            return;
+            return true;
         }
         if (key == MyGUI::KeyCode::F)
         {
             openStandardContainer();
-            return;
+            return true;
         }
 
         if (key == MyGUI::KeyCode::ArrowUp)
         {
             handleMouseWheel(1);
-            return;
+            return true;
         }
         if (key == MyGUI::KeyCode::ArrowDown)
         {
             handleMouseWheel(-1);
-            return;
+            return true;
         }
-        if (key == MyGUI::KeyCode::Return)
+        if (key == MyGUI::KeyCode::Return || key == MyGUI::KeyCode::NumpadEnter)
         {
             activateSelected();
-            return;
+            return true;
         }
 
-        // D intentionally has no QuickLoot action.
+        // D and all ordinary movement keys intentionally have no QuickLoot action.
         if (static_cast<int>(key.getValue()) != static_cast<int>(takeAll.getValue()))
-            return;
+            return false;
 
         if (!mModel || !mSortModel)
-            return;
+            return true;
 
         mOpened = true;
         ensureTrapTriggered();
@@ -463,13 +468,19 @@ namespace MWGui
         if (getEntryCount() <= 1)
         {
             setVisibleAll(false);
-            return;
+            return true;
         }
 
         mLastIndex = 1;
         mVisibleStart = 0;
         refreshRows();
         resize();
+        return true;
+    }
+
+    void QuickLoot::onKeyButtonPressed(MyGUI::Widget*, MyGUI::KeyCode key, MyGUI::Char)
+    {
+        handleKeyPress(key);
     }
 
     void QuickLoot::setEnabled(bool enabled)
@@ -505,8 +516,6 @@ namespace MWGui
         for (int i = 0; i < mMainWidget->getChildCount(); ++i)
             mMainWidget->getChildAt(i)->setVisible(visible);
 
-        if (!visible && MyGUI::InputManager::getInstance().getKeyFocusWidget() == mQuickLoot)
-            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(nullptr);
     }
 
     void QuickLoot::update(float)
@@ -570,7 +579,6 @@ namespace MWGui
         mContainerName = mFocusObject.getClass().getName(mFocusObject);
         refreshRows();
         setVisibleAll(true);
-        MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mQuickLoot);
     }
 
     void QuickLoot::position(MyGUI::IntPoint& position, MyGUI::IntSize size, MyGUI::IntSize viewportSize)
@@ -792,8 +800,6 @@ namespace MWGui
             mLastIndex = std::max(0, std::min(mLastIndex, total - 1));
             refreshRows();
             setVisibleAll(true);
-            if (MyGUI::InputManager::getInstance().getKeyFocusWidget() == nullptr)
-                MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mQuickLoot);
             return;
         }
 
