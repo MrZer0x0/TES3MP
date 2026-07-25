@@ -22,6 +22,7 @@ namespace mwmp
 
     PiperApi::PiperApi()
         : mLibrary(nullptr)
+        , mOnnxRuntimeLibrary(nullptr)
         , mCreate(nullptr)
         , mFree(nullptr)
         , mDefaultOptions(nullptr)
@@ -57,9 +58,26 @@ namespace mwmp
 
         for (const std::string& candidate : candidates)
         {
+#if defined(_WIN32)
+            // SDL_LoadObject uses LoadLibrary. A dependency located beside a
+            // DLL in a subdirectory is not reliably searched by Windows, so
+            // preload ONNX Runtime by its absolute adjacent path first.
+            const std::string::size_type separator = candidate.find_last_of("/\\");
+            if (separator != std::string::npos)
+            {
+                const std::string onnxPath = candidate.substr(0, separator + 1) + "onnxruntime.dll";
+                mOnnxRuntimeLibrary = SDL_LoadObject(onnxPath.c_str());
+            }
+#endif
             mLibrary = SDL_LoadObject(candidate.c_str());
             if (mLibrary)
                 break;
+
+            if (mOnnxRuntimeLibrary)
+            {
+                SDL_UnloadObject(mOnnxRuntimeLibrary);
+                mOnnxRuntimeLibrary = nullptr;
+            }
             const char* sdlError = SDL_GetError();
             if (sdlError)
                 error = candidate + ": " + sdlError;
@@ -95,6 +113,11 @@ namespace mwmp
         {
             SDL_UnloadObject(mLibrary);
             mLibrary = nullptr;
+        }
+        if (mOnnxRuntimeLibrary)
+        {
+            SDL_UnloadObject(mOnnxRuntimeLibrary);
+            mOnnxRuntimeLibrary = nullptr;
         }
     }
 

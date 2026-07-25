@@ -76,6 +76,11 @@ jobs:
           cmake --build MSVC2022_64 --config Release --parallel 2
           cmake --install MSVC2022_64 --config Release
 
+      - name: Verify packaged TTS runtime and voices
+        run: |
+          set -euxo pipefail
+          bash CI/tts/verify-package.sh "$GITHUB_WORKSPACE/install" windows
+
       - name: Create ZIP
         shell: pwsh
         run: |

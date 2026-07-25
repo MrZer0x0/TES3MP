@@ -61,6 +61,7 @@ namespace mwmp
         typedef const char* (*VersionFunction)();
 
         void* mLibrary;
+        void* mOnnxRuntimeLibrary;
         CreateFunction mCreate;
         FreeFunction mFree;
         DefaultOptionsFunction mDefaultOptions;

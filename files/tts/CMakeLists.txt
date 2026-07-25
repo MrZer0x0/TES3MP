@@ -17,12 +17,25 @@ file(GLOB_RECURSE ARENAMP_TTS_RESOURCE_FILES
 list(REMOVE_ITEM ARENAMP_TTS_RESOURCE_FILES "CMakeLists.txt")
 
 foreach(TTS_FILE ${ARENAMP_TTS_RESOURCE_FILES})
-    if(NOT IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${TTS_FILE}")
+    if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${TTS_FILE}")
+        continue()
+    endif()
+
+    # Visual Studio and other multi-config generators install from
+    # <binary>/<CONFIG>. Use OpenMW's helper so TTS resources are copied into
+    # Release/resources/tts instead of the non-installed binary root.
+    if(APPLE)
         get_filename_component(TTS_FILE_DIRECTORY "${TTS_FILE}" DIRECTORY)
-        file(MAKE_DIRECTORY "${ARENAMP_TTS_DESTINATION_ROOT}/resources/tts/${TTS_FILE_DIRECTORY}")
+        file(MAKE_DIRECTORY
+            "${ARENAMP_TTS_DESTINATION_ROOT}/resources/tts/${TTS_FILE_DIRECTORY}")
         configure_file(
             "${CMAKE_CURRENT_SOURCE_DIR}/${TTS_FILE}"
             "${ARENAMP_TTS_DESTINATION_ROOT}/resources/tts/${TTS_FILE}"
             COPYONLY)
+    else()
+        copy_resource_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/${TTS_FILE}"
+            "${ARENAMP_TTS_DESTINATION_ROOT}"
+            "resources/tts/${TTS_FILE}")
     endif()
 endforeach()

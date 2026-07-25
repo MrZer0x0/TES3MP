@@ -217,3 +217,11 @@ Changed in v48:
 - files/ui/playpage.ui
 - CHANGED_FILES.txt
 - V48_HOST_MODE_PRECEDENCE_FIX_RU.txt
+
+TTS packaging fix (2026-07-25):
+- files/tts/CMakeLists.txt
+- apps/openmw/mwmp/tts/PiperApi.hpp
+- apps/openmw/mwmp/tts/PiperApi.cpp
+- CI/tts/verify-package.sh
+- .github/workflows/release-builds.yml
+- TTS_PACKAGING_FIX.md
