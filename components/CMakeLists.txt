@@ -311,6 +311,7 @@ if (USE_QT)
         view/combobox view/contentselector
         )
     add_component_qt_dir (config
+        buildmanifest
         gamesettings
         launchersettings
         settingsbase

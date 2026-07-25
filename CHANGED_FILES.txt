@@ -1,3 +1,162 @@
+ArenaMP Host Mode Qt UIC build fix v46
+
+Launcher:
+- Host Mode widgets are now present in the canonical files/ui/playpage.ui used by CMake;
+- fixes C2065 undeclared identifier errors for hostModeButton, hostModePanel,
+  hostAddressEdit, hostPortEdit, hostStartServerButton, hostConnectButton and
+  hostStopServerButton;
+- Host Mode behavior from v45 is unchanged.
+
+Changed in v46:
+- files/ui/playpage.ui
+- CHANGED_FILES.txt
+- V46_HOST_MODE_UI_BUILD_FIX_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP QuickLoot icon/alignment fix v18
+
+QuickLoot:
+- иконки принудительно обновляются при первом показе окна и больше не остаются едва заметными до взятия предмета;
+- добавлен отдельный компактный skin иконок без обрезающего внутреннего отступа;
+- иконки точно центрированы напротив названий;
+- минимальная ширина окна уменьшена до 200 px, высота строк и внутренние отступы сокращены;
+- окно автоматически расширяется до 480 px при длинном тексте.
+
+Измененные в v18 файлы:
+- apps/openmw/mwgui/quickloot.cpp
+- files/mygui/openmw_quickloot.layout
+- files/mygui/openmw_resources.xml
+- CHANGED_FILES.txt
+- QUICKLOOT_ICON_ALIGNMENT_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP compact target health HUD v16
+
+HUD target panel:
+- полоса здоровья противника перенесена непосредственно над центральной полосой здоровья игрока;
+- полоса цели немного короче полосы игрока: 170 против 190 единиц layout;
+- процент здоровья постоянно отображается поверх полосы и обновляется в реальном времени;
+- над полосой выводятся имя цели и локализованная подпись уровня;
+- убрана задержка в одну секунду перед показом дополнительной информации;
+- имя, уровень и проценты плавно исчезают вместе с полосой цели;
+- сохранена работа настройки [GUI] target info panel.
+
+Измененные в v16 файлы:
+- apps/openmw/mwgui/hud.cpp
+- apps/openmw/mwgui/hud.hpp
+- files/mygui/openmw_hud.layout
+- CHANGED_FILES.txt
+- HUD_TARGET_BAR_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP groundcover shader fix v15
+
+Groundcover:
+- исправлена линковка groundcover-шейдера: vertex shader теперь объявляет и передаёт passWorldPos, который используется fragment shader для каустики;
+- трава снова рендерится при [Groundcover] enabled=true и подключённых groundcover= плагинах;
+- сохранены анимация ветра, вытаптывание, плотность и дистанция отображения.
+
+Измененные в v15 файлы:
+- files/shaders/groundcover_vertex.glsl
+- CHANGED_FILES.txt
+- GROUNDCOVER_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP QuickLoot compact item-first fix v14
+
+QuickLoot:
+- окно уменьшено до компактной ширины и автоматически сокращает высоту под фактическое число предметов;
+- в строке предмета порядок данных: значок, название, количество; вес и стоимость убраны;
+- при появлении окна сразу выбирается первый предмет;
+- строка `^ <название контейнера>` сохранена и остается выбираемой: ее активация открывает стандартное окно контейнера;
+- F также сразу открывает стандартное окно контейнера;
+- W/S больше не управляют QuickLoot и остаются для движения персонажа;
+- список переключается колесом мыши или стрелками;
+- пустые контейнеры и трупы не показывают окно QuickLoot;
+- после взятия последнего предмета окно сразу скрывается.
+
+Измененные в v14 файлы:
+- apps/openmw/mwgui/quickloot.cpp
+- apps/openmw/mwgui/quickloot.hpp
+- files/mygui/openmw_quickloot.layout
+- files/mygui/openmw_settings_window.layout
+- CHANGED_FILES.txt
+- QUICKLOOT_COMPACT_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP ESC chat position fix v13
+
+Chat:
+- чат истории в меню ESC теперь получает точные экранные координаты основного чата;
+- позиция и размер синхронизируются при открытии меню, изменении разрешения и GUI scaling;
+- сохранены прокрутка истории и выделение/копирование текста;
+- при недоступном основном чате используется прежняя безопасная позиция.
+
+Измененные в v13 файлы:
+- apps/openmw/mwmp/GUIController.cpp
+- apps/openmw/mwmp/GUIController.hpp
+- apps/openmw/mwgui/mainmenu.cpp
+- apps/openmw/mwgui/mainmenu.hpp
+- files/mygui/openmw_mainmenu.layout
+- CHANGED_FILES.txt
+- CHAT_ESC_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP QuickLoot visual/details fix v12
+
+QuickLoot:
+- строка `^` теперь содержит только настоящее имя контейнера/трупа, например `Мешок`, без `Open regular inventory`;
+- строка контейнера всегда закреплена сверху и не исчезает при прокрутке длинного списка;
+- одновременно отображаются до 6 предметов под строкой контейнера;
+- у каждой позиции выводятся: иконка, количество, вес одной единицы, стоимость одной единицы и название;
+- выбранная позиция отмечается `>` и полной яркостью; строка `^` отмечается яркостью при выборе;
+- Q закрывает QuickLoot до смены объекта под прицелом;
+- F и активация строки `^` открывают стандартное окно контейнера;
+- сохранены циклическая прокрутка колесом/W/S, перехват колеса и взятие всей пачки;
+- ширина окна адаптируется к разрешению экрана.
+
+Settings:
+- использован переделанный пользователем `openmw_settings_window.layout`;
+- подсказка управления QuickLoot приведена в соответствие с фактическим управлением.
+
+Измененные в v12 файлы:
+- apps/openmw/mwgui/quickloot.cpp
+- apps/openmw/mwgui/quickloot.hpp
+- files/mygui/openmw_quickloot.layout
+- files/mygui/openmw_settings_window.layout
+- CHANGED_FILES.txt
+- QUICKLOOT_FIX_NOTES_RU.txt
+
+--- Previous cumulative fixes ---
+
+ArenaMP QuickLoot/HUD settings fix v11
+
+QuickLoot:
+- overlay is controlled by [GUI] quick loot, so the in-game switch now really enables/disables it;
+- hovering a container shows a six-row text list;
+- selection starts on "^ Open regular inventory";
+- mouse wheel and W/S move one row cyclically;
+- while the overlay is visible, the wheel is consumed and cannot zoom the camera;
+- Activate takes the complete selected stack;
+- D has no QuickLoot action;
+- the legacy keyboard mode inside the regular container window was removed.
+
+HUD settings:
+- "Keep weapon and magic icons at 40%" now works even after the parent mana/stamina bars are hidden;
+- "Compact target name, level and health" now applies immediately to the current target.
+
+Build verification note:
+- XML layouts were parsed successfully;
+- full CMake configuration could not run in this sandbox because OpenGL/development packages are unavailable.
+
+--- Previous cumulative build fixes ---
+
 ArenaMP cumulative Linux/macOS build fix v10
 
 Это кумулятивный пакет. Он содержит одновременно исправления v8, v9 и дополнительную защиту v10.
@@ -18,3 +177,43 @@ Linux:
 - Lua и Native диспетчеры используют новую таблицу.
 
 Копировать содержимое архива в корень проекта с заменой файлов и сохранением структуры каталогов.
+QUICKLOOT_WIDTH_ICON_FIX_NOTES_RU.txt
+
+--- v47 launcher local-server Play flow ---
+
+- Removed the temporary Host Mode / Close Host Mode button and its extra panel.
+- Play now uses the local LAN server endpoint when either Auto-start server or Auto restart and backup is enabled.
+- Auto restart can therefore select the local-server flow even when Auto-start is not checked.
+- Local hosting no longer overwrites the remote endpoint stored in build.ini.
+- An explicit [Server] port entry in build.ini disables and clears both local-server checkboxes.
+- A build.ini without an explicit port keeps local-server controls available; launcher-generated local-host manifests preserve the missing port entry.
+- Wizard-generated manifests keep an explicit port and therefore remain fixed to their configured server endpoint.
+
+Changed in v47:
+- apps/launcher/maindialog.cpp
+- apps/launcher/maindialog.hpp
+- apps/launcher/playpage.cpp
+- apps/launcher/playpage.hpp
+- apps/launcher/playpage.ui
+- apps/wizard/mainwizard.cpp
+- components/config/buildmanifest.cpp
+- components/config/buildmanifest.hpp
+- files/ui/playpage.ui
+- CHANGED_FILES.txt
+
+--- v48 Host mode precedence fix ---
+
+- Renamed "Auto-start server before connecting" to "Host mode".
+- Host mode and Auto restart and backup are never disabled by an explicit port in build.ini.
+- When either checkbox is enabled, Play uses the local LAN address and local server port.
+- The local server is started when it is not already running; otherwise Play connects to the existing local server.
+- Local hosting takes precedence over the build.ini endpoint and vanilla compatibility for that launch only.
+- The distributed remote address, port and vanilla flag in an existing build.ini are preserved and are not replaced by the host machine's LAN endpoint.
+
+Changed in v48:
+- apps/launcher/maindialog.cpp
+- apps/launcher/playpage.cpp
+- apps/launcher/playpage.ui
+- files/ui/playpage.ui
+- CHANGED_FILES.txt
+- V48_HOST_MODE_PRECEDENCE_FIX_RU.txt

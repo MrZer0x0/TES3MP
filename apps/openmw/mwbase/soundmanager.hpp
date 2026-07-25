@@ -98,6 +98,9 @@ namespace MWBase
             ///< Make an actor say some text.
             /// \param filename name of a sound file in "Sound/" in the data directory.
 
+            virtual void say(const MWWorld::ConstPtr &reference, const MWSound::DecoderPtr& decoder) = 0;
+            ///< Make an actor speak audio supplied by a custom decoder.
+
             virtual void say(const std::string& filename) = 0;
             ///< Say some text, without an actor ref
             /// \param filename name of a sound file in "Sound/" in the data directory.

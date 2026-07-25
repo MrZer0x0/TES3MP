@@ -66,11 +66,14 @@ namespace Files
         const boost::filesystem::path& getLogPath() const;
         const boost::filesystem::path& getScreenshotPath() const;
 
-        /// Return Documents/NirnSave/OpenMW/settings.cfg when it exists,
-        /// otherwise fall back to the TES3MP user settings path.
+        /// Return the canonical portable TES3MP settings path:
+        /// <installation>/userdata/settings.cfg.
+        ///
+        /// ArenaMP deliberately does not fall back to a Documents copy here,
+        /// because the launcher and the client must load and save the same file.
         boost::filesystem::path getPrimarySettingsPath() const;
 
-        /// Return Documents/NirnSave/OpenMW/settings.cfg regardless of whether it exists.
+        /// Return Documents/NirnSave/OpenMW/settings.cfg for explicit legacy import only.
         boost::filesystem::path getDocumentsSettingsPath() const;
 
     private:

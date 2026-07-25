@@ -42,6 +42,7 @@ namespace mwmp
         void pressedChatMode(); //switch chat mode
         void pressedSay(); // switch chat focus (if chat mode != CHAT_DISABLED)
         void setDelay(float newDelay);
+        void setHistoryDisplayEnabled(bool enabled);
 
         void update(float dt);
 
@@ -93,6 +94,7 @@ namespace mwmp
         bool historyReviewState;
         bool mainMenuOpen;
         bool visibleBeforeMainMenu;
+        bool historyDisplayEnabled;
         float delay;
         float curTime;
     };

@@ -105,7 +105,11 @@ target_link_libraries(openmw-launcher
     components
 )
 
-target_link_libraries(openmw-launcher Qt5::Widgets Qt5::Core Qt5::Network)
+target_link_libraries(openmw-launcher Qt5::Widgets Qt5::Core Qt5::Gui Qt5::Network)
+
+if (WIN32)
+    target_link_libraries(openmw-launcher dxgi advapi32)
+endif (WIN32)
 
 if (BUILD_WITH_CODE_COVERAGE)
   add_definitions (--coverage)

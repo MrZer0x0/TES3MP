@@ -21,6 +21,7 @@ namespace Launcher
 
         bool loadSettings();
         void saveSettings();
+        void setGameMechanicsVisible(bool visible);
 
     public slots:
         void slotLoadedCellsChanged(QStringList cellNames);

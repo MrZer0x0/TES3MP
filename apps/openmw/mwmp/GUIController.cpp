@@ -81,6 +81,7 @@ void mwmp::GUIController::setupChat()
 
     mChat = new GUIChat(chatX, chatY, chatW, chatH);
     mChat->setDelay(chatDelay);
+    mChat->setHistoryDisplayEnabled(!Main::isChatHistoryHidden());
 }
 
 void mwmp::GUIController::printChatMessage(std::string &msg)

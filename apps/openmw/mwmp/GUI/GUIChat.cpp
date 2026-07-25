@@ -25,6 +25,7 @@ namespace mwmp
             , historyReviewState(false)
             , mainMenuOpen(false)
             , visibleBeforeMainMenu(false)
+            , historyDisplayEnabled(true)
             , delay(3.f)
             , curTime(0.f)
     {
@@ -136,7 +137,7 @@ namespace mwmp
 
     void GUIChat::print(const std::string &msg, const std::string &color)
     {
-        if (windowState == CHAT_HIDDENMODE && !mainMenuOpen && !isVisible())
+        if (historyDisplayEnabled && windowState == CHAT_HIDDENMODE && !mainMenuOpen && !isVisible())
             setVisible(true);
 
         if(msg.size() == 0)
@@ -183,6 +184,13 @@ namespace mwmp
 
     void GUIChat::pressedChatMode()
     {
+        if (!historyDisplayEnabled)
+        {
+            MWBase::Environment::get().getWindowManager()->messageBox(
+                "Chat messages are hidden. The chat input remains available.");
+            return;
+        }
+
         windowState++;
         if (windowState == 3) windowState = 0;
 
@@ -216,6 +224,8 @@ namespace mwmp
 
         editState = state;
         mCommandLine->setVisible(editState);
+        if (!historyDisplayEnabled)
+            setVisible(editState && !mainMenuOpen);
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(editState ? mCommandLine : nullptr);
     }
 
@@ -299,7 +309,9 @@ namespace mwmp
         }
         else
         {
-            if (windowState == CHAT_ENABLED || (windowState == CHAT_HIDDENMODE && visibleBeforeMainMenu))
+            if (!historyDisplayEnabled)
+                setVisible(editState);
+            else if (windowState == CHAT_ENABLED || (windowState == CHAT_HIDDENMODE && visibleBeforeMainMenu))
                 setVisible(true);
             else
                 setVisible(false);
@@ -311,13 +323,13 @@ namespace mwmp
 
     void GUIChat::pressedSay()
     {
-        if (windowState == CHAT_DISABLED)
+        if (windowState == CHAT_DISABLED && historyDisplayEnabled)
             return;
 
         if (!mCommandLine->getVisible())
             LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE, "Opening chat.");
 
-        if (windowState == CHAT_HIDDENMODE)
+        if (!historyDisplayEnabled || windowState == CHAT_HIDDENMODE)
         {
             setVisible(true);
             curTime = 0;
@@ -370,6 +382,25 @@ namespace mwmp
                 setVisible(false);
             }
         }
+    }
+
+
+    void GUIChat::setHistoryDisplayEnabled(bool enabled)
+    {
+        historyDisplayEnabled = enabled;
+        mHistory->setVisible(enabled);
+
+        if (!enabled)
+        {
+            // Keep received messages in memory for logging/history, but never draw them.
+            // Chat input remains available through the normal Say key.
+            windowState = CHAT_ENABLED;
+            setHistoryReviewState(false);
+            if (!editState)
+                setVisible(false);
+        }
+        else if (!mainMenuOpen && windowState == CHAT_ENABLED)
+            setVisible(true);
     }
 
     void GUIChat::setDelay(float newDelay)

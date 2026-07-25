@@ -80,6 +80,23 @@ Launcher::AdvancedPage::AdvancedPage(Config::GameSettings &gameSettings, QWidget
     startDefaultCharacterAtField->setCompleter(&mCellNameCompleter);
 }
 
+void Launcher::AdvancedPage::setGameMechanicsVisible(bool visible)
+{
+    if (!AdvancedTabWidget || !GameMechanics)
+        return;
+
+    const int currentIndex = AdvancedTabWidget->indexOf(GameMechanics);
+    if (visible)
+    {
+        if (currentIndex == -1)
+            AdvancedTabWidget->insertTab(0, GameMechanics, tr("Game Mechanics"));
+    }
+    else if (currentIndex != -1)
+    {
+        AdvancedTabWidget->removeTab(currentIndex);
+    }
+}
+
 void Launcher::AdvancedPage::loadCellsForAutocomplete(QStringList cellNames) {
     // Update the list of suggestions for the "Start default character at" field
     mCellNameCompleterModel.setStringList(cellNames);
@@ -255,12 +272,6 @@ bool Launcher::AdvancedPage::loadSettings()
         loadSettingBool(turnToMovementDirectionCheckBox, "turn to movement direction", "Game");
         loadSettingBool(smoothMovementCheckBox, "smooth movement", "Game");
 
-        const bool distantTerrain = Settings::Manager::getBool("distant terrain", "Terrain");
-        const bool objectPaging = Settings::Manager::getBool("object paging", "Terrain");
-        if (distantTerrain && objectPaging) {
-            distantLandCheckBox->setCheckState(Qt::Checked);
-        }
-
         loadSettingBool(activeGridObjectPagingCheckBox, "object paging active grid", "Terrain");
         viewingDistanceComboBox->setValue(convertToCells(Settings::Manager::getInt("viewing distance", "Camera")));
         objectPagingMinSizeComboBox->setValue(Settings::Manager::getDouble("object paging min size", "Terrain"));
@@ -425,13 +436,12 @@ void Launcher::AdvancedPage::saveSettings()
         saveSettingBool(turnToMovementDirectionCheckBox, "turn to movement direction", "Game");
         saveSettingBool(smoothMovementCheckBox, "smooth movement", "Game");
 
-        const bool distantTerrain = Settings::Manager::getBool("distant terrain", "Terrain");
-        const bool objectPaging = Settings::Manager::getBool("object paging", "Terrain");
-        const bool wantDistantLand = distantLandCheckBox->checkState();
-        if (wantDistantLand != (distantTerrain && objectPaging)) {
-            Settings::Manager::setBool("distant terrain", "Terrain", wantDistantLand);
-            Settings::Manager::setBool("object paging", "Terrain", wantDistantLand);
-        }
+        // Distant land and object paging are mandatory. The launcher exposes
+        // detail controls instead of an off switch.
+        if (!Settings::Manager::getBool("distant terrain", "Terrain"))
+            Settings::Manager::setBool("distant terrain", "Terrain", true);
+        if (!Settings::Manager::getBool("object paging", "Terrain"))
+            Settings::Manager::setBool("object paging", "Terrain", true);
 
         saveSettingBool(activeGridObjectPagingCheckBox, "object paging active grid", "Terrain");
         double viewingDistance = viewingDistanceComboBox->value();

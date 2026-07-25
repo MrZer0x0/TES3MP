@@ -11,7 +11,9 @@
 
 #include <iomanip>
 #include <numeric>
+#include <utility>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 
 #include <components/debug/debuglog.hpp>
@@ -79,8 +81,6 @@ namespace
 
     const char* checkButtonType = "CheckButton";
     const char* sliderType = "Slider";
-    const char* shadowPresetType = "ShadowPreset";
-    const char* shadowMapQualityType = "ShadowMapQuality";
 
     std::string getSettingType(MyGUI::Widget* widget)
     {
@@ -127,11 +127,87 @@ namespace
             box->setIndexSelected(MyGUI::ITEM_NONE);
     }
 
-    constexpr std::array<int, 8> shadowMapResolutions = { 64, 128, 256, 512, 1024, 2048, 4096, 8192 };
-    constexpr std::array<const char*, 8> shadowMapQualityNames =
-        { "Simplified", "Very low", "Low", "Balanced", "High", "Very high", "Detailed", "Maximum" };
+    constexpr std::array<int, 5> shadowMapResolutions = { 512, 1024, 2048, 4096, 8192 };
+    constexpr std::array<const char*, 5> shadowMapQualityNames =
+        { "Balanced", "High", "Very high", "Detailed", "Maximum" };
     constexpr std::array<const char*, 6> shadowPresetNames =
         { "Disabled", "Actor", "NPC", "Object", "Terrain", "Indoor" };
+
+
+    constexpr std::array<const char*, 3> weaponSpellBoxModeNames =
+        { "Hide with bars", "Keep at 40%", "Always visible" };
+    constexpr std::array<const char*, 3> weaponSpellBoxModes =
+        { "hidden", "transparent", "visible" };
+
+    std::string getWeaponSpellBoxMode()
+    {
+        const auto modeKey = std::make_pair(std::string("GUI"), std::string("weapon spell box mode"));
+        const auto legacyKey = std::make_pair(std::string("GUI"), std::string("persistent weapon spell boxes"));
+        if (Settings::Manager::mUserSettings.find(modeKey) == Settings::Manager::mUserSettings.end())
+        {
+            const auto legacyIt = Settings::Manager::mUserSettings.find(legacyKey);
+            if (legacyIt != Settings::Manager::mUserSettings.end())
+                return (legacyIt->second == "false" || legacyIt->second == "0") ? "hidden" : "transparent";
+        }
+
+        const std::string mode = Settings::Manager::getString("weapon spell box mode", "GUI");
+        if (mode == "hidden" || mode == "transparent" || mode == "visible")
+            return mode;
+        return Settings::Manager::getBool("persistent weapon spell boxes", "GUI")
+            ? "transparent" : "hidden";
+    }
+
+    constexpr std::array<const char*, 6> terrainPresetNames =
+        { "Minimum", "Low", "Balanced", "Medium", "High", "Ultra" };
+    constexpr std::array<float, 6> terrainLod =
+        { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+    constexpr std::array<int, 6> vertexLod =
+        { -2, -2, -1, -1, 0, 1 };
+    constexpr std::array<int, 6> compositeLevel =
+        { -3, -3, -2, -2, -1, 0 };
+    constexpr std::array<int, 6> compositeResolution =
+        { 1024, 1024, 1024, 2048, 2048, 4096 };
+    constexpr std::array<float, 6> maxCompositeGeometrySize =
+        { 4.f, 4.f, 6.f, 8.f, 12.f, 16.f };
+    constexpr std::array<float, 6> objectPagingMergeFactor =
+        { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
+    constexpr std::array<float, 6> objectPagingMinSize =
+        { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+
+    size_t getTerrainPresetPosition()
+    {
+        const float current = Settings::Manager::getFloat("lod factor", "Terrain");
+        size_t best = 0;
+        float bestDistance = std::abs(current - terrainLod[0]);
+        for (size_t i = 1; i < terrainLod.size(); ++i)
+        {
+            const float distance = std::abs(current - terrainLod[i]);
+            if (distance < bestDistance)
+            {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    std::string getQuickLootMode()
+    {
+        const auto modeKey = std::make_pair(std::string("GUI"), std::string("quick loot mode"));
+        const auto legacyKey = std::make_pair(std::string("GUI"), std::string("quick loot"));
+        if (Settings::Manager::mUserSettings.find(modeKey) == Settings::Manager::mUserSettings.end())
+        {
+            const auto legacyIt = Settings::Manager::mUserSettings.find(legacyKey);
+            if (legacyIt != Settings::Manager::mUserSettings.end()
+                && (legacyIt->second == "false" || legacyIt->second == "0"))
+                return "disabled";
+        }
+
+        const std::string mode = Settings::Manager::getString("quick loot mode", "GUI");
+        if (mode == "disabled" || mode == "container" || mode == "item")
+            return mode;
+        return Settings::Manager::getBool("quick loot", "GUI") ? "item" : "disabled";
+    }
 
     size_t getShadowPresetPosition()
     {
@@ -192,27 +268,7 @@ namespace MWGui
                 if (init)
                     current->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onButtonToggled);
             }
-            if (type == shadowPresetType)
-            {
-                MyGUI::ScrollBar* scroll = current->castType<MyGUI::ScrollBar>();
-                const size_t position = getShadowPresetPosition();
-                scroll->setScrollPosition(position);
-                if (init)
-                    scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
-                if (scroll->getVisible())
-                    updateSliderLabel(scroll, shadowPresetNames[position]);
-            }
-            else if (type == shadowMapQualityType)
-            {
-                MyGUI::ScrollBar* scroll = current->castType<MyGUI::ScrollBar>();
-                const size_t position = getShadowMapQualityPosition();
-                scroll->setScrollPosition(position);
-                if (init)
-                    scroll->eventScrollChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSliderChangePosition);
-                if (scroll->getVisible())
-                    updateSliderLabel(scroll, getShadowMapQualityLabel(position));
-            }
-            else if (type == sliderType)
+            if (type == sliderType)
             {
                 /*
                     Start of tes3mp addition
@@ -312,6 +368,11 @@ namespace MWGui
         getWidget(mLightingMethodButton, "LightingMethodButton");
         getWidget(mLightsResetButton, "LightsResetButton");
         getWidget(mMaxLights, "MaxLights");
+        getWidget(mWeaponSpellBoxMode, "WeaponSpellBoxMode");
+        getWidget(mQuickLootMode, "QuickLootMode");
+        getWidget(mTerrainPreset, "TerrainPreset");
+        getWidget(mShadowPreset, "ShadowPreset");
+        getWidget(mShadowMapQuality, "ShadowMapQuality");
 
 #ifndef WIN32
         // hide gamma controls since it currently does not work under Linux
@@ -340,6 +401,27 @@ namespace MWGui
         mLightingMethodButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onLightingMethodButtonChanged);
         mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
         mMaxLights->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMaxLightsChanged);
+
+        for (const char* name : weaponSpellBoxModeNames)
+            mWeaponSpellBoxMode->addItem(name);
+        mWeaponSpellBoxMode->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWeaponSpellBoxModeChanged);
+
+        mQuickLootMode->addItem("Disabled");
+        mQuickLootMode->addItem("Container");
+        mQuickLootMode->addItem("Item");
+        mQuickLootMode->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onQuickLootModeChanged);
+
+        for (const char* name : terrainPresetNames)
+            mTerrainPreset->addItem(name);
+        mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
+
+        for (const char* name : shadowPresetNames)
+            mShadowPreset->addItem(name);
+        mShadowPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onShadowPresetChanged);
+
+        for (size_t i = 0; i < shadowMapResolutions.size(); ++i)
+            mShadowMapQuality->addItem(getShadowMapQualityLabel(i));
+        mShadowMapQuality->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onShadowMapQualityChanged);
 
         mKeyboardSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onKeyboardSwitchClicked);
         mControllerSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onControllerSwitchClicked);
@@ -389,6 +471,10 @@ namespace MWGui
         mWaterReflectionDetail->setIndexSelected(waterReflectionDetail);
 
         updateMaxLightsComboBox(mMaxLights);
+        updateWeaponSpellBoxModeCombo();
+        updateQuickLootModeCombo();
+        updateTerrainPresetCombo();
+        updateShadowCombos();
 
         mWindowBorderButton->setEnabled(!Settings::Manager::getBool("fullscreen", "Video"));
 
@@ -612,34 +698,110 @@ namespace MWGui
         apply();
     }
 
+    void SettingsWindow::updateWeaponSpellBoxModeCombo()
+    {
+        const std::string mode = getWeaponSpellBoxMode();
+        size_t pos = 1;
+        if (mode == "hidden")
+            pos = 0;
+        else if (mode == "visible")
+            pos = 2;
+        mWeaponSpellBoxMode->setIndexSelected(pos);
+    }
+
+    void SettingsWindow::updateQuickLootModeCombo()
+    {
+        const std::string mode = getQuickLootMode();
+        size_t pos = 2;
+        if (mode == "disabled")
+            pos = 0;
+        else if (mode == "container")
+            pos = 1;
+        mQuickLootMode->setIndexSelected(pos);
+    }
+
+    void SettingsWindow::updateTerrainPresetCombo()
+    {
+        mTerrainPreset->setIndexSelected(getTerrainPresetPosition());
+    }
+
+    void SettingsWindow::updateShadowCombos()
+    {
+        mShadowPreset->setIndexSelected(getShadowPresetPosition());
+        mShadowMapQuality->setIndexSelected(getShadowMapQualityPosition());
+    }
+
+    void SettingsWindow::onWeaponSpellBoxModeChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, weaponSpellBoxModes.size() - 1);
+        Settings::Manager::setString("weapon spell box mode", "GUI", weaponSpellBoxModes[pos]);
+        // Keep the old boolean synchronized for older configs and external tools.
+        Settings::Manager::setBool("persistent weapon spell boxes", "GUI", pos != 0);
+        apply();
+    }
+
+    void SettingsWindow::onQuickLootModeChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        static constexpr std::array<const char*, 3> modes = { "disabled", "container", "item" };
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, modes.size() - 1);
+        Settings::Manager::setString("quick loot mode", "GUI", modes[pos]);
+        // Keep the legacy boolean synchronized for old configs and external tools.
+        Settings::Manager::setBool("quick loot", "GUI", pos != 0);
+        apply();
+    }
+
+    void SettingsWindow::onTerrainPresetChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, terrainPresetNames.size() - 1);
+
+        // These settings are hot-applied by RenderingManager. Distant land and
+        // object paging are intentionally always enabled; the preset only changes
+        // their detail/performance balance.
+        Settings::Manager::setBool("distant terrain", "Terrain", true);
+        Settings::Manager::setFloat("lod factor", "Terrain", terrainLod[pos]);
+        Settings::Manager::setInt("vertex lod mod", "Terrain", vertexLod[pos]);
+        Settings::Manager::setInt("composite map level", "Terrain", compositeLevel[pos]);
+        Settings::Manager::setInt("composite map resolution", "Terrain", compositeResolution[pos]);
+        Settings::Manager::setFloat("max composite geometry size", "Terrain", maxCompositeGeometrySize[pos]);
+        Settings::Manager::setBool("object paging", "Terrain", true);
+        Settings::Manager::setBool("object paging active grid", "Terrain", true);
+        Settings::Manager::setFloat("object paging merge factor", "Terrain", objectPagingMergeFactor[pos]);
+        Settings::Manager::setFloat("object paging min size", "Terrain", objectPagingMinSize[pos]);
+        apply();
+    }
+
+    void SettingsWindow::onShadowPresetChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, shadowPresetNames.size() - 1);
+        Settings::Manager::setBool("enable shadows", "Shadows", pos >= 1);
+        Settings::Manager::setBool("player shadows", "Shadows", pos >= 1);
+        Settings::Manager::setBool("actor shadows", "Shadows", pos >= 2);
+        Settings::Manager::setBool("object shadows", "Shadows", pos >= 3);
+        Settings::Manager::setBool("terrain shadows", "Shadows", pos >= 4);
+        Settings::Manager::setBool("enable indoor shadows", "Shadows", pos >= 5);
+        apply();
+    }
+
+    void SettingsWindow::onShadowMapQualityChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, shadowMapResolutions.size() - 1);
+        Settings::Manager::setInt("shadow map resolution", "Shadows", shadowMapResolutions[pos]);
+        apply();
+    }
+
     void SettingsWindow::onSliderChangePosition(MyGUI::ScrollBar* scroller, size_t pos)
     {
         const std::string type = getSettingType(scroller);
-
-        if (type == shadowPresetType)
-        {
-            pos = std::min(pos, shadowPresetNames.size() - 1);
-
-            Settings::Manager::setBool("enable shadows", "Shadows", pos >= 1);
-            Settings::Manager::setBool("player shadows", "Shadows", pos >= 1);
-            Settings::Manager::setBool("actor shadows", "Shadows", pos >= 2);
-            Settings::Manager::setBool("object shadows", "Shadows", pos >= 3);
-            Settings::Manager::setBool("terrain shadows", "Shadows", pos >= 4);
-            Settings::Manager::setBool("enable indoor shadows", "Shadows", pos >= 5);
-
-            updateSliderLabel(scroller, shadowPresetNames[pos]);
-            apply();
-            return;
-        }
-
-        if (type == shadowMapQualityType)
-        {
-            pos = std::min(pos, shadowMapResolutions.size() - 1);
-            Settings::Manager::setInt("shadow map resolution", "Shadows", shadowMapResolutions[pos]);
-            updateSliderLabel(scroller, getShadowMapQualityLabel(pos));
-            apply();
-            return;
-        }
 
         if (type == sliderType)
         {
@@ -846,6 +1008,10 @@ namespace MWGui
         highlightCurrentResolution();
         updateControlsBox();
         updateLightSettings();
+        updateWeaponSpellBoxModeCombo();
+        updateQuickLootModeCombo();
+        updateTerrainPresetCombo();
+        updateShadowCombos();
         resetScrollbars();
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mOkButton);
     }

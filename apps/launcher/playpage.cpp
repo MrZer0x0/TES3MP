@@ -93,6 +93,11 @@ Launcher::PlayPage::PlayPage(QWidget *parent)
 
     connect(playButton, SIGNAL(clicked()), this, SLOT(slotPlayClicked()));
     connect(serverButton, SIGNAL(clicked()), this, SLOT(slotServerClicked()));
+    connect(stopServerButton, SIGNAL(clicked()), this, SLOT(slotStopServerClicked()));
+    connect(autoStartServerCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotAutoStartServerToggled(bool)));
+    connect(autoRestartServerCheckBox, SIGNAL(toggled(bool)), this, SIGNAL(autoRestartServerChanged(bool)));
+    connect(vanillaServerCheckBox, SIGNAL(toggled(bool)), this, SIGNAL(vanillaServerCompatibilityChanged(bool)));
+    connect(hideChatHistoryCheckBox, SIGNAL(toggled(bool)), this, SIGNAL(hideChatHistoryChanged(bool)));
     connect(reloadServerSettingsButton, SIGNAL(clicked()), this, SLOT(slotReloadServerSettings()));
     connect(saveServerSettingsButton, SIGNAL(clicked()), this, SLOT(slotSaveServerSettings()));
     connect(applyServerSettingsFormButton, SIGNAL(clicked()), this, SLOT(slotApplyFormToRawConfig()));
@@ -103,6 +108,18 @@ Launcher::PlayPage::PlayPage(QWidget *parent)
     loadServerSettings();
 }
 
+
+void Launcher::PlayPage::setBuildName(const QString& name)
+{
+    buildNameEdit->setText(name.trimmed().isEmpty() ? QStringLiteral("ArenaMP") : name.trimmed());
+}
+
+QString Launcher::PlayPage::buildName() const
+{
+    const QString name = buildNameEdit->text().trimmed();
+    return name.isEmpty() ? QStringLiteral("ArenaMP") : name;
+}
+
 void Launcher::PlayPage::setServerAddress(const QString& addr)
 {
     serverAddressEdit->setText(addr);
@@ -111,6 +128,60 @@ void Launcher::PlayPage::setServerAddress(const QString& addr)
 void Launcher::PlayPage::setServerPort(const QString& port)
 {
     serverPortEdit->setText(port);
+}
+
+void Launcher::PlayPage::setBuildManifestComplete(bool complete)
+{
+    buildNameEdit->setReadOnly(complete);
+    buildNameEdit->setFocusPolicy(complete ? Qt::NoFocus : Qt::StrongFocus);
+    buildNameEdit->setToolTip(complete
+        ? tr("The build name is locked by build.ini (complete=true).") : QString());
+
+    serverLabel->setVisible(!complete);
+    portLabel->setVisible(!complete);
+    serverAddressEdit->setVisible(!complete);
+    serverPortEdit->setVisible(!complete);
+
+    // A complete manifest fixes the network identity together with its endpoint.
+    vanillaServerCheckBox->setEnabled(!complete);
+    if (complete)
+        vanillaServerCheckBox->setToolTip(tr("This value is locked by build.ini (complete=true)."));
+}
+
+void Launcher::PlayPage::setAutoStartServer(bool enabled)
+{
+    autoStartServerCheckBox->setChecked(enabled);
+}
+
+void Launcher::PlayPage::setAutoRestartServer(bool enabled)
+{
+    autoRestartServerCheckBox->setChecked(enabled);
+}
+
+void Launcher::PlayPage::setVanillaServerCompatibility(bool enabled)
+{
+    vanillaServerCheckBox->setChecked(enabled);
+}
+
+void Launcher::PlayPage::setHideChatHistory(bool enabled)
+{
+    hideChatHistoryCheckBox->setChecked(enabled);
+}
+
+void Launcher::PlayPage::setLocalServerEndpoint(const QString& address, const QString& port)
+{
+    if (!address.trimmed().isEmpty())
+        serverAddressEdit->setText(address.trimmed());
+    if (!port.trimmed().isEmpty())
+        serverPortEdit->setText(port.trimmed());
+}
+
+void Launcher::PlayPage::setServerRunning(bool running, const QString& address, const QString& port, bool managed)
+{
+    stopServerButton->setEnabled(running && managed);
+    serverButton->setEnabled(!running);
+    if (running && (autoStartServer() || autoRestartServer()))
+        setLocalServerEndpoint(address, port);
 }
 
 void Launcher::PlayPage::setServerConsoleWidget(QWidget* widget)
@@ -137,6 +208,26 @@ QString Launcher::PlayPage::serverAddress() const
 {
     QString addr = serverAddressEdit->text().trimmed();
     return addr.isEmpty() ? QString("localhost") : addr;
+}
+
+bool Launcher::PlayPage::autoStartServer() const
+{
+    return autoStartServerCheckBox->isChecked();
+}
+
+bool Launcher::PlayPage::autoRestartServer() const
+{
+    return autoRestartServerCheckBox->isChecked();
+}
+
+bool Launcher::PlayPage::vanillaServerCompatibility() const
+{
+    return vanillaServerCheckBox->isChecked();
+}
+
+bool Launcher::PlayPage::hideChatHistory() const
+{
+    return hideChatHistoryCheckBox->isChecked();
 }
 
 QString Launcher::PlayPage::serverPort() const
@@ -365,6 +456,16 @@ void Launcher::PlayPage::slotServerClicked()
 {
     switchToServerConsoleTab();
     emit serverButtonClicked();
+}
+
+void Launcher::PlayPage::slotStopServerClicked()
+{
+    emit stopServerButtonClicked();
+}
+
+void Launcher::PlayPage::slotAutoStartServerToggled(bool enabled)
+{
+    emit autoStartServerChanged(enabled);
 }
 
 void Launcher::PlayPage::slotReloadServerSettings()

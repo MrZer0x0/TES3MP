@@ -5,6 +5,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include <MyGUI_Gui.h>
 #include <MyGUI_ImageBox.h>
@@ -32,6 +33,8 @@
 
 #include "../mwinput/sdlmappings.hpp"
 
+#include "../mwmp/PlayerList.hpp"
+
 #include "../mwrender/animation.hpp"
 
 #include "../mwworld/action.hpp"
@@ -49,6 +52,30 @@
 #include "itemmodel.hpp"
 #include "itemwidget.hpp"
 #include "pickpocketitemmodel.hpp"
+
+
+namespace
+{
+    std::string getQuickLootMode()
+    {
+        const auto modeKey = std::make_pair(std::string("GUI"), std::string("quick loot mode"));
+        const auto legacyKey = std::make_pair(std::string("GUI"), std::string("quick loot"));
+
+        const auto modeIt = Settings::Manager::mUserSettings.find(modeKey);
+        if (modeIt == Settings::Manager::mUserSettings.end())
+        {
+            const auto legacyIt = Settings::Manager::mUserSettings.find(legacyKey);
+            if (legacyIt != Settings::Manager::mUserSettings.end()
+                && (legacyIt->second == "false" || legacyIt->second == "0"))
+                return "disabled";
+        }
+
+        const std::string mode = Settings::Manager::getString("quick loot mode", "GUI");
+        if (mode == "disabled" || mode == "container" || mode == "item")
+            return mode;
+        return Settings::Manager::getBool("quick loot", "GUI") ? "item" : "disabled";
+    }
+}
 
 namespace MWGui
 {
@@ -108,7 +135,8 @@ namespace MWGui
         // Use the same appearance delay as ordinary tooltips.
         mDelay = Settings::Manager::getFloat("tooltip delay", "GUI");
         mRemainingDelay = mDelay;
-        mStationaryDelay = std::max(0.f, Settings::Manager::getFloat("quick loot stationary delay", "GUI"));
+        mStationaryDelay = std::clamp(
+            Settings::Manager::getFloat("quick loot stationary delay", "GUI"), 0.1f, 2.f);
     }
 
     QuickLoot::~QuickLoot()
@@ -592,7 +620,8 @@ namespace MWGui
         const bool guiMode = winMgr->isGuiMode();
         const bool inCombat = MWBase::Environment::get().getWorld()->getPlayer().isInCombat();
 
-        if (guiMode || mFocusObject.isEmpty() || mFocusObject.getCellRef().getLockLevel() > 0)
+        if (guiMode || mFocusObject.isEmpty() || mwmp::PlayerList::isDedicatedPlayer(mFocusObject)
+            || mFocusObject.getCellRef().getLockLevel() > 0)
         {
             clearModels();
             setVisibleAll(false);
@@ -639,7 +668,9 @@ namespace MWGui
         }
 
         // Entry 0 is the container header; entry 1 is the first item.
-        mLastIndex = 1;
+        // The GUI selector controls which row is initially selected.
+        const std::string quickLootMode = getQuickLootMode();
+        mLastIndex = quickLootMode == "container" ? 0 : 1;
         mVisibleStart = 0;
         mContainerName = mFocusObject.getClass().getName(mFocusObject);
         refreshRows();
@@ -793,8 +824,9 @@ namespace MWGui
 
     void QuickLoot::setFocusObject(const MWWorld::Ptr& focus)
     {
-        // The in-game GUI switch is now the single source of truth for the overlay.
-        const bool quickLootEnabled = Settings::Manager::getBool("quick loot", "GUI");
+        // The three-state selector is the single source of truth for the overlay.
+        const std::string quickLootMode = getQuickLootMode();
+        const bool quickLootEnabled = quickLootMode != "disabled";
 
         if (focus != mFocusObject)
         {
@@ -822,7 +854,8 @@ namespace MWGui
             || player.getClass().getCreatureStats(player).getKnockedDown();
 
         if (focus.isEmpty() || MWBase::Environment::get().getWindowManager()->isGuiMode() || werewolf
-            || incapacitated || (focus.getTypeName() != typeid(ESM::Container).name()
+            || incapacitated || mwmp::PlayerList::isDedicatedPlayer(focus)
+            || (focus.getTypeName() != typeid(ESM::Container).name()
                 && !focus.getClass().hasInventoryStore(focus)))
         {
             mLastFocusObject = mFocusObject;
@@ -905,5 +938,12 @@ namespace MWGui
     {
         mDelay = delay;
         mRemainingDelay = mDelay;
+    }
+
+    void QuickLoot::setStationaryDelay(float delay)
+    {
+        mStationaryDelay = std::clamp(delay, 0.1f, 2.f);
+        mStationaryTime = std::min(mStationaryTime, mStationaryDelay);
+        mReadyToShow = mStationaryTime >= mStationaryDelay;
     }
 }

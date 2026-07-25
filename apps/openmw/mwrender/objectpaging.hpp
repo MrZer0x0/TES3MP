@@ -52,6 +52,9 @@ namespace MWRender
 
         void reportStats(unsigned int frameNumber, osg::Stats* stats) const override;
 
+        /// Reload paging thresholds from Settings and invalidate generated batches.
+        void reloadSettings();
+
         void getPagedRefnums(const osg::Vec4i &activeGrid, std::set<ESM::RefNum> &out);
 
     private:

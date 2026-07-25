@@ -28,6 +28,11 @@ namespace MWRender
 
     private:
         MWWorld::Ptr mTrackingPtr;
+        MWWorld::Ptr mDialogueTarget;
+        bool mDialogueCameraActive;
+        bool mDialogueViewInitialized;
+        osg::Vec3d mDialogueCurrentPosition;
+        osg::Vec3d mDialogueCurrentLookAt;
         osg::ref_ptr<const osg::Node> mTrackingNode;
         float mHeightScale;
 
@@ -101,6 +106,9 @@ namespace MWRender
         void setFocalPointTransitionSpeed(float v) { mFocalPointTransitionSpeedCoef = v; }
         void setFocalPointTargetOffset(osg::Vec2d v);
         void instantTransition();
+        void setDialogueTarget(const MWWorld::Ptr& target);
+        void clearDialogueTarget();
+        bool isDialogueCameraActive() const { return mDialogueCameraActive; }
         void enableDynamicCameraDistance(bool v) { mDynamicCameraDistanceEnabled = v; }
         void enableCrosshairInThirdPersonMode(bool v) { mShowCrosshairInThirdPersonMode = v; }
 

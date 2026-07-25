@@ -1,3 +1,4 @@
+#include <new>
 #include "worldimp.hpp"
 
 #include <stdio.h>
@@ -2781,6 +2782,16 @@ namespace MWWorld
         mRendering->getCamera()->adjustCameraDistance(dist);
     }
 
+    void World::setDialogueCameraTarget(const MWWorld::Ptr& target)
+    {
+        mRendering->getCamera()->setDialogueTarget(target);
+    }
+
+    void World::clearDialogueCameraTarget()
+    {
+        mRendering->getCamera()->clearDialogueTarget();
+    }
+
     void World::saveLoaded()
     {
         mStore.validateDynamic();
@@ -3462,14 +3473,31 @@ namespace MWWorld
         {
             boost::filesystem::path filename(file);
             const Files::MultiDirCollection& col = fileCollections.getCollection(filename.extension().string());
-            if (col.doesExist(file))
+            if (!col.doesExist(file))
+            {
+                Log(Debug::Warning) << "Skipping groundcover file '" << file
+                    << "': the file does not exist";
+                idx++;
+                continue;
+            }
+
+            try
             {
                 contentLoader.load(col.getPath(file), idx);
             }
-            else
+            catch (const std::bad_alloc&)
             {
-                std::string message = "Failed loading " + file + ": the groundcover file does not exist";
-                throw std::runtime_error(message);
+                // A real process-wide memory shortage is not safe to ignore.
+                throw std::runtime_error("Out of memory while loading groundcover file '" + file
+                    + "'. Disable this groundcover plugin or reduce the active content set.");
+            }
+            catch (const std::exception& e)
+            {
+                // Groundcover is visual-only.  A malformed grass plugin should
+                // not prevent the client from reaching the server.  Keep the
+                // already loaded game content and continue without the damaged
+                // groundcover file, while logging the exact parser error.
+                Log(Debug::Error) << "Skipping invalid groundcover file '" << file << "': " << e.what();
             }
             idx++;
         }

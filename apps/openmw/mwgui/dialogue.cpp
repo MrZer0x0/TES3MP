@@ -5,6 +5,11 @@
 #include <MyGUI_ProgressBar.h>
 #include <MyGUI_ScrollBar.h>
 #include <MyGUI_Button.h>
+#include <MyGUI_RenderManager.h>
+#include <MyGUI_InputManager.h>
+
+#include <algorithm>
+#include <cmath>
 
 #include <components/debug/debuglog.hpp>
 #include <components/widgets/list.hpp>
@@ -283,6 +288,8 @@ namespace MWGui
         , mIsCompanion(false)
         , mGoodbye(false)
         , mPersuasionDialog(new ResponseCallback(this))
+        , mHistoryWasDragged(false)
+        , mDialogueCameraActive(false)
         , mCallback(new ResponseCallback(this))
         , mGreetingCallback(new ResponseCallback(this, false))
     {
@@ -291,27 +298,45 @@ namespace MWGui
 
         mPersuasionDialog.setVisible(false);
 
-        //History view
+        // History view
         getWidget(mHistory, "History");
+        mHistory->setNeedMouseFocus(true);
+        mHistory->eventMouseWheel += MyGUI::newDelegate(this, &DialogueWindow::onMouseWheel);
+        mHistory->eventMouseButtonPressed += MyGUI::newDelegate(this, &DialogueWindow::onHistoryDragStart);
+        mHistory->eventMouseDrag += MyGUI::newDelegate(this, &DialogueWindow::onHistoryDrag);
 
-        //Topics list
+        // Answers and topics/actions lists
+        getWidget(mChoicesList, "ChoicesList");
+        mChoicesList->eventItemSelected += MyGUI::newDelegate(this, &DialogueWindow::onChoiceListItem);
         getWidget(mTopicsList, "TopicsList");
         mTopicsList->eventItemSelected += MyGUI::newDelegate(this, &DialogueWindow::onSelectListItem);
 
+        getWidget(mNpcName, "NpcName");
+        getWidget(mNpcHealthBar, "NpcHealth");
+        getWidget(mNpcHealthText, "NpcHealthText");
+        getWidget(mChoicesLabel, "ChoicesLabel");
+        getWidget(mTopicsLabel, "TopicsLabel");
+
         getWidget(mGoodbyeButton, "ByeButton");
         mGoodbyeButton->eventMouseButtonClick += MyGUI::newDelegate(this, &DialogueWindow::onByeClicked);
+        getWidget(mUpButton, "UpButton");
+        getWidget(mDownButton, "DownButton");
+        getWidget(mSelectButton, "SelectButton");
+        mUpButton->eventMouseButtonClick += MyGUI::newDelegate(this, &DialogueWindow::onNavigateUp);
+        mDownButton->eventMouseButtonClick += MyGUI::newDelegate(this, &DialogueWindow::onNavigateDown);
+        mSelectButton->eventMouseButtonClick += MyGUI::newDelegate(this, &DialogueWindow::onNavigateSelect);
 
         getWidget(mDispositionBar, "Disposition");
         getWidget(mDispositionText,"DispositionText");
         getWidget(mScrollBar, "VScroll");
 
         mScrollBar->eventScrollChangePosition += MyGUI::newDelegate(this, &DialogueWindow::onScrollbarMoved);
-        mHistory->eventMouseWheel += MyGUI::newDelegate(this, &DialogueWindow::onMouseWheel);
 
         BookPage::ClickCallback callback = std::bind (&DialogueWindow::notifyLinkClicked, this, std::placeholders::_1);
         mHistory->adviseLinkClicked(callback);
 
         mMainWidget->castType<MyGUI::Window>()->eventWindowChangeCoord += MyGUI::newDelegate(this, &DialogueWindow::onWindowResize);
+        updateChoicePane();
     }
 
     DialogueWindow::~DialogueWindow()
@@ -338,6 +363,7 @@ namespace MWGui
         }
         else
         {
+            stopDialogueCamera();
             resetReference();
             MWBase::Environment::get().getDialogueManager()->goodbyeSelected();
             mTopicsList->scrollToTop();
@@ -345,12 +371,220 @@ namespace MWGui
         }
     }
 
+    void DialogueWindow::onOpen()
+    {
+        positionDialogueWindow();
+        startDialogueCamera();
+        selectInitialItem();
+    }
+
+    void DialogueWindow::onResChange(int width, int height)
+    {
+        positionDialogueWindow();
+        mChoicesList->adjustSize();
+        mTopicsList->adjustSize();
+        updateChoicePane();
+        updateHistory();
+    }
+
+    bool DialogueWindow::handleKeyPress(MyGUI::KeyCode key, bool repeat)
+    {
+        if (mPersuasionDialog.isVisible())
+            return false;
+
+        switch (key.getValue())
+        {
+            case MyGUI::KeyCode::W:
+            case MyGUI::KeyCode::ArrowUp:
+                return moveSelection(-1);
+            case MyGUI::KeyCode::S:
+            case MyGUI::KeyCode::ArrowDown:
+                return moveSelection(1);
+            case MyGUI::KeyCode::E:
+            case MyGUI::KeyCode::Return:
+            case MyGUI::KeyCode::NumpadEnter:
+                if (repeat)
+                    return true;
+                return activateSelection();
+            default:
+                return false;
+        }
+    }
+
+    void DialogueWindow::positionDialogueWindow()
+    {
+        const MyGUI::IntSize view = MyGUI::RenderManager::getInstance().getViewSize();
+        MyGUI::IntSize size = mMainWidget->getSize();
+        size.width = std::min(680, std::max(620, view.width - 16));
+        size.height = std::min(400, std::max(330, static_cast<int>(view.height * 0.43f)));
+        mMainWidget->setSize(size);
+
+        const int x = std::max(8, (view.width - size.width) / 2);
+        // Keep the panel close to the lower edge so the actor's upper body remains unobstructed.
+        const int y = std::max(4, view.height - size.height - 6);
+        mMainWidget->setPosition(x, y);
+    }
+
+    void DialogueWindow::startDialogueCamera()
+    {
+        if (mPtr.isEmpty() || !Settings::Manager::getBool("cinematic dialogue camera", "GUI"))
+            return;
+        MWBase::Environment::get().getWorld()->setDialogueCameraTarget(mPtr);
+        mDialogueCameraActive = true;
+    }
+
+    void DialogueWindow::stopDialogueCamera()
+    {
+        if (!mDialogueCameraActive)
+            return;
+        MWBase::Environment::get().getWorld()->clearDialogueCameraTarget();
+        mDialogueCameraActive = false;
+    }
+
+    bool DialogueWindow::moveSelection(int direction)
+    {
+        if (mChoicesList->getVisible() && mChoicesList->getEnabled() && mChoicesList->getItemCount() > 0)
+            return mChoicesList->selectNext(direction, true);
+        if (mTopicsList->getVisible() && mTopicsList->getEnabled() && mTopicsList->getItemCount() > 0)
+            return mTopicsList->selectNext(direction, true);
+        if (mGoodbyeButton->getEnabled())
+        {
+            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mGoodbyeButton);
+            return true;
+        }
+        return false;
+    }
+
+    bool DialogueWindow::activateSelection()
+    {
+        if (mChoicesList->getVisible() && mChoicesList->getEnabled() && mChoicesList->activateSelected())
+            return true;
+        if (mTopicsList->getVisible() && mTopicsList->getEnabled() && mTopicsList->activateSelected())
+            return true;
+        if (mGoodbyeButton->getEnabled())
+        {
+            onByeClicked(mGoodbyeButton);
+            return true;
+        }
+        return false;
+    }
+
+    void DialogueWindow::selectInitialItem()
+    {
+        if (mChoicesList->getVisible() && mChoicesList->getEnabled() && mChoicesList->getItemCount() > 0)
+        {
+            mTopicsList->clearSelection();
+            if (mChoicesList->getSelectedIndex() < 0)
+                mChoicesList->selectNext(1, true);
+            return;
+        }
+        mChoicesList->clearSelection();
+        if (mTopicsList->getEnabled() && mTopicsList->getItemCount() > 0)
+        {
+            if (mTopicsList->getSelectedIndex() < 0)
+                mTopicsList->selectNext(1, true);
+            return;
+        }
+        if (mGoodbyeButton->getEnabled())
+            MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mGoodbyeButton);
+    }
+
+    void DialogueWindow::onNavigateUp(MyGUI::Widget* sender)
+    {
+        moveSelection(-1);
+    }
+
+    void DialogueWindow::onNavigateDown(MyGUI::Widget* sender)
+    {
+        moveSelection(1);
+    }
+
+    void DialogueWindow::onNavigateSelect(MyGUI::Widget* sender)
+    {
+        activateSelection();
+    }
+
+    void DialogueWindow::onChoiceListItem(const std::string& choice, int id)
+    {
+        if (id < 0 || static_cast<std::size_t>(id) >= mChoices.size())
+            return;
+        onChoiceActivated(mChoices[static_cast<std::size_t>(id)].second);
+    }
+
+    void DialogueWindow::updateChoicePane()
+    {
+        const int rightX = mTopicsList->getLeft();
+        const int rightWidth = mTopicsList->getWidth();
+        const int contentBottom = std::max(132, mSelectButton->getTop() - 8);
+
+        mChoicesList->clear();
+        for (const auto& choice : mChoices)
+            mChoicesList->addItem(choice.first);
+        mChoicesList->adjustSize();
+
+        const bool hasChoices = !mChoices.empty();
+        mChoicesLabel->setVisible(hasChoices);
+        mChoicesList->setVisible(hasChoices);
+        mChoicesList->setEnabled(hasChoices);
+
+        if (hasChoices)
+        {
+            const int choicesTop = 68;
+            const int choicesHeight = std::max(46, std::min(84, std::max(22, static_cast<int>(mChoices.size()) * 18 + 6)));
+            const int topicsLabelTop = choicesTop + choicesHeight + 12;
+            const int topicsTop = topicsLabelTop + 24;
+            const int topicsHeight = std::max(64, contentBottom - topicsTop);
+            mChoicesLabel->setCoord(rightX, 44, rightWidth, 18);
+            mChoicesList->setCoord(rightX, choicesTop, rightWidth, choicesHeight);
+            mTopicsLabel->setCoord(rightX, topicsLabelTop, rightWidth, 18);
+            mTopicsList->setCoord(rightX, topicsTop, rightWidth, topicsHeight);
+        }
+        else
+        {
+            mTopicsLabel->setCoord(rightX, 44, rightWidth, 18);
+            mTopicsList->setCoord(rightX, 72, rightWidth, std::max(80, contentBottom - 72));
+        }
+        mTopicsList->adjustSize();
+    }
+
+    void DialogueWindow::onHistoryDragStart(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
+    {
+        if (id != MyGUI::MouseButton::Left)
+            return;
+        mHistoryDragStart = MyGUI::IntPoint(left, top);
+        mHistoryLastDragPosition = mHistoryDragStart;
+        mHistoryWasDragged = false;
+    }
+
+    void DialogueWindow::onHistoryDrag(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
+    {
+        if (id != MyGUI::MouseButton::Left || !mScrollBar->getVisible())
+            return;
+
+        const MyGUI::IntPoint current(left, top);
+        const MyGUI::IntPoint total = current - mHistoryDragStart;
+        if (std::abs(total.left) > 4 || std::abs(total.top) > 4)
+            mHistoryWasDragged = true;
+
+        if (mHistoryWasDragged)
+        {
+            const int delta = current.top - mHistoryLastDragPosition.top;
+            const int maxPosition = std::max(0, static_cast<int>(mScrollBar->getScrollRange()) - 1);
+            const int position = std::max(0, std::min(maxPosition, static_cast<int>(mScrollBar->getScrollPosition()) - delta));
+            mScrollBar->setScrollPosition(position);
+            onScrollbarMoved(mScrollBar, position);
+        }
+        mHistoryLastDragPosition = current;
+    }
+
     void DialogueWindow::onWindowResize(MyGUI::Window* _sender)
     {
         // if the window has only been moved, not resized, we don't need to update
         if (mCurrentWindowSize == _sender->getSize()) return;
 
+        mChoicesList->adjustSize();
         mTopicsList->adjustSize();
+        updateChoicePane();
         updateHistory();
         updateTopicFormat();
         mCurrentWindowSize = _sender->getSize();
@@ -535,6 +769,7 @@ namespace MWGui
         {
             // No greetings found. The dialogue window should not be shown.
             // If this is a companion, we must show the companion window directly (used by BM_bear_be_unique).
+            stopDialogueCamera();
             MWBase::Environment::get().getWindowManager()->removeGuiMode(MWGui::GM_Dialogue);
             mPtr = MWWorld::Ptr();
             if (isCompanion(actor))
@@ -544,13 +779,17 @@ namespace MWGui
 
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mGoodbyeButton);
 
-        setTitle(mPtr.getClass().getName(mPtr));
+        const std::string actorName = mPtr.getClass().getName(mPtr);
+        setTitle(actorName);
+        updateActorStatus();
 
         updateTopics();
         updateTopicsPane(); // force update for new services
 
         updateDisposition();
         restock();
+        startDialogueCamera();
+        selectInitialItem();
     }
 
     void DialogueWindow::restock()
@@ -594,6 +833,7 @@ namespace MWGui
     {
         if (MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue))
             return;
+        stopDialogueCamera();
         // Reset history
         for (DialogueText* text : mHistoryContents)
             delete text;
@@ -684,6 +924,7 @@ namespace MWGui
         updateHistory();
         // The topics list has been regenerated so topic formatting needs to be updated
         updateTopicFormat();
+        selectInitialItem();
     }
 
     void DialogueWindow::updateHistory(bool scrollbar)
@@ -704,38 +945,9 @@ namespace MWGui
         for (DialogueText* text : mHistoryContents)
             text->write(typesetter, &mKeywordSearch, mTopicLinks);
 
-        BookTypesetter::Style* body = typesetter->createStyle("", MyGUI::Colour::White, false);
-
-        typesetter->sectionBreak(9);
-        // choices
-        const TextColours& textColours = MWBase::Environment::get().getWindowManager()->getTextColours();
         mChoices = MWBase::Environment::get().getDialogueManager()->getChoices();
-        for (std::pair<std::string, int>& choice : mChoices)
-        {
-            Choice* link = new Choice(choice.second);
-            link->eventChoiceActivated += MyGUI::newDelegate(this, &DialogueWindow::onChoiceActivated);
-            mLinks.push_back(link);
-
-            typesetter->lineBreak();
-            BookTypesetter::Style* questionStyle = typesetter->createHotStyle(body, textColours.answer, textColours.answerOver,
-                                                                              textColours.answerPressed,
-                                                                              TypesetBook::InteractiveId(link));
-            typesetter->write(questionStyle, to_utf8_span(choice.first.c_str()));
-        }
-
         mGoodbye = MWBase::Environment::get().getDialogueManager()->isGoodbye();
-        if (mGoodbye)
-        {
-            Goodbye* link = new Goodbye();
-            link->eventActivated += MyGUI::newDelegate(this, &DialogueWindow::onGoodbyeActivated);
-            mLinks.push_back(link);
-            std::string goodbye = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>().find("sGoodbye")->mValue.getString();
-            BookTypesetter::Style* questionStyle = typesetter->createHotStyle(body, textColours.answer, textColours.answerOver,
-                                                                              textColours.answerPressed,
-                                                                              TypesetBook::InteractiveId(link));
-            typesetter->lineBreak();
-            typesetter->write(questionStyle, to_utf8_span(goodbye.c_str()));
-        }
+        updateChoicePane();
 
         TypesetBook::Ptr book = typesetter->complete();
         mHistory->showPage(book, 0);
@@ -765,10 +977,16 @@ namespace MWGui
 
         bool topicsEnabled = !MWBase::Environment::get().getDialogueManager()->isInChoice() && !mGoodbye;
         mTopicsList->setEnabled(topicsEnabled);
+        selectInitialItem();
     }
 
     void DialogueWindow::notifyLinkClicked (TypesetBook::InteractiveId link)
     {
+        if (mHistoryWasDragged)
+        {
+            mHistoryWasDragged = false;
+            return;
+        }
         reinterpret_cast<Link*>(link)->activated();
     }
 
@@ -794,6 +1012,7 @@ namespace MWGui
 
     void DialogueWindow::onGoodbyeActivated()
     {
+        stopDialogueCamera();
         MWBase::Environment::get().getDialogueManager()->goodbyeSelected();
         MWBase::Environment::get().getWindowManager()->removeGuiMode(MWGui::GM_Dialogue);
         resetReference();
@@ -816,6 +1035,31 @@ namespace MWGui
         updateHistory();
     }
 
+    void DialogueWindow::updateActorStatus()
+    {
+        if (mPtr.isEmpty() || !mPtr.getClass().isActor())
+        {
+            mNpcHealthBar->setVisible(false);
+            mNpcHealthText->setVisible(false);
+            return;
+        }
+
+        MWMechanics::CreatureStats& stats = mPtr.getClass().getCreatureStats(mPtr);
+        const int level = stats.getLevel();
+        const int maximumHealth = std::max(1, static_cast<int>(std::lround(stats.getHealth().getModified())));
+        const int currentHealth = std::max(0, std::min(maximumHealth,
+            static_cast<int>(std::lround(stats.getHealth().getCurrent()))));
+
+        mNpcName->setCaption(mPtr.getClass().getName(mPtr) + " - "
+            + MyGUI::utility::toString(level) + " lvl");
+        mNpcHealthBar->setProgressRange(static_cast<size_t>(maximumHealth));
+        mNpcHealthBar->setProgressPosition(static_cast<size_t>(currentHealth));
+        mNpcHealthText->setCaption(MyGUI::utility::toString(currentHealth) + " / "
+            + MyGUI::utility::toString(maximumHealth));
+        mNpcHealthBar->setVisible(!stats.isDead());
+        mNpcHealthText->setVisible(!stats.isDead());
+    }
+
     void DialogueWindow::updateDisposition()
     {
         bool dispositionVisible = false;
@@ -827,26 +1071,13 @@ namespace MWGui
             mDispositionText->setCaption(MyGUI::utility::toString(MWBase::Environment::get().getMechanicsManager()->getDerivedDisposition(mPtr))+std::string("/100"));
         }
 
-        bool dispositionWasVisible = mDispositionBar->getVisible();
-
-        if (dispositionVisible && !dispositionWasVisible)
-        {
-            mDispositionBar->setVisible(true);
-            int offset = mDispositionBar->getHeight()+5;
-            mTopicsList->setCoord(mTopicsList->getCoord() + MyGUI::IntCoord(0,offset,0,-offset));
-            mTopicsList->adjustSize();
-        }
-        else if (!dispositionVisible && dispositionWasVisible)
-        {
-            mDispositionBar->setVisible(false);
-            int offset = mDispositionBar->getHeight()+5;
-            mTopicsList->setCoord(mTopicsList->getCoord() - MyGUI::IntCoord(0,offset,0,-offset));
-            mTopicsList->adjustSize();
-        }
+        mDispositionBar->setVisible(dispositionVisible);
+        mDispositionText->setVisible(dispositionVisible);
     }
 
     void DialogueWindow::onReferenceUnavailable()
     {
+        stopDialogueCamera();
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Dialogue);
     }
 
@@ -856,6 +1087,7 @@ namespace MWGui
         if (mPtr.isEmpty())
             return;
 
+        updateActorStatus();
         updateDisposition();
         deleteLater();
 
@@ -876,12 +1108,18 @@ namespace MWGui
         {
             int flag = MWBase::Environment::get().getDialogueManager()->getTopicFlag(keyword);
             MyGUI::Button* button = mTopicsList->getItemWidget(keyword);
+            if (!button)
+                continue;
 
             if (!specialColour.empty() && flag & MWBase::DialogueManager::TopicType::Specific)
                 button->getSubWidgetText()->setTextColour(MyGUI::Colour::parse(specialColour));
             else if (!oldColour.empty() && flag & MWBase::DialogueManager::TopicType::Exhausted)
                 button->getSubWidgetText()->setTextColour(MyGUI::Colour::parse(oldColour));
         }
+
+        const int selected = mTopicsList->getSelectedIndex();
+        if (selected >= 0)
+            mTopicsList->setSelectedIndex(selected, false);
     }
 
     void DialogueWindow::updateTopics()

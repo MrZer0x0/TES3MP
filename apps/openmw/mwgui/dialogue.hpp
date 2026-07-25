@@ -9,6 +9,8 @@
 #include "../mwdialogue/keywordsearch.hpp"
 
 #include <MyGUI_Delegate.h>
+#include <MyGUI_KeyCode.h>
+#include <MyGUI_Types.h>
 
 namespace Gui
 {
@@ -109,6 +111,9 @@ namespace MWGui
         void onTradeComplete();
 
         bool exit() override;
+        bool handleKeyPress(MyGUI::KeyCode key, bool repeat);
+        void onOpen() override;
+        void onResChange(int width, int height) override;
 
         // Events
         typedef MyGUI::delegates::CMultiDelegate0 EventHandle_Void;
@@ -145,7 +150,7 @@ namespace MWGui
         void addMessageBox(const std::string& text);
 
         void onFrame(float dt) override;
-        void clear() override { resetReference(); }
+        void clear() override { stopDialogueCamera(); resetReference(); }
 
         void updateTopics();
 
@@ -169,8 +174,14 @@ namespace MWGui
         */
 
         void onSelectListItem(const std::string& topic, int id);
+        void onChoiceListItem(const std::string& choice, int id);
         void onByeClicked(MyGUI::Widget* _sender);
+        void onNavigateUp(MyGUI::Widget* sender);
+        void onNavigateDown(MyGUI::Widget* sender);
+        void onNavigateSelect(MyGUI::Widget* sender);
         void onMouseWheel(MyGUI::Widget* _sender, int _rel);
+        void onHistoryDragStart(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id);
+        void onHistoryDrag(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id);
         void onWindowResize(MyGUI::Window* _sender);
         void onTopicActivated(const std::string& topicId);
         void onChoiceActivated(int id);
@@ -184,8 +195,16 @@ namespace MWGui
 
     private:
         void updateDisposition();
+        void updateActorStatus();
         void restock();
         void deleteLater();
+        void updateChoicePane();
+        bool moveSelection(int direction);
+        bool activateSelection();
+        void selectInitialItem();
+        void positionDialogueWindow();
+        void startDialogueCamera();
+        void stopDialogueCamera();
 
         bool mIsCompanion;
         std::list<std::string> mKeywords;
@@ -202,15 +221,28 @@ namespace MWGui
         KeywordSearchT mKeywordSearch;
 
         BookPage* mHistory;
-        Gui::MWList*   mTopicsList;
+        Gui::MWList* mChoicesList;
+        Gui::MWList* mTopicsList;
         MyGUI::ScrollBar* mScrollBar;
+        MyGUI::TextBox* mNpcName;
+        MyGUI::ProgressBar* mNpcHealthBar;
+        MyGUI::TextBox* mNpcHealthText;
+        MyGUI::TextBox* mChoicesLabel;
+        MyGUI::TextBox* mTopicsLabel;
         MyGUI::ProgressBar* mDispositionBar;
         MyGUI::TextBox*     mDispositionText;
         MyGUI::Button* mGoodbyeButton;
+        MyGUI::Button* mUpButton;
+        MyGUI::Button* mDownButton;
+        MyGUI::Button* mSelectButton;
 
         PersuasionDialog mPersuasionDialog;
 
         MyGUI::IntSize mCurrentWindowSize;
+        MyGUI::IntPoint mHistoryDragStart;
+        MyGUI::IntPoint mHistoryLastDragPosition;
+        bool mHistoryWasDragged;
+        bool mDialogueCameraActive;
 
         std::unique_ptr<ResponseCallback> mCallback;
         std::unique_ptr<ResponseCallback> mGreetingCallback;

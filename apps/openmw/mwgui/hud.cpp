@@ -10,6 +10,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 /*
     Start of tes3mp addition
@@ -44,6 +45,27 @@
 #include "draganddrop.hpp"
 
 #include "itemwidget.hpp"
+
+namespace
+{
+    std::string getWeaponSpellBoxMode()
+    {
+        const auto modeKey = std::make_pair(std::string("GUI"), std::string("weapon spell box mode"));
+        const auto legacyKey = std::make_pair(std::string("GUI"), std::string("persistent weapon spell boxes"));
+        if (Settings::Manager::mUserSettings.find(modeKey) == Settings::Manager::mUserSettings.end())
+        {
+            const auto legacyIt = Settings::Manager::mUserSettings.find(legacyKey);
+            if (legacyIt != Settings::Manager::mUserSettings.end())
+                return (legacyIt->second == "false" || legacyIt->second == "0") ? "hidden" : "transparent";
+        }
+
+        const std::string mode = Settings::Manager::getString("weapon spell box mode", "GUI");
+        if (mode == "hidden" || mode == "transparent" || mode == "visible")
+            return mode;
+        return Settings::Manager::getBool("persistent weapon spell boxes", "GUI")
+            ? "transparent" : "hidden";
+    }
+}
 
 namespace MWGui
 {
@@ -494,7 +516,8 @@ namespace MWGui
         const bool targetInfoPanel = Settings::Manager::getBool("target info panel", "GUI");
         const bool focusedTargetAlive = !mFocusActor.isEmpty()
             && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead();
-        const bool focusedTargetPanel = targetInfoPanel && focusedTargetAlive;
+        const bool dialogueOpen = MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
+        const bool focusedTargetPanel = targetInfoPanel && focusedTargetAlive && !dialogueOpen;
 
         mEnemyHealthTimer -= dt;
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0 && !focusedTargetPanel)
@@ -533,6 +556,9 @@ namespace MWGui
         const MWWorld::Ptr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
         if (!player.isEmpty())
             drawState = player.getClass().getCreatureStats(player).getDrawState();
+
+        if (dialogueOpen && mEnemyActorId == -1)
+            mEnemyHealth->setVisible(false);
 
         const bool showFocusedTargetInfo = focusedTargetPanel && mEnemyHealth->getVisible();
         if (mEnemyName)
@@ -590,8 +616,8 @@ namespace MWGui
         const auto applyResourceState = [&](float alpha)
         {
             alpha = std::max(0.f, std::min(1.f, alpha));
-            const bool keepIcon = persistentIcon
-                && Settings::Manager::getBool("persistent weapon spell boxes", "GUI");
+            const std::string boxMode = persistentIcon ? getWeaponSpellBoxMode() : "hidden";
+            const bool keepIcon = persistentIcon && boxMode != "hidden";
 
             if (!keepIcon)
             {
@@ -612,7 +638,7 @@ namespace MWGui
             }
 
             // Weapon and spell boxes live inside the stamina/magicka frame. Keep the
-            // parent alive, fade only the bar children, and leave the icon at 40%.
+            // parent alive, fade only the bar children, and apply the selected box mode.
             frame->setVisible(true);
             applyBarAlpha(frame, 1.f);
             for (unsigned int i = 0; i < frame->getChildCount(); ++i)
@@ -626,7 +652,8 @@ namespace MWGui
 
             const bool iconAllowed = persistentIcon == mWeapBox ? mWeaponVisible : mSpellVisible;
             persistentIcon->setVisible(iconAllowed);
-            applyBarAlpha(persistentIcon, std::max(0.4f, alpha));
+            const float persistentAlpha = boxMode == "visible" ? 1.f : 0.4f;
+            applyBarAlpha(persistentIcon, std::max(persistentAlpha, alpha));
         };
 
         // Keep the relevant resource bar visible for as long as the player is
@@ -900,7 +927,8 @@ namespace MWGui
             mFocusActor = MWWorld::Ptr();
 
         const bool focusedTargetPanel = Settings::Manager::getBool("target info panel", "GUI")
-            && !mFocusActor.isEmpty();
+            && !mFocusActor.isEmpty()
+            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
         if (!focusedTargetPanel && mEnemyHealthTimer < 0.f)
         {
             mEnemyHealth->setVisible(false);
@@ -921,7 +949,8 @@ namespace MWGui
     {
         const bool usingFocusActor = Settings::Manager::getBool("target info panel", "GUI")
             && !mFocusActor.isEmpty()
-            && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead();
+            && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead()
+            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
 
         MWWorld::Ptr enemy;
         if (usingFocusActor)

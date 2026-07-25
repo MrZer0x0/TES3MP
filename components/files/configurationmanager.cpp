@@ -437,10 +437,11 @@ namespace Files
 
     boost::filesystem::path ConfigurationManager::getPrimarySettingsPath() const
     {
-        const boost::filesystem::path documentsSettings = getDocumentsSettingsPath();
-        if (boost::filesystem::exists(documentsSettings))
-            return documentsSettings;
-
+        // Keep a single authoritative settings file for both the launcher and
+        // the game client. Previous ArenaMP builds preferred a legacy copy in
+        // Documents when it happened to exist, while the launcher edited the
+        // portable userdata copy. The client then appeared to reset graphics
+        // settings at startup because it was actually loading another file.
         return mUserConfigPath / "settings.cfg";
     }
 

@@ -34,6 +34,7 @@ namespace MWGui
 
         void setEnabled(bool enabled);
         void setDelay(float delay);
+        void setStationaryDelay(float delay);
 
         bool isVisible() const { return mMainWidget->getVisible() && mQuickLoot->getVisible(); }
         bool isPlaying() const { return mPlaying; }

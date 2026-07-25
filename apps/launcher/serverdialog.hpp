@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QByteArray>
 #include <QProcess>
+#include <QString>
 
 class QLabel;
 class QPlainTextEdit;
@@ -22,15 +23,28 @@ namespace Launcher
         explicit ServerDialog(QWidget* parent = nullptr);
         ~ServerDialog();
 
-        void startServer();
+        bool startServer();
         bool isRunning() const;
+        bool isServerReachable(int timeoutMs = 300) const;
+        QString displayAddress() const;
+        QString configuredPort() const;
+        bool autoRestartEnabled() const;
+        void setAutoRestartEnabled(bool enabled);
+
+    public slots:
+        void stopServer();
+
+    signals:
+        void runningChanged(bool running, const QString& address, const QString& port);
+        void autoRestartChanged(bool enabled);
 
     private slots:
         void processReadyReadStandardOutput();
         void processReadyReadStandardError();
         void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
         void processError(QProcess::ProcessError error);
-        void stopServer();
+        void backupProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+        void backupProcessError(QProcess::ProcessError error);
         void refreshDecodedLog();
 
     private:
@@ -51,7 +65,8 @@ namespace Launcher
         QString applicationBasePath() const;
         QString backupDirectoryPath() const;
         QString makeBackupArchivePath() const;
-        QString createBackupArchive(QString* errorMessage = nullptr) const;
+        bool startBackupArchive(QString* errorMessage = nullptr);
+        void finishServerStopSequence();
         void cleanupOldLogsIfNeeded();
         void appendStatusLine(const QString& text);
 
@@ -64,11 +79,18 @@ namespace Launcher
         QPushButton* mStopButton;
         QPushButton* mCloseButton;
         QProcess* mProcess;
+        QProcess* mBackupProcess;
         QByteArray mRawLog;
+        QString mPendingBackupPath;
         int mRestartCounter;
         bool mStopRequested;
+        bool mBackupInProgress;
+        bool mRestartAfterBackup;
+        bool mCrashAfterStop;
         int mRapidCrashCount;
         qint64 mLastStartMs;
+        mutable QString mCachedDisplayAddress;
+        mutable qint64 mCachedDisplayAddressAtMs;
     };
 }
 

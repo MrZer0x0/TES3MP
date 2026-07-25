@@ -1181,8 +1181,12 @@ namespace MWGui
                 setMenuTransparency(Settings::Manager::getFloat("menu transparency", "GUI"));
             else if (setting.first == "GUI" && setting.second == "scaling factor")
                 setScalingFactor(Settings::Manager::getFloat("scaling factor", "GUI"));
-            else if (setting.first == "GUI" && setting.second == "quick loot")
-                mQuickLoot->setEnabled(Settings::Manager::getBool("quick loot", "GUI"));
+            else if (setting.first == "GUI" && (setting.second == "quick loot mode"
+                    || setting.second == "quick loot"))
+                mQuickLoot->setEnabled(Settings::Manager::getString("quick loot mode", "GUI") != "disabled");
+            else if (setting.first == "GUI" && setting.second == "quick loot stationary delay")
+                mQuickLoot->setStationaryDelay(
+                    Settings::Manager::getFloat("quick loot stationary delay", "GUI"));
             else if (setting.first == "Video" && (
                     setting.second == "resolution x"
                     || setting.second == "resolution y"
@@ -1208,13 +1212,11 @@ namespace MWGui
 
     void WindowManager::windowResized(int x, int y)
     {
-        // Note: this is a side effect of resolution change or window resize.
-        // There is no need to track these changes.
-        Settings::Manager::setInt("resolution x", "Video", x);
-        Settings::Manager::setInt("resolution y", "Video", y);
-        Settings::Manager::resetPendingChange("resolution x", "Video");
-        Settings::Manager::resetPendingChange("resolution y", "Video");
-
+        // SDL can emit startup resize events using a temporary/logical window
+        // size (especially with Windows DPI scaling). Do not write that runtime
+        // size back to settings.cfg: it would silently replace the resolution
+        // selected in the launcher. Explicit resolution changes still go
+        // through SettingsWindow and remain persistent.
         mGuiPlatform->getRenderManagerPtr()->setViewSize(x, y);
 
         // scaled size
@@ -2384,6 +2386,9 @@ namespace MWGui
 
     bool WindowManager::injectKeyPress(MyGUI::KeyCode key, unsigned int text, bool repeat)
     {
+        if (getMode() == GM_Dialogue && mDialogueWindow && mDialogueWindow->handleKeyPress(key, repeat))
+            return true;
+
         if (!mKeyboardNavigation->injectKeyPress(key, text, repeat))
         {
             MyGUI::Widget* focus = MyGUI::InputManager::getInstance().getKeyFocusWidget();

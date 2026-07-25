@@ -405,6 +405,17 @@ namespace MWRender
 
     ObjectPaging::~ObjectPaging() = default;
 
+    void ObjectPaging::reloadSettings()
+    {
+        mActiveGrid = Settings::Manager::getBool("object paging active grid", "Terrain");
+        mDebugBatches = Settings::Manager::getBool("object paging debug batches", "Terrain");
+        mMergeFactor = Settings::Manager::getFloat("object paging merge factor", "Terrain");
+        mMinSize = Settings::Manager::getFloat("object paging min size", "Terrain");
+        mMinSizeMergeFactor = Settings::Manager::getFloat("object paging min size merge factor", "Terrain");
+        mMinSizeCostMultiplier = Settings::Manager::getFloat("object paging min size cost multiplier", "Terrain");
+        Resource::GenericResourceManager<ChunkId>::clearCache();
+    }
+
     osg::ref_ptr<osg::Node> ObjectPaging::createChunk(float size, const osg::Vec2f& center, bool activeGrid, const osg::Vec3f& viewPoint, bool compile, unsigned char lod)
     {
         osg::Vec2i startCell = osg::Vec2i(std::floor(center.x() - size/2.f), std::floor(center.y() - size/2.f));

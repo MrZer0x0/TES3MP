@@ -36,6 +36,12 @@ namespace MWGui
             MyGUI::ComboBox* mLightingMethodButton;
             MyGUI::Button* mLightsResetButton;
 
+            MyGUI::ComboBox* mWeaponSpellBoxMode;
+            MyGUI::ComboBox* mQuickLootMode;
+            MyGUI::ComboBox* mTerrainPreset;
+            MyGUI::ComboBox* mShadowPreset;
+            MyGUI::ComboBox* mShadowMapQuality;
+
             // controls
             MyGUI::ScrollView* mControlsBox;
             MyGUI::Button* mResetControlsButton;
@@ -59,6 +65,15 @@ namespace MWGui
             void onLightingMethodButtonChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onLightsResetButtonClicked(MyGUI::Widget* _sender);
             void onMaxLightsChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onWeaponSpellBoxModeChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onQuickLootModeChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onTerrainPresetChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onShadowPresetChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onShadowMapQualityChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void updateWeaponSpellBoxModeCombo();
+            void updateQuickLootModeCombo();
+            void updateTerrainPresetCombo();
+            void updateShadowCombos();
 
             void onRebindAction(MyGUI::Widget* _sender);
             void onInputTabMouseWheel(MyGUI::Widget* _sender, int _rel);

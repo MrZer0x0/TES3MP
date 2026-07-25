@@ -146,16 +146,16 @@
           <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Auto-hide health, mana and stamina bars"/></Widget>
         </Widget>
         <Widget type="HBox" skin="" position="8 40 336 24" align="Left Top">
-          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="persistent weapon spell boxes"/><UserString key="SettingType" value="CheckButton"/></Widget>
-          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Keep weapon and magic icons at 40%"/></Widget>
+          <Widget type="TextBox" skin="SandText" position="0 4 142 18" align="Left Top"><Property key="Caption" value="Weapon &amp; magic boxes"/></Widget>
+          <Widget type="ComboBox" skin="MW_ComboBox" position="150 0 186 24" align="Right Top" name="WeaponSpellBoxMode"/>
         </Widget>
         <Widget type="HBox" skin="" position="8 72 336 24" align="Left Top">
           <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="target info panel"/><UserString key="SettingType" value="CheckButton"/></Widget>
           <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Compact target name, level and health"/></Widget>
         </Widget>
         <Widget type="HBox" skin="" position="8 104 336 24" align="Left Top">
-          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot"/><UserString key="SettingType" value="CheckButton"/></Widget>
-          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Quick loot overlay"/></Widget>
+          <Widget type="TextBox" skin="SandText" position="0 4 142 18" align="Left Top"><Property key="Caption" value="Quick Loot selection"/></Widget>
+          <Widget type="ComboBox" skin="MW_ComboBox" position="150 0 186 24" align="Right Top" name="QuickLootMode"/>
         </Widget>
         <Widget type="HBox" skin="" position="8 136 336 24" align="Left Top">
           <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Camera"/><UserString key="SettingName" value="view over shoulder"/><UserString key="SettingType" value="CheckButton"/></Widget>
@@ -165,13 +165,24 @@
           <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="idle shoulder camera"/><UserString key="SettingType" value="CheckButton"/></Widget>
           <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Rotate shoulder camera while idle"/></Widget>
         </Widget>
-        <Widget type="TextBox" skin="NormalText" position="8 206 336 18" align="Left Top" name="GuiScalingFactorLabel"><Property key="Caption" value="GUI scale (%s)"/></Widget>
-        <Widget type="ScrollBar" skin="MW_HScroll" position="8 232 336 18" align="HStretch Top" name="GuiScalingFactor">
+        <Widget type="HBox" skin="" position="8 200 336 24" align="Left Top">
+          <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="cinematic dialogue camera"/><UserString key="SettingType" value="CheckButton"/></Widget>
+          <Widget type="AutoSizedTextBox" skin="SandText" position="60 4 276 18" align="Left Top"><Property key="Caption" value="Cinematic dialogue zoom"/></Widget>
+        </Widget>
+        <Widget type="TextBox" skin="NormalText" position="8 230 336 18" align="Left Top" name="GuiScalingFactorLabel"><Property key="Caption" value="GUI scale (%s)"/></Widget>
+        <Widget type="ScrollBar" skin="MW_HScroll" position="8 252 336 18" align="HStretch Top" name="GuiScalingFactor">
           <Property key="Range" value="151"/><Property key="Page" value="1"/>
           <UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="scaling factor"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="1.0"/><UserString key="SettingMax" value="2.5"/><UserString key="SettingLabelWidget" value="GuiScalingFactorLabel"/><UserString key="SettingLabelCaption" value="GUI scale (%s)"/>
         </Widget>
-        <Widget type="TextBox" skin="SandText" position="8 256 80 18" align="Left Top"><Property key="Caption" value="100%"/></Widget>
-        <Widget type="TextBox" skin="SandText" position="264 256 80 18" align="Right Top"><Property key="Caption" value="250%"/></Widget>
+        <Widget type="TextBox" skin="SandText" position="8 272 80 16" align="Left Top"><Property key="Caption" value="100%"/></Widget>
+        <Widget type="TextBox" skin="SandText" position="264 272 80 16" align="Right Top"><Property key="Caption" value="250%"/></Widget>
+        <Widget type="TextBox" skin="NormalText" position="8 290 336 18" align="Left Top" name="QuickLootDelayLabel"><Property key="Caption" value="Quick Loot appearance delay (%s s)"/></Widget>
+        <Widget type="ScrollBar" skin="MW_HScroll" position="8 312 336 18" align="HStretch Top" name="QuickLootDelay">
+          <Property key="Range" value="20"/><Property key="Page" value="1"/>
+          <UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="GUI"/><UserString key="SettingName" value="quick loot stationary delay"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.1"/><UserString key="SettingMax" value="2.0"/><UserString key="SettingLabelWidget" value="QuickLootDelayLabel"/><UserString key="SettingLabelCaption" value="Quick Loot appearance delay (%s s)"/>
+        </Widget>
+        <Widget type="TextBox" skin="SandText" position="8 332 80 16" align="Left Top"><Property key="Caption" value="0.1 s"/></Widget>
+        <Widget type="TextBox" skin="SandText" position="264 332 80 16" align="Right Top"><Property key="Caption" value="2.0 s"/></Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sAudio}  "/>
@@ -406,18 +417,6 @@
             </Widget>
                             <Widget type="TextBox" skin="NormalText" position="0 130 352 18" align="Left Top" name="RenderDistanceLabel">
                             <Property key="Caption" value="#{sRender_Distance}"/>
-                        </Widget>
-                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 154 352 18" align="HStretch Top" name="RenderingDistanceSlider">
-                            <Property key="Range" value="4669"/>
-                            <Property key="Page" value="128"/>
-                            <UserString key="SettingType" value="Slider"/>
-                            <UserString key="SettingCategory" value="Camera"/>
-                            <UserString key="SettingName" value="viewing distance"/>
-                            <UserString key="SettingValueType" value="Integer"/>
-                            <UserString key="SettingMin" value="2500"/>
-                            <UserString key="SettingMax" value="7168"/>
-                            <UserString key="SettingLabelWidget" value="RenderDistanceLabel"/>
-                            <UserString key="SettingLabelCaption" value="#{sRender_Distance} (%s)"/>
                         </Widget>
                         <Widget type="ScrollBar" skin="MW_HScroll" position="0 154 352 18" align="HStretch Top" name="LargeRenderingDistanceSlider">
                             <Property key="Range" value="79421"/>
@@ -687,7 +686,7 @@
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
             <Property key="Caption" value=" View "/>
-            <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Terrain"/><UserString key="SettingName" value="distant terrain"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Distant land"/></Widget></Widget>
+            <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="TextBox" skin="SandText" position="0 4 142 18" align="Left Top"><Property key="Caption" value="Terrain detail"/></Widget><Widget type="ComboBox" skin="MW_ComboBox" position="150 0 186 24" align="Right Top" name="TerrainPreset"/></Widget>
 			<Widget type="HBox" skin="" position="8 42 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="hdr lighting"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="HDR lighting and tone mapping"/></Widget></Widget>
             <Widget type="HBox" skin="" position="8 112 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="enabled"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Groundcover"/></Widget></Widget>
             <Widget type="TextBox" skin="NormalText" position="8 146 336 18" name="GroundcoverDensityLabel"><Property key="Caption" value="Groundcover density (%s)"/></Widget>
@@ -697,15 +696,15 @@
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
             <Property key="Caption" value=" Shadows "/>
-            <Widget type="TextBox" skin="NormalText" position="8 44 336 18" name="ShadowPresetLabel"><Property key="Caption" value="Shadow casters (%s)"/></Widget>
-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 68 336 18" align="HStretch Top"><Property key="Range" value="6"/><Property key="Page" value="1"/><UserString key="SettingType" value="ShadowPreset"/><UserString key="SettingLabelWidget" value="ShadowPresetLabel"/><UserString key="SettingLabelCaption" value="Shadow casters (%s)"/></Widget>
-            <Widget type="TextBox" skin="SandText" position="8 88 336 18"><Property key="Caption" value="Disabled  >  Actor  >  NPC  >  Object  >  Terrain  >  Indoor"/><Property key="TextAlign" value="Center"/></Widget>
+            <Widget type="TextBox" skin="NormalText" position="8 44 150 18"><Property key="Caption" value="Shadow casters"/></Widget>
+            <Widget type="ComboBox" skin="MW_ComboBox" position="164 40 180 24" align="Right Top" name="ShadowPreset"/>
+            <Widget type="TextBox" skin="SandText" position="8 72 336 34"><Property key="Caption" value="Each level includes all previous shadow categories."/><Property key="TextAlign" value="Center"/><Property key="MultiLine" value="true"/></Widget>
             <Widget type="TextBox" skin="NormalText" position="8 116 336 18" name="ShadowDistanceLabel"><Property key="Caption" value="Shadow distance (%s)"/></Widget>
             <Widget type="ScrollBar" skin="MW_HScroll" position="8 140 336 18" align="HStretch Top"><Property key="Range" value="121"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shadows"/><UserString key="SettingName" value="maximum shadow map distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="1024"/><UserString key="SettingMax" value="16384"/><UserString key="SettingLabelWidget" value="ShadowDistanceLabel"/><UserString key="SettingLabelCaption" value="Shadow distance (%s)"/></Widget>
             <Widget type="TextBox" skin="NormalText" position="8 178 336 18" name="ShadowFadeLabel"><Property key="Caption" value="Shadow fade start (%s)"/></Widget>
             <Widget type="ScrollBar" skin="MW_HScroll" position="8 202 336 18" align="HStretch Top"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Shadows"/><UserString key="SettingName" value="shadow fade start"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="ShadowFadeLabel"/><UserString key="SettingLabelCaption" value="Shadow fade start (%s)"/></Widget>
-			<Widget type="TextBox" skin="NormalText" position="8 240 336 18" name="ShadowMapQualityLabel"><Property key="Caption" value="Shadow map quality (%s)"/></Widget>
-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 264 336 18" align="HStretch Top"><Property key="Range" value="8"/><Property key="Page" value="1"/><UserString key="SettingType" value="ShadowMapQuality"/><UserString key="SettingLabelWidget" value="ShadowMapQualityLabel"/><UserString key="SettingLabelCaption" value="Shadow map quality (%s)"/></Widget>
+			<Widget type="TextBox" skin="NormalText" position="8 246 150 18"><Property key="Caption" value="Shadow map size"/></Widget>
+            <Widget type="ComboBox" skin="MW_ComboBox" position="164 242 180 24" align="Right Top" name="ShadowMapQuality"/>
           </Widget>
         </Widget>
       </Widget>

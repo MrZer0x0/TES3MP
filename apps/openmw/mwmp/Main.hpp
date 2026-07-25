@@ -12,6 +12,7 @@ namespace mwmp
     class LocalSystem;
     class LocalPlayer;
     class Networking;
+    class ChatTtsManager;
 
     class Main
     {
@@ -32,12 +33,15 @@ namespace mwmp
         static bool isValidPacketGlobal(std::string globalId);
 
         static std::string getResDir();
+        static bool useVanillaBuildServer();
+        static bool isChatHistoryHidden();
 
         Networking *getNetworking() const;
         LocalSystem *getLocalSystem() const;
         LocalPlayer *getLocalPlayer() const;
         GUIController *getGUIController() const;
         CellController *getCellController() const;
+        ChatTtsManager *getChatTtsManager() const;
 
         void updateWorld(float dt) const;
 
@@ -45,6 +49,8 @@ namespace mwmp
         static std::string resourceDir;
         static std::string address;
         static std::string serverPassword;
+        static bool vanillaBuildServer;
+        static bool hideChatHistory;
         Main (const Main&);
         ///< not implemented
         Main& operator= (const Main&);
@@ -56,6 +62,7 @@ namespace mwmp
 
         GUIController *mGUIController;
         CellController *mCellController;
+        ChatTtsManager *mChatTtsManager;
 
         std::string server;
         unsigned short port;

@@ -20,6 +20,8 @@
 #include <QTextCodec>
 #include <QTextCursor>
 #include <QTextStream>
+#include <QTimer>
+#include <QTcpSocket>
 #include <QVBoxLayout>
 
 Launcher::ServerDialog::ServerDialog(QWidget* parent)
@@ -33,10 +35,15 @@ Launcher::ServerDialog::ServerDialog(QWidget* parent)
     , mStopButton(nullptr)
     , mCloseButton(nullptr)
     , mProcess(new QProcess(this))
+    , mBackupProcess(new QProcess(this))
     , mRestartCounter(0)
     , mStopRequested(false)
+    , mBackupInProgress(false)
+    , mRestartAfterBackup(false)
+    , mCrashAfterStop(false)
     , mRapidCrashCount(0)
     , mLastStartMs(0)
+    , mCachedDisplayAddressAtMs(0)
 {
     setWindowTitle(tr("TES3MP Server"));
     resize(860, 620);
@@ -80,22 +87,23 @@ Launcher::ServerDialog::ServerDialog(QWidget* parent)
     connect(mStopButton, SIGNAL(clicked()), this, SLOT(stopServer()));
     connect(mCloseButton, SIGNAL(clicked()), mLogView, SLOT(clear()));
     connect(mEncodingCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(refreshDecodedLog()));
+    connect(mRestartCheckBox, SIGNAL(toggled(bool)), this, SIGNAL(autoRestartChanged(bool)));
     connect(mProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(processReadyReadStandardOutput()));
     connect(mProcess, SIGNAL(readyReadStandardError()), this, SLOT(processReadyReadStandardError()));
     connect(mProcess, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(processFinished(int,QProcess::ExitStatus)));
     connect(mProcess, SIGNAL(error(QProcess::ProcessError)), this, SLOT(processError(QProcess::ProcessError)));
+    connect(mBackupProcess, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(backupProcessFinished(int,QProcess::ExitStatus)));
+    connect(mBackupProcess, SIGNAL(error(QProcess::ProcessError)), this, SLOT(backupProcessError(QProcess::ProcessError)));
 }
 
 Launcher::ServerDialog::~ServerDialog()
 {
 }
 
-void Launcher::ServerDialog::startServer()
+bool Launcher::ServerDialog::startServer()
 {
     if (mProcess->state() != QProcess::NotRunning)
-    {
-        return;
-    }
+        return true;
 
     mStopRequested = false;
     mCloseButton->setEnabled(true);
@@ -118,7 +126,7 @@ void Launcher::ServerDialog::startServer()
         QMessageBox::warning(this, tr("Error starting executable"),
             tr("Could not find tes3mp-server executable next to the launcher."));
         mStopButton->setEnabled(false);
-        return;
+        return false;
     }
 
     mProcess->setProgram(QDir::toNativeSeparators(executable));
@@ -137,16 +145,60 @@ void Launcher::ServerDialog::startServer()
     {
         QMessageBox::critical(this, tr("Error starting executable"), mProcess->errorString());
         mStopButton->setEnabled(false);
-        return;
+        return false;
     }
 
+    emit runningChanged(true, resolveDisplayAddress(config.localAddress), config.port);
+    return true;
 }
-
 
 
 bool Launcher::ServerDialog::isRunning() const
 {
     return mProcess != nullptr && mProcess->state() != QProcess::NotRunning;
+}
+
+
+bool Launcher::ServerDialog::isServerReachable(int timeoutMs) const
+{
+    const ServerConfig config = readServerConfig();
+    bool portOk = false;
+    const quint16 port = config.port.toUShort(&portOk);
+    if (!portOk || port == 0)
+        return false;
+
+    QString probeAddress = config.localAddress;
+    if (probeAddress.isEmpty() || probeAddress == QLatin1String("0.0.0.0"))
+        probeAddress = QStringLiteral("127.0.0.1");
+
+    QTcpSocket socket;
+    socket.connectToHost(probeAddress, port);
+    const bool connected = socket.waitForConnected(timeoutMs);
+    if (connected)
+        socket.disconnectFromHost();
+    return connected;
+}
+
+QString Launcher::ServerDialog::displayAddress() const
+{
+    const ServerConfig config = readServerConfig();
+    return resolveDisplayAddress(config.localAddress);
+}
+
+QString Launcher::ServerDialog::configuredPort() const
+{
+    return readServerConfig().port;
+}
+
+bool Launcher::ServerDialog::autoRestartEnabled() const
+{
+    return mRestartCheckBox != nullptr && mRestartCheckBox->isChecked();
+}
+
+void Launcher::ServerDialog::setAutoRestartEnabled(bool enabled)
+{
+    if (mRestartCheckBox != nullptr)
+        mRestartCheckBox->setChecked(enabled);
 }
 
 void Launcher::ServerDialog::processReadyReadStandardOutput()
@@ -164,17 +216,11 @@ void Launcher::ServerDialog::processFinished(int exitCode, QProcess::ExitStatus 
     appendRawLog(mProcess->readAllStandardOutput());
     appendRawLog(mProcess->readAllStandardError());
 
-    QString backupError;
-    const QString archivePath = createBackupArchive(&backupError);
-    if (!archivePath.isEmpty())
-        appendStatusLine(tr("Backup created: %1").arg(QDir::toNativeSeparators(archivePath)));
-    else if (!backupError.isEmpty())
-        appendStatusLine(tr("Backup failed: %1").arg(backupError));
-
     ++mRestartCounter;
     cleanupOldLogsIfNeeded();
 
     appendStatusLine(tr("Server stopped. Exit code: %1").arg(exitCode));
+    emit runningChanged(false, displayAddress(), configuredPort());
 
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     const bool rapidCrash = !mStopRequested
@@ -187,27 +233,28 @@ void Launcher::ServerDialog::processFinished(int exitCode, QProcess::ExitStatus 
     else
         mRapidCrashCount = 0;
 
+    mRestartAfterBackup = false;
     if (!mStopRequested && mRestartCheckBox->isChecked())
     {
         if (mRapidCrashCount >= 3)
-        {
             appendStatusLine(tr("Server crashed too many times in a short period. Auto restart disabled."));
-            mRestartCheckBox->setChecked(false);
-        }
         else
-        {
-            appendStatusLine(tr("Restarting server..."));
-            startServer();
-            return;
-        }
+            mRestartAfterBackup = true;
     }
 
-    if (exitStatus == QProcess::CrashExit && !mStopRequested)
-    {
-        appendStatusLine(tr("The server process crashed."));
-    }
-
+    mCrashAfterStop = exitStatus == QProcess::CrashExit && !mStopRequested;
     mStopButton->setEnabled(false);
+
+    if (mRestartCheckBox->isChecked())
+    {
+        QString backupError;
+        if (startBackupArchive(&backupError))
+            return;
+
+        if (!backupError.isEmpty())
+            appendStatusLine(tr("Backup failed: %1").arg(backupError));
+    }
+    finishServerStopSequence();
 }
 
 void Launcher::ServerDialog::processError(QProcess::ProcessError error)
@@ -221,17 +268,28 @@ void Launcher::ServerDialog::processError(QProcess::ProcessError error)
 void Launcher::ServerDialog::stopServer()
 {
     mStopRequested = true;
-    mRestartCheckBox->setChecked(false);
     if (mProcess->state() == QProcess::NotRunning)
     {
         mStopButton->setEnabled(false);
-            return;
+        emit runningChanged(false, displayAddress(), configuredPort());
+        return;
     }
 
     appendStatusLine(tr("Stopping server..."));
+    mStopButton->setEnabled(false);
     mProcess->terminate();
-    if (!mProcess->waitForFinished(5000))
-        mProcess->kill();
+
+    // Never block the GUI thread while the server shuts down. Some server
+    // scripts need a moment to flush state; force-kill only after the grace
+    // period and only if the same process is still running.
+    QTimer::singleShot(2000, this, [this]()
+    {
+        if (mProcess != nullptr && mProcess->state() != QProcess::NotRunning)
+        {
+            appendStatusLine(tr("Server did not stop in time; forcing termination..."));
+            mProcess->kill();
+        }
+    });
 }
 
 void Launcher::ServerDialog::refreshDecodedLog()
@@ -356,6 +414,16 @@ QString Launcher::ServerDialog::resolveDisplayAddress(const QString& bindAddress
     if (!bindAddress.isEmpty() && bindAddress != QLatin1String("0.0.0.0"))
         return bindAddress;
 
+    // QNetworkInterface::allInterfaces() may wake Windows network-location
+    // services hosted by svchost.exe. Cache the LAN address instead of
+    // enumerating every time the launcher refreshes its main page.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (!mCachedDisplayAddress.isEmpty() && now - mCachedDisplayAddressAtMs < 30000)
+        return mCachedDisplayAddress;
+
+    QString bestAddress;
+    int bestScore = -1;
+
     foreach (const QNetworkInterface& iface, QNetworkInterface::allInterfaces())
     {
         if (!(iface.flags() & QNetworkInterface::IsUp) || !(iface.flags() & QNetworkInterface::IsRunning))
@@ -363,14 +431,47 @@ QString Launcher::ServerDialog::resolveDisplayAddress(const QString& bindAddress
         if (iface.flags() & QNetworkInterface::IsLoopBack)
             continue;
 
+        const QString interfaceName = (iface.humanReadableName() + QLatin1Char(' ') + iface.name()).toLower();
+        const bool looksVirtual = interfaceName.contains(QLatin1String("virtual"))
+            || interfaceName.contains(QLatin1String("vmware"))
+            || interfaceName.contains(QLatin1String("hyper-v"))
+            || interfaceName.contains(QLatin1String("vethernet"))
+            || interfaceName.contains(QLatin1String("wsl"))
+            || interfaceName.contains(QLatin1String("docker"))
+            || interfaceName.contains(QLatin1String("loopback"));
+
         foreach (const QNetworkAddressEntry& entry, iface.addressEntries())
         {
-            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol)
-                return entry.ip().toString();
+            if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol)
+                continue;
+
+            const QString address = entry.ip().toString();
+            if (address.startsWith(QLatin1String("169.254.")) || address == QLatin1String("0.0.0.0"))
+                continue;
+
+            int score = looksVirtual ? 0 : 100;
+            if (address.startsWith(QLatin1String("192.168.")))
+                score += 30;
+            else if (address.startsWith(QLatin1String("10.")))
+                score += 20;
+            else if (address.startsWith(QLatin1String("172.")))
+            {
+                const int secondOctet = address.section(QLatin1Char('.'), 1, 1).toInt();
+                if (secondOctet >= 16 && secondOctet <= 31)
+                    score += 10;
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestAddress = address;
+            }
         }
     }
 
-    return QStringLiteral("127.0.0.1");
+    mCachedDisplayAddress = bestAddress.isEmpty() ? QStringLiteral("127.0.0.1") : bestAddress;
+    mCachedDisplayAddressAtMs = now;
+    return mCachedDisplayAddress;
 }
 
 QString Launcher::ServerDialog::applicationBasePath() const
@@ -392,20 +493,27 @@ QString Launcher::ServerDialog::makeBackupArchivePath() const
     return QDir(backupDirectoryPath()).absoluteFilePath(QStringLiteral("archive_") + timestamp + QStringLiteral(".zip"));
 }
 
-QString Launcher::ServerDialog::createBackupArchive(QString* errorMessage) const
+bool Launcher::ServerDialog::startBackupArchive(QString* errorMessage)
 {
+    if (mBackupInProgress || mBackupProcess->state() != QProcess::NotRunning)
+    {
+        if (errorMessage)
+            *errorMessage = tr("A previous backup is still running.");
+        return false;
+    }
+
     const ServerConfig config = readServerConfig();
     const QFileInfo sourceInfo(config.serverHomePath);
     if (!sourceInfo.exists() || !sourceInfo.isDir())
     {
         if (errorMessage)
             *errorMessage = tr("Server directory was not found: %1").arg(QDir::toNativeSeparators(config.serverHomePath));
-        return QString();
+        return false;
     }
 
-    const QString archivePath = makeBackupArchivePath();
-    QProcess archiver;
-    archiver.setWorkingDirectory(applicationBasePath());
+    mPendingBackupPath = makeBackupArchivePath();
+    mBackupProcess->setWorkingDirectory(applicationBasePath());
+    mBackupProcess->setProcessChannelMode(QProcess::SeparateChannels);
 #ifdef Q_OS_WIN
     QStringList arguments;
     arguments << QStringLiteral("-NoProfile")
@@ -413,31 +521,67 @@ QString Launcher::ServerDialog::createBackupArchive(QString* errorMessage) const
               << QStringLiteral("-Command")
               << QStringLiteral("Compress-Archive -Path '%1\\*' -DestinationPath '%2' -Force")
                     .arg(QDir::toNativeSeparators(config.serverHomePath).replace("'", "''"),
-                         QDir::toNativeSeparators(archivePath).replace("'", "''"));
-    archiver.start(QStringLiteral("powershell.exe"), arguments);
+                         QDir::toNativeSeparators(mPendingBackupPath).replace("'", "''"));
+    mBackupProcess->setProgram(QStringLiteral("powershell.exe"));
+    mBackupProcess->setArguments(arguments);
 #else
     QStringList arguments;
-    arguments << QStringLiteral("-r") << archivePath << QDir(config.serverHomePath).dirName();
-    archiver.setWorkingDirectory(QFileInfo(config.serverHomePath).absolutePath());
-    archiver.start(QStringLiteral("zip"), arguments);
+    arguments << QStringLiteral("-r") << mPendingBackupPath << QDir(config.serverHomePath).dirName();
+    mBackupProcess->setWorkingDirectory(QFileInfo(config.serverHomePath).absolutePath());
+    mBackupProcess->setProgram(QStringLiteral("zip"));
+    mBackupProcess->setArguments(arguments);
 #endif
 
-    if (!archiver.waitForStarted(3000))
+    mBackupInProgress = true;
+    appendStatusLine(tr("Creating backup in background: %1")
+        .arg(QDir::toNativeSeparators(mPendingBackupPath)));
+    mBackupProcess->start();
+    return true;
+}
+
+void Launcher::ServerDialog::backupProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    if (!mBackupInProgress)
+        return;
+
+    const QString standardError = QString::fromLocal8Bit(mBackupProcess->readAllStandardError()).trimmed();
+    if (exitStatus == QProcess::NormalExit && exitCode == 0)
+        appendStatusLine(tr("Backup created: %1").arg(QDir::toNativeSeparators(mPendingBackupPath)));
+    else
+        appendStatusLine(tr("Backup failed: %1").arg(standardError.isEmpty()
+            ? tr("archiver exit code %1").arg(exitCode) : standardError));
+
+    mBackupInProgress = false;
+    mPendingBackupPath.clear();
+    finishServerStopSequence();
+}
+
+void Launcher::ServerDialog::backupProcessError(QProcess::ProcessError error)
+{
+    if (!mBackupInProgress || error == QProcess::Crashed)
+        return;
+
+    appendStatusLine(tr("Backup failed: %1").arg(mBackupProcess->errorString()));
+    mBackupInProgress = false;
+    mPendingBackupPath.clear();
+    finishServerStopSequence();
+}
+
+void Launcher::ServerDialog::finishServerStopSequence()
+{
+    if (mCrashAfterStop)
+        appendStatusLine(tr("The server process crashed."));
+    mCrashAfterStop = false;
+
+    if (mRestartAfterBackup)
     {
-        if (errorMessage)
-            *errorMessage = archiver.errorString();
-        return QString();
+        mRestartAfterBackup = false;
+        appendStatusLine(tr("Restarting server..."));
+        startServer();
+        return;
     }
 
-    archiver.waitForFinished(-1);
-    if (archiver.exitStatus() != QProcess::NormalExit || archiver.exitCode() != 0)
-    {
-        if (errorMessage)
-            *errorMessage = QString::fromLocal8Bit(archiver.readAllStandardError());
-        return QString();
-    }
-
-    return archivePath;
+    mStopButton->setEnabled(false);
 }
 
 void Launcher::ServerDialog::cleanupOldLogsIfNeeded()

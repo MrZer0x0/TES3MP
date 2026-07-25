@@ -330,10 +330,8 @@ namespace MWRender
         mTerrainStorage.reset(new TerrainStorage(mResourceSystem, normalMapPattern, heightMapPattern, useTerrainNormalMaps, specularMapPattern, useTerrainSpecularMaps));
         const float lodFactor = Settings::Manager::getFloat("lod factor", "Terrain");
 
-        // Keep the quadtree terrain backend available at all times so distant land can
-        // be enabled and disabled without restarting the game. With distant terrain
-        // disabled, the view distance is reduced to zero while the active cell grid
-        // remains loaded by QuadTreeWorld.
+        // Distant land is always backed by the quadtree terrain renderer. Runtime
+        // presets change its LOD, compositing and paging thresholds without restart.
         const int compMapResolution = Settings::Manager::getInt("composite map resolution", "Terrain");
         int compMapPower = Settings::Manager::getInt("composite map level", "Terrain");
         compMapPower = std::max(-3, compMapPower);
@@ -345,12 +343,11 @@ namespace MWRender
             sceneRoot, mRootNode, mResourceSystem, mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug,
             compMapResolution, compMapLevel, lodFactor, vertexLodMod, maxCompGeometrySize));
 
-        if (Settings::Manager::getBool("object paging", "Terrain"))
-        {
-            mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
-            static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
-            mResourceSystem->addResourceManager(mObjectPaging.get());
-        }
+        // Object paging is part of the mandatory distant-land backend. Detail and
+        // merge thresholds are configurable, but the paging system itself stays on.
+        mObjectPaging.reset(new ObjectPaging(mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
+        static_cast<Terrain::QuadTreeWorld*>(mTerrain.get())->addChunkManager(mObjectPaging.get());
+        mResourceSystem->addResourceManager(mObjectPaging.get());
 
         mTerrain->setTargetFrameRate(Settings::Manager::getFloat("target framerate", "Cells"));
         mTerrain->setWorkQueue(mWorkQueue.get());
@@ -1124,9 +1121,9 @@ namespace MWRender
         // Limit FOV here just for sure, otherwise viewing distance can be too high.
         fov = std::min(mFieldOfView, 140.f);
         float distanceMult = std::cos(osg::DegreesToRadians(fov)/2.f);
-        const float terrainDistance = Settings::Manager::getBool("distant terrain", "Terrain")
-            ? mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f)
-            : 0.f;
+        // Distant land is always available. The user controls its distance and
+        // terrain-detail preset instead of switching the terrain backend off.
+        const float terrainDistance = mViewDistance * (distanceMult ? 1.f/distanceMult : 1.f);
         mTerrain->setViewDistance(terrainDistance);
 
         if (mGroundcoverWorld)
@@ -1187,6 +1184,7 @@ namespace MWRender
     {
         bool refreshShaderDefines = false;
         bool refreshShadowSettings = false;
+        bool refreshTerrainLodSettings = false;
         bool rebuildTerrainViews = false;
         bool rebuildGroundcoverViews = false;
 
@@ -1223,10 +1221,30 @@ namespace MWRender
                 if (Settings::Manager::getBool("view over shoulder", "Camera"))
                     mViewOverShoulderController.reset(new ViewOverShoulderController(mCamera.get()));
             }
-            else if (setting.first == "Terrain" && setting.second == "distant terrain")
+            else if (setting.first == "Terrain")
             {
-                updateProjectionMatrix();
-                rebuildTerrainViews = true;
+                if (setting.second == "distant terrain")
+                {
+                    // Kept for compatibility with old settings.cfg files. Distant land
+                    // is no longer disabled; refresh the projection and terrain views.
+                    updateProjectionMatrix();
+                    rebuildTerrainViews = true;
+                }
+                else if (setting.second == "lod factor"
+                    || setting.second == "vertex lod mod"
+                    || setting.second == "composite map level"
+                    || setting.second == "composite map resolution"
+                    || setting.second == "max composite geometry size"
+                    || setting.second == "object paging"
+                    || setting.second == "object paging active grid"
+                    || setting.second == "object paging merge factor"
+                    || setting.second == "object paging min size"
+                    || setting.second == "object paging min size merge factor"
+                    || setting.second == "object paging min size cost multiplier")
+                {
+                    refreshTerrainLodSettings = true;
+                    rebuildTerrainViews = true;
+                }
             }
             else if (setting.first == "Groundcover")
             {
@@ -1305,6 +1323,42 @@ namespace MWRender
                 refreshShadowSettings = true;
                 refreshShaderDefines = true;
             }
+        }
+
+        if (refreshTerrainLodSettings && mTerrain)
+        {
+            mViewer->stopThreading();
+
+            auto* terrain = dynamic_cast<Terrain::QuadTreeWorld*>(mTerrain.get());
+            if (terrain)
+            {
+                if (Settings::Manager::getBool("object paging", "Terrain") && !mObjectPaging)
+                {
+                    mObjectPaging.reset(new ObjectPaging(
+                        mResourceSystem->getSceneManager(), mOcclusionCuller.get()));
+                    terrain->addChunkManager(mObjectPaging.get());
+                    mResourceSystem->addResourceManager(mObjectPaging.get());
+                }
+
+                const int compMapResolution = Settings::Manager::getInt(
+                    "composite map resolution", "Terrain");
+                const int compMapPower = std::max(-3, Settings::Manager::getInt(
+                    "composite map level", "Terrain"));
+                terrain->setLodSettings(compMapResolution,
+                    std::pow(2.f, static_cast<float>(compMapPower)),
+                    Settings::Manager::getFloat("lod factor", "Terrain"),
+                    Settings::Manager::getInt("vertex lod mod", "Terrain"),
+                    Settings::Manager::getFloat("max composite geometry size", "Terrain"));
+
+                if (mObjectPaging)
+                    mObjectPaging->reloadSettings();
+
+                terrain->rebuildViews();
+                rebuildTerrainViews = false;
+            }
+
+            updateProjectionMatrix();
+            mViewer->startThreading();
         }
 
         if (refreshShadowSettings || refreshShaderDefines)

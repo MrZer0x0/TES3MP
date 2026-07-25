@@ -810,21 +810,22 @@ void OMW::Engine::setSkipMenu (bool skipMenu, bool newGame)
 
 std::string OMW::Engine::loadSettings (Settings::Manager & settings)
 {
-    // Load default settings. Prefer defaults.bin when available, but also
-    // support a plain settings-default.cfg for portable/client-only builds.
+    // ArenaMP uses settings-default.cfg as the canonical preset. Prefer the
+    // text file so launcher and client share every fork-specific setting;
+    // defaults.bin remains a compatibility fallback only.
     const std::string localdefault = (mCfgMgr.getLocalPath() / "defaults.bin").string();
     const std::string globaldefault = (mCfgMgr.getGlobalPath() / "defaults.bin").string();
     const std::string localdefaultcfg = (mCfgMgr.getLocalPath() / "settings-default.cfg").string();
     const std::string globaldefaultcfg = (mCfgMgr.getGlobalPath() / "settings-default.cfg").string();
 
-    if (boost::filesystem::exists(localdefault))
-        settings.loadDefault(localdefault);
-    else if (boost::filesystem::exists(globaldefault))
-        settings.loadDefault(globaldefault);
-    else if (boost::filesystem::exists(localdefaultcfg))
+    if (boost::filesystem::exists(localdefaultcfg))
         settings.loadDefault(localdefaultcfg, false);
     else if (boost::filesystem::exists(globaldefaultcfg))
         settings.loadDefault(globaldefaultcfg, false);
+    else if (boost::filesystem::exists(localdefault))
+        settings.loadDefault(localdefault);
+    else if (boost::filesystem::exists(globaldefault))
+        settings.loadDefault(globaldefault);
     else
         throw std::runtime_error("No default settings file found! Make sure \"defaults.bin\" or \"settings-default.cfg\" was properly installed.");
 

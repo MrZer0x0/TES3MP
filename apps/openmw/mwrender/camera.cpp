@@ -53,7 +53,11 @@ namespace MWRender
 {
 
     Camera::Camera (osg::Camera* camera)
-    : mHeightScale(1.f),
+    : mDialogueCameraActive(false),
+      mDialogueViewInitialized(false),
+      mDialogueCurrentPosition(osg::Vec3d()),
+      mDialogueCurrentLookAt(osg::Vec3d()),
+      mHeightScale(1.f),
       mCamera(camera),
       mAnimation(nullptr),
       mFirstPersonView(true),
@@ -155,8 +159,95 @@ namespace MWRender
         osg::Quat orient = osg::Quat(mRoll, osg::Vec3d(0, 1, 0)) * osg::Quat(mPitch, osg::Vec3d(1, 0, 0)) * osg::Quat(mYaw, osg::Vec3d(0, 0, 1));
         osg::Vec3d forward = orient * osg::Vec3d(0,1,0);
         osg::Vec3d up = orient * osg::Vec3d(0,0,1);
+        const osg::Vec3d normalLookAt = position + forward;
 
-        cam->setViewMatrixAsLookAt(position, position + forward, up);
+        if (mDialogueCameraActive && !mDialogueTarget.isEmpty())
+        {
+            MWBase::World* world = MWBase::Environment::get().getWorld();
+            const MWWorld::Ptr playerPtr = world->getPlayerPtr();
+            if (!playerPtr.isEmpty())
+            {
+                osg::Vec3d target = world->getActorHeadTransform(mDialogueTarget).getTrans();
+                osg::Vec3d player = world->getActorHeadTransform(playerPtr).getTrans();
+
+                const osg::Vec3d targetBase = mDialogueTarget.getRefData().getPosition().asVec3();
+                const osg::Vec3d playerBase = playerPtr.getRefData().getPosition().asVec3();
+                if (target.z() < targetBase.z() + 20.0)
+                    target.z() = targetBase.z() + (mDialogueTarget.getClass().isNpc() ? 112.0 : 80.0);
+                if (player.z() < playerBase.z() + 20.0)
+                    player.z() = playerBase.z() + 112.0;
+
+                // Aim slightly below the head so more of the torso stays visible during dialogue.
+                target.z() -= mDialogueTarget.getClass().isNpc() ? 18.0 : 12.0;
+
+                osg::Vec3d direction = target - player;
+                const double actorDistance = direction.length();
+                if (actorDistance > 1.0)
+                {
+                    direction /= actorDistance;
+                    const double desiredDistance = osg::clampBetween(actorDistance * 0.56, 68.0, 190.0);
+                    const double cameraDistance = std::min(desiredDistance, std::max(24.0, actorDistance - 8.0));
+                    osg::Vec3d desiredPosition = target - direction * cameraDistance;
+                    desiredPosition.z() -= 5.0;
+
+                    // Ignore actors while checking the line to the cinematic camera, otherwise the NPC itself
+                    // can be mistaken for a wall because the ray starts at the actor's head.
+                    const osg::Vec3f castFrom(target.x(), target.y(), target.z());
+                    const osg::Vec3f castTo(desiredPosition.x(), desiredPosition.y(), desiredPosition.z());
+                    const int collisionMask = MWPhysics::CollisionType_World | MWPhysics::CollisionType_HeightMap
+                        | MWPhysics::CollisionType_Door;
+                    const MWPhysics::RayCastingResult hit = world->getRayCasting()->castRay(
+                        castFrom, castTo, MWWorld::ConstPtr(), std::vector<MWWorld::Ptr>(), collisionMask);
+                    if (hit.mHit)
+                    {
+                        desiredPosition.set(hit.mHitPos.x() + hit.mHitNormal.x() * 5.0,
+                            hit.mHitPos.y() + hit.mHitNormal.y() * 5.0,
+                            hit.mHitPos.z() + hit.mHitNormal.z() * 5.0);
+                    }
+
+                    if (!mDialogueViewInitialized)
+                    {
+                        mDialogueCurrentPosition = position;
+                        mDialogueCurrentLookAt = normalLookAt;
+                        mDialogueViewInitialized = true;
+                    }
+
+                    const double smooth = 0.10;
+                    mDialogueCurrentPosition = mDialogueCurrentPosition * (1.0 - smooth) + desiredPosition * smooth;
+                    mDialogueCurrentLookAt = mDialogueCurrentLookAt * (1.0 - smooth) + target * smooth;
+
+                    cam->setViewMatrixAsLookAt(mDialogueCurrentPosition, mDialogueCurrentLookAt, osg::Vec3d(0.0, 0.0, 1.0));
+                    return;
+                }
+            }
+        }
+        else if (mDialogueViewInitialized)
+        {
+            // Restore the engine-owned camera matrix immediately in both first
+            // and third person. Interpolating back can retain a stale cinematic
+            // look-at vector and leave the normal camera visually offset.
+            mDialogueViewInitialized = false;
+            cam->setViewMatrixAsLookAt(position, normalLookAt, up);
+            return;
+        }
+
+        cam->setViewMatrixAsLookAt(position, normalLookAt, up);
+    }
+
+    void Camera::setDialogueTarget(const MWWorld::Ptr& target)
+    {
+        mDialogueTarget = target;
+        mDialogueCameraActive = !target.isEmpty();
+        if (mDialogueCameraActive)
+            mDialogueViewInitialized = false;
+    }
+
+    void Camera::clearDialogueTarget()
+    {
+        mDialogueCameraActive = false;
+        mDialogueTarget = MWWorld::Ptr();
+        // Do not keep a cinematic interpolation state after the dialogue ends.
+        mDialogueViewInitialized = false;
     }
 
     void Camera::updateHeadBobbing(float duration) {

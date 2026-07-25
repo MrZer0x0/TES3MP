@@ -61,7 +61,8 @@ void PlayerList::cleanUp()
 
 DedicatedPlayer *PlayerList::getPlayer(RakNet::RakNetGUID guid)
 {
-    return playerList[guid];
+    const auto found = playerList.find(guid);
+    return found == playerList.end() ? nullptr : found->second;
 }
 
 DedicatedPlayer *PlayerList::getPlayer(const MWWorld::Ptr &ptr)
