@@ -3,9 +3,11 @@
 
 #include "LanguageDetector.hpp"
 #include "PiperApi.hpp"
+#include "VoiceIdentity.hpp"
 
 #include <RakNetTypes.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -28,6 +30,7 @@ namespace mwmp
         void initialize();
         void shutdown();
         void enqueue(const BasePlayer& player);
+        void enqueueLocal(const BasePlayer& player, const std::string& text);
         void update();
         bool isEnabled() const;
 
@@ -56,6 +59,7 @@ namespace mwmp
         };
 
         void workerLoop();
+        void enqueueRequest(const BasePlayer& player, const std::string& speakerName, const std::string& text);
         bool loadPiper();
         bool synthesize(const Request& request, CompletedSpeech& completed);
         bool synthesizeSegment(const Request& request, const LanguageSegment& segment,
@@ -63,8 +67,9 @@ namespace mwmp
         PiperSynthesizer* getSynthesizer(const VoiceChoice& voice);
         VoiceChoice chooseVoice(TtsLanguage language, bool female) const;
         float raceLengthScale(const Request& request) const;
-        float stableVariation(const Request& request) const;
-        void applyRaceFilter(const Request& request, std::vector<float>& samples, int sampleRate) const;
+        NicknameVoiceProfile nicknameProfile(const Request& request) const;
+        void applyVoiceFilter(const Request& request, const NicknameVoiceProfile& profile,
+            std::vector<float>& samples, int sampleRate) const;
         std::string sanitize(const std::string& text) const;
         std::string resolveResourcePath(const std::string& path) const;
         static void resampleAndAppend(const std::vector<float>& input, int inputRate,
@@ -77,9 +82,11 @@ namespace mwmp
         bool mSkipUrls;
         bool mSkipCommands;
         bool mUseRaceProfiles;
+        bool mUseNicknameProfiles;
+        bool mPlayerMessagesOnly;
         int mMaximumMessageLength;
         int mMaximumQueueSize;
-        float mVolume;
+        std::atomic<float> mVolume;
 
         std::string mResourceDirectory;
         std::string mLibraryPath;

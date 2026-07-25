@@ -1,6 +1,7 @@
 #include "ChatTtsManager.hpp"
 
 #include "PcmDecoder.hpp"
+#include "ChatMessageParser.hpp"
 
 #include <components/openmw-mp/Base/BasePlayer.hpp>
 #include <components/openmw-mp/TimedLog.hpp>
@@ -64,10 +65,12 @@ namespace mwmp
         : mEnabled(false)
         , mStopping(false)
         , mPiperLoadAttempted(false)
-        , mReadOwnMessages(false)
+        , mReadOwnMessages(true)
         , mSkipUrls(true)
         , mSkipCommands(true)
         , mUseRaceProfiles(true)
+        , mUseNicknameProfiles(true)
+        , mPlayerMessagesOnly(true)
         , mMaximumMessageLength(240)
         , mMaximumQueueSize(4)
         , mVolume(0.8f)
@@ -94,9 +97,11 @@ namespace mwmp
         mSkipUrls = Settings::Manager::getBool("skip urls", "Chat TTS");
         mSkipCommands = Settings::Manager::getBool("skip commands", "Chat TTS");
         mUseRaceProfiles = Settings::Manager::getBool("race voice profiles", "Chat TTS");
+        mUseNicknameProfiles = Settings::Manager::getBool("nickname voice profiles", "Chat TTS");
+        mPlayerMessagesOnly = Settings::Manager::getBool("player messages only", "Chat TTS");
         mMaximumMessageLength = std::max(16, Settings::Manager::getInt("maximum message length", "Chat TTS"));
         mMaximumQueueSize = std::max(1, Settings::Manager::getInt("maximum queue size", "Chat TTS"));
-        mVolume = std::max(0.f, std::min(1.f, Settings::Manager::getFloat("volume", "Chat TTS")));
+        mVolume.store(std::max(0.f, std::min(1.f, Settings::Manager::getFloat("volume", "Chat TTS"))));
 
         mResourceDirectory = Main::getResDir();
         mLibraryPath = resolveResourcePath(Settings::Manager::getString("library path", "Chat TTS"));
@@ -115,7 +120,8 @@ namespace mwmp
         mStopping = false;
         mPiperLoadAttempted = false;
         mWorker = std::thread(&ChatTtsManager::workerLoop, this);
-        LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "Chat TTS worker started");
+        LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO,
+            "Chat TTS worker started (own messages: %s)", mReadOwnMessages ? "enabled" : "disabled");
     }
 
     void ChatTtsManager::shutdown()
@@ -148,23 +154,51 @@ namespace mwmp
     {
         if (!mEnabled)
             return;
-        if (!mReadOwnMessages && Main::get().getLocalPlayer()
-            && player.guid == Main::get().getLocalPlayer()->guid)
+
+        // Local chat is queued directly from GUIChat::send. Ignore the server echo to
+        // avoid duplicates and to make local speech independent of server formatting.
+        if (Main::get().getLocalPlayer() && player.guid == Main::get().getLocalPlayer()->guid)
             return;
 
-        std::string text = sanitize(player.chatMessage);
-        if (!player.npc.mName.empty())
+        const std::string cleaned = sanitize(player.chatMessage);
+        if (cleaned.empty())
+            return;
+
+        std::string speakerName = player.npc.mName;
+        std::string text = cleaned;
+        if (mPlayerMessagesOnly)
         {
-            const std::string prefix = player.npc.mName + ":";
-            if (text.compare(0, prefix.size(), prefix) == 0)
-                text = trim(text.substr(prefix.size()));
+            ParsedPlayerChatMessage parsed;
+            if (!ChatMessageParser::parse(cleaned, player.npc.mName, parsed))
+            {
+                LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE,
+                    "Chat TTS skipped non-player/system message: %s", cleaned.c_str());
+                return;
+            }
+            speakerName = parsed.speakerName;
+            text = parsed.text;
         }
+
+        enqueueRequest(player, speakerName, text);
+    }
+
+    void ChatTtsManager::enqueueLocal(const BasePlayer& player, const std::string& rawText)
+    {
+        if (!mEnabled || !mReadOwnMessages)
+            return;
+
+        const std::string text = sanitize(rawText);
         if (text.empty())
             return;
+        enqueueRequest(player, player.npc.mName, text);
+    }
 
+    void ChatTtsManager::enqueueRequest(const BasePlayer& player, const std::string& speakerName,
+        const std::string& text)
+    {
         Request request;
         request.guid = player.guid;
-        request.speakerName = player.npc.mName;
+        request.speakerName = speakerName.empty() ? player.npc.mName : speakerName;
         request.race = player.npc.mRace;
         request.female = !player.npc.isMale();
         request.text = text;
@@ -176,12 +210,19 @@ namespace mwmp
             mRequests.push_back(request);
         }
         mCondition.notify_one();
+        LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE,
+            "Chat TTS queued player message from %s: %s", request.speakerName.c_str(), request.text.c_str());
     }
 
     void ChatTtsManager::update()
     {
         if (!mEnabled)
             return;
+
+        // The audio settings slider writes this value immediately. Keep the worker's
+        // gain in sync without restarting the TTS engine.
+        mVolume.store(std::max(0.f, std::min(1.f,
+            Settings::Manager::getFloat("volume", "Chat TTS"))), std::memory_order_relaxed);
 
         {
             std::lock_guard<std::mutex> lock(mMutex);
@@ -311,7 +352,14 @@ namespace mwmp
             return false;
 
         PiperSynthesizeOptions options = mPiper.defaultOptions(synthesizer);
-        options.lengthScale *= raceLengthScale(request) * stableVariation(request);
+        const NicknameVoiceProfile profile = nicknameProfile(request);
+        options.lengthScale *= raceLengthScale(request);
+        if (mUseNicknameProfiles)
+        {
+            options.lengthScale *= profile.lengthScale;
+            options.noiseScale *= profile.noiseScale;
+            options.noiseWScale *= profile.noiseWScale;
+        }
 
         if (mPiper.synthesizeStart(synthesizer, segment.text.c_str(), &options) != PiperApi::Ok)
         {
@@ -337,9 +385,10 @@ namespace mwmp
                 segmentRate = chunk.sampleRate;
                 const std::size_t oldSize = segmentSamples.size();
                 segmentSamples.resize(oldSize + chunk.numSamples);
+                const float volume = mVolume.load(std::memory_order_relaxed);
                 for (std::size_t i = 0; i < chunk.numSamples; ++i)
                     segmentSamples[oldSize + i] = std::max(-1.f,
-                        std::min(1.f, chunk.samples[i] * mVolume));
+                        std::min(1.f, chunk.samples[i] * volume));
             }
             if (chunk.isLast)
                 break;
@@ -347,7 +396,7 @@ namespace mwmp
 
         if (segmentSamples.empty() || segmentRate <= 0)
             return false;
-        applyRaceFilter(request, segmentSamples, segmentRate);
+        applyVoiceFilter(request, profile, segmentSamples, segmentRate);
         if (outputSampleRate == 0)
             outputSampleRate = segmentRate;
         resampleAndAppend(segmentSamples, segmentRate, output, outputSampleRate);
@@ -418,58 +467,58 @@ namespace mwmp
         return 1.f;
     }
 
-    float ChatTtsManager::stableVariation(const Request& request) const
+    NicknameVoiceProfile ChatTtsManager::nicknameProfile(const Request& request) const
     {
-        const std::string identity = request.guid.ToString();
-        std::uint64_t hash = 1469598103934665603ULL;
-        for (unsigned char ch : identity)
-        {
-            hash ^= ch;
-            hash *= 1099511628211ULL;
-        }
-        const float normalized = static_cast<float>(hash % 1001ULL) / 1000.f;
-        return 0.985f + normalized * 0.03f;
+        const std::string identity = request.speakerName.empty() ? request.guid.ToString() : request.speakerName;
+        return VoiceIdentity::fromNickname(identity);
     }
 
-    void ChatTtsManager::applyRaceFilter(const Request& request, std::vector<float>& samples, int sampleRate) const
+    void ChatTtsManager::applyVoiceFilter(const Request& request, const NicknameVoiceProfile& profile,
+        std::vector<float>& samples, int sampleRate) const
     {
-        if (!mUseRaceProfiles || samples.empty() || sampleRate <= 0)
+        if (samples.empty() || sampleRate <= 0)
             return;
 
-        const std::string race = lowerAscii(request.race);
-        float bass = 0.f;
-        float brightness = 0.f;
-        float saturation = 0.f;
+        float bass = mUseNicknameProfiles ? profile.bass : 0.f;
+        float brightness = mUseNicknameProfiles ? profile.brightness : 0.f;
+        float saturation = mUseNicknameProfiles ? profile.saturation : 0.f;
 
-        if (race.find("orc") != std::string::npos)
+        if (mUseRaceProfiles)
         {
-            bass = 0.24f;
-            brightness = -0.10f;
-            saturation = 0.10f;
-        }
-        else if (race.find("nord") != std::string::npos)
-            bass = 0.15f;
-        else if (race.find("dark elf") != std::string::npos || race.find("dunmer") != std::string::npos)
-        {
-            bass = 0.08f;
-            brightness = -0.06f;
-            saturation = 0.055f;
-        }
-        else if (race.find("high elf") != std::string::npos || race.find("altmer") != std::string::npos)
-            brightness = 0.12f;
-        else if (race.find("wood elf") != std::string::npos || race.find("bosmer") != std::string::npos)
-            brightness = 0.08f;
-        else if (race.find("khajiit") != std::string::npos)
-        {
-            brightness = -0.025f;
-            saturation = 0.045f;
-        }
-        else if (race.find("argonian") != std::string::npos)
-        {
-            brightness = 0.055f;
-            saturation = 0.035f;
+            const std::string race = lowerAscii(request.race);
+            if (race.find("orc") != std::string::npos)
+            {
+                bass += 0.24f;
+                brightness -= 0.10f;
+                saturation += 0.10f;
+            }
+            else if (race.find("nord") != std::string::npos)
+                bass += 0.15f;
+            else if (race.find("dark elf") != std::string::npos || race.find("dunmer") != std::string::npos)
+            {
+                bass += 0.08f;
+                brightness -= 0.06f;
+                saturation += 0.055f;
+            }
+            else if (race.find("high elf") != std::string::npos || race.find("altmer") != std::string::npos)
+                brightness += 0.12f;
+            else if (race.find("wood elf") != std::string::npos || race.find("bosmer") != std::string::npos)
+                brightness += 0.08f;
+            else if (race.find("khajiit") != std::string::npos)
+            {
+                brightness -= 0.025f;
+                saturation += 0.045f;
+            }
+            else if (race.find("argonian") != std::string::npos)
+            {
+                brightness += 0.055f;
+                saturation += 0.035f;
+            }
         }
 
+        bass = std::max(-0.10f, std::min(0.34f, bass));
+        brightness = std::max(-0.18f, std::min(0.22f, brightness));
+        saturation = std::max(0.f, std::min(0.18f, saturation));
         if (bass == 0.f && brightness == 0.f && saturation == 0.f)
             return;
 
@@ -485,6 +534,11 @@ namespace mwmp
                 processed = std::tanh(processed * (1.f + saturation * 2.f)) / std::tanh(1.f + saturation * 2.f);
             sample = std::max(-1.f, std::min(1.f, processed));
         }
+
+        LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE,
+            "Chat TTS nickname voice %s: id=%llu type=%s speed=%.3f",
+            request.speakerName.c_str(), static_cast<unsigned long long>(profile.numericValue),
+            VoiceIdentity::typeName(profile.type), profile.lengthScale);
     }
 
     std::string ChatTtsManager::sanitize(const std::string& text) const

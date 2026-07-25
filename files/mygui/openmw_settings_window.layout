@@ -241,6 +241,19 @@
           <UserString key="SettingName" value="music volume"/>
           <UserString key="SettingValueType" value="Float"/>
         </Widget>
+        <Widget type="TextBox" skin="NormalText" position="4 254 352 18" align="Left Top">
+          <Property key="Caption" value="Chat TTS volume"/>
+        </Widget>
+        <Widget type="ScrollBar" skin="MW_HScroll" position="4 278 352 18" align="HStretch Top" name="ChatTtsVolume">
+          <Property key="Range" value="10000"/>
+          <Property key="Page" value="300"/>
+          <UserString key="SettingType" value="Slider"/>
+          <UserString key="SettingCategory" value="Chat TTS"/>
+          <UserString key="SettingName" value="volume"/>
+          <UserString key="SettingValueType" value="Float"/>
+          <UserString key="SettingMin" value="0.0"/>
+          <UserString key="SettingMax" value="1.0"/>
+        </Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sControls}  "/>

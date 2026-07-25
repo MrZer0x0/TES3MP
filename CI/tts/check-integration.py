@@ -3,7 +3,11 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 checks = {
-    "chat hook": (root / "apps/openmw/mwmp/processors/player/ProcessorChatMessage.hpp", "getChatTtsManager()->enqueue"),
+    "remote chat hook": (root / "apps/openmw/mwmp/processors/player/ProcessorChatMessage.hpp", "getChatTtsManager()->enqueue"),
+    "local chat hook": (root / "apps/openmw/mwmp/GUI/GUIChat.cpp", "enqueueLocal"),
+    "system message filter": (root / "apps/openmw/mwmp/tts/ChatMessageParser.cpp", "expectedSpeaker"),
+    "nickname voice identity": (root / "apps/openmw/mwmp/tts/VoiceIdentity.cpp", "FNV-1a"),
+    "TTS volume slider": (root / "files/mygui/openmw_settings_window.layout", "ChatTtsVolume"),
     "main lifecycle": (root / "apps/openmw/mwmp/Main.cpp", "mChatTtsManager->initialize"),
     "custom speech decoder": (root / "apps/openmw/mwsound/soundmanagerimp.cpp", "const DecoderPtr& decoder"),
     "TTS sources in CMake": (root / "apps/openmw/CMakeLists.txt", "add_openmw_dir (mwmp/tts"),
@@ -26,6 +30,8 @@ required = [
     root / "apps/openmw/mwmp/tts/PiperApi.cpp",
     root / "apps/openmw/mwmp/tts/PcmDecoder.cpp",
     root / "apps/openmw/mwmp/tts/LanguageDetector.cpp",
+    root / "apps/openmw/mwmp/tts/ChatMessageParser.cpp",
+    root / "apps/openmw/mwmp/tts/VoiceIdentity.cpp",
     root / "CI/tts/prepare-piper.sh",
 ]
 for path in required:

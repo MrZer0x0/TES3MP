@@ -106,7 +106,7 @@ add_openmw_dir (mwmp Main Networking LocalSystem LocalPlayer DedicatedPlayer Pla
 add_openmw_dir (mwmp/GUI GUIChat GUILogin PlayerMarkerCollection GUIDialogList TextInputDialog
     )
 
-add_openmw_dir (mwmp/tts ChatTtsManager LanguageDetector PcmDecoder PiperApi
+add_openmw_dir (mwmp/tts ChatTtsManager ChatMessageParser LanguageDetector PcmDecoder PiperApi VoiceIdentity
     )
 
 add_openmw_dir(mwmp/processors BaseClientPacketProcessor SystemProcessor PlayerProcessor ObjectProcessor ActorProcessor
