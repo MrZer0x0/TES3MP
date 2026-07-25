@@ -1,5 +1,6 @@
 #include "sky.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 #include <osg/ClipPlane>
@@ -728,25 +729,40 @@ private:
     protected:
         float getVisibleRatio (osg::Camera* camera)
         {
-            int visible = mOcclusionQueryVisiblePixels->getQueryGeometry()->getNumPixels(camera);
-            int total = mOcclusionQueryTotalPixels->getQueryGeometry()->getNumPixels(camera);
+            const int visible = mOcclusionQueryVisiblePixels->getQueryGeometry()->getNumPixels(camera);
+            const int total = mOcclusionQueryTotalPixels->getQueryGeometry()->getNumPixels(camera);
 
             float visibleRatio = 0.f;
             if (total > 0)
-                visibleRatio = static_cast<float>(visible) / static_cast<float>(total);
+                visibleRatio = std::clamp(static_cast<float>(visible) / static_cast<float>(total), 0.f, 1.f);
 
-            float dt = MWBase::Environment::get().getFrameDuration();
+            // Occlusion queries can report a few visible edge pixels when the sun is
+            // actually hidden behind a wall. Without a dead zone the sun-flash code
+            // turns that tiny leak into a clearly visible, large billboard.
+            constexpr float occlusionDeadZone = 0.035f;
+            if (visibleRatio <= occlusionDeadZone)
+                visibleRatio = 0.f;
+            else
+                visibleRatio = (visibleRatio - occlusionDeadZone) / (1.f - occlusionDeadZone);
 
-            float lastRatio = mLastRatio[osg::observer_ptr<osg::Camera>(camera)];
+            const float dt = std::max(0.f, MWBase::Environment::get().getFrameDuration());
+            const osg::observer_ptr<osg::Camera> cameraKey(camera);
+            const float lastRatio = mLastRatio[cameraKey];
 
-            float change = dt*10;
+            // Let the glare appear smoothly, but hide it much faster when geometry
+            // occludes the sun. This prevents the asynchronous query result from
+            // leaving a bright flare visible for several frames behind a wall.
+            const float riseChange = dt * 8.f;
+            const float fallChange = dt * 40.f;
 
             if (visibleRatio > lastRatio)
-                visibleRatio = std::min(visibleRatio, lastRatio + change);
+                visibleRatio = std::min(visibleRatio, lastRatio + riseChange);
+            else if (visibleRatio == 0.f)
+                visibleRatio = 0.f;
             else
-                visibleRatio = std::max(visibleRatio, lastRatio - change);
+                visibleRatio = std::max(visibleRatio, lastRatio - fallChange);
 
-            mLastRatio[osg::observer_ptr<osg::Camera>(camera)] = visibleRatio;
+            mLastRatio[cameraKey] = visibleRatio;
 
             return visibleRatio;
         }
@@ -776,23 +792,28 @@ private:
 
             osg::ref_ptr<osg::StateSet> stateset;
 
-            if (visibleRatio > 0.f)
-            {
-                const float fadeThreshold = 0.1;
-                if (visibleRatio < fadeThreshold)
-                {
-                    float fade = 1.f - (fadeThreshold - visibleRatio) / fadeThreshold;
-                    osg::ref_ptr<osg::Material> mat (createUnlitMaterial());
-                    mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0,0,0,fade*mGlareView));
-                    stateset = new osg::StateSet;
-                    stateset->setAttributeAndModes(mat, osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE);
-                }
+            // Do not draw the large sun flash for only a handful of surviving
+            // query pixels. The full-screen glare still fades continuously, while
+            // the flash starts only after a meaningful part of the sun is visible.
+            constexpr float flashStart = 0.06f;
+            if (visibleRatio <= flashStart)
+                return;
 
-                const float threshold = 0.6;
-                visibleRatio = visibleRatio * (1.f - threshold) + threshold;
+            const float flashVisibility = std::clamp(
+                (visibleRatio - flashStart) / (1.f - flashStart), 0.f, 1.f);
+
+            const float fadeThreshold = 0.16f;
+            if (flashVisibility < fadeThreshold)
+            {
+                const float fade = flashVisibility / fadeThreshold;
+                osg::ref_ptr<osg::Material> mat (createUnlitMaterial());
+                mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0,0,0,fade*mGlareView));
+                stateset = new osg::StateSet;
+                stateset->setAttributeAndModes(mat, osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE);
             }
 
-            float scale = visibleRatio;
+            constexpr float minimumScale = 0.6f;
+            const float scale = flashVisibility * (1.f - minimumScale) + minimumScale;
 
             if (scale == 0.f)
             {
@@ -865,9 +886,15 @@ private:
             float value = 1.f - std::min(1.f, angleRadians / angleMaxRadians);
             float fade = value * mSunGlareFaderMax;
 
-            fade *= mTimeOfDayFade * mGlareView * visibleRatio;
+            constexpr float glareStart = 0.015f;
+            if (visibleRatio <= glareStart)
+                return;
 
-            if (fade == 0.f)
+            const float glareVisibility = std::clamp(
+                (visibleRatio - glareStart) / (1.f - glareStart), 0.f, 1.f);
+            fade *= mTimeOfDayFade * mGlareView * glareVisibility;
+
+            if (fade <= 0.f)
             {
                 // no traverse
                 return;

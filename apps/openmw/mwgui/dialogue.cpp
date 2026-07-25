@@ -290,6 +290,8 @@ namespace MWGui
         , mPersuasionDialog(new ResponseCallback(this))
         , mHistoryWasDragged(false)
         , mDialogueCameraActive(false)
+        , mNpcHealthTimer(0.f)
+        , mNpcHealthAlpha(1.f)
         , mCallback(new ResponseCallback(this))
         , mGreetingCallback(new ResponseCallback(this, false))
     {
@@ -415,7 +417,7 @@ namespace MWGui
     {
         const MyGUI::IntSize view = MyGUI::RenderManager::getInstance().getViewSize();
         MyGUI::IntSize size = mMainWidget->getSize();
-        size.width = std::min(680, std::max(620, view.width - 16));
+        size.width = std::min(720, std::max(620, view.width - 16));
         size.height = std::min(400, std::max(330, static_cast<int>(view.height * 0.43f)));
         mMainWidget->setSize(size);
 
@@ -427,6 +429,8 @@ namespace MWGui
 
     void DialogueWindow::startDialogueCamera()
     {
+        if (mDialogueCameraActive)
+            return;
         if (mPtr.isEmpty() || !Settings::Manager::getBool("cinematic dialogue camera", "GUI"))
             return;
         MWBase::Environment::get().getWorld()->setDialogueCameraTarget(mPtr);
@@ -527,24 +531,30 @@ namespace MWGui
         mChoicesList->setVisible(hasChoices);
         mChoicesList->setEnabled(hasChoices);
 
+        // A question is modal: while answers are displayed, hide all ordinary
+        // topics and services (barter, persuasion, training, travel, etc.).
+        mTopicsLabel->setVisible(!hasChoices);
+        mTopicsList->setVisible(!hasChoices);
+
+        // DialogueWindow is created while WindowManager builds the GUI, before
+        // DialogueManager is guaranteed to be installed in Environment. Do not
+        // dereference it from the constructor-time updateChoicePane() call.
+        MWBase::DialogueManager* dialogueManager = MWBase::Environment::get().getDialogueManager();
+        const bool inChoice = dialogueManager != nullptr && dialogueManager->isInChoice();
+        mTopicsList->setEnabled(!hasChoices && !inChoice && !mGoodbye);
+
         if (hasChoices)
         {
-            const int choicesTop = 68;
-            const int choicesHeight = std::max(46, std::min(84, std::max(22, static_cast<int>(mChoices.size()) * 18 + 6)));
-            const int topicsLabelTop = choicesTop + choicesHeight + 12;
-            const int topicsTop = topicsLabelTop + 24;
-            const int topicsHeight = std::max(64, contentBottom - topicsTop);
             mChoicesLabel->setCoord(rightX, 44, rightWidth, 18);
-            mChoicesList->setCoord(rightX, choicesTop, rightWidth, choicesHeight);
-            mTopicsLabel->setCoord(rightX, topicsLabelTop, rightWidth, 18);
-            mTopicsList->setCoord(rightX, topicsTop, rightWidth, topicsHeight);
+            mChoicesList->setCoord(rightX, 68, rightWidth, std::max(80, contentBottom - 68));
+            mTopicsList->clearSelection();
         }
         else
         {
             mTopicsLabel->setCoord(rightX, 44, rightWidth, 18);
             mTopicsList->setCoord(rightX, 72, rightWidth, std::max(80, contentBottom - 72));
+            mTopicsList->adjustSize();
         }
-        mTopicsList->adjustSize();
     }
 
     void DialogueWindow::onHistoryDragStart(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
@@ -764,6 +774,14 @@ namespace MWGui
         mPtr = actor;
         mGoodbye = false;
         mTopicsList->setEnabled(true);
+        if (!sameActor)
+        {
+            mNpcHealthTimer = 0.f;
+            mNpcHealthAlpha = 1.f;
+            mNpcHealthBar->setAlpha(1.f);
+            mNpcHealthBar->setVisible(true);
+            mNpcHealthText->setVisible(true);
+        }
 
         if (!MWBase::Environment::get().getDialogueManager()->startDialogue(actor, mGreetingCallback.get()))
         {
@@ -1056,8 +1074,9 @@ namespace MWGui
         mNpcHealthBar->setProgressPosition(static_cast<size_t>(currentHealth));
         mNpcHealthText->setCaption(MyGUI::utility::toString(currentHealth) + " / "
             + MyGUI::utility::toString(maximumHealth));
-        mNpcHealthBar->setVisible(!stats.isDead());
-        mNpcHealthText->setVisible(!stats.isDead());
+        const bool healthVisible = !stats.isDead() && mNpcHealthAlpha > 0.001f;
+        mNpcHealthBar->setVisible(healthVisible);
+        mNpcHealthText->setVisible(healthVisible);
     }
 
     void DialogueWindow::updateDisposition()
@@ -1088,6 +1107,25 @@ namespace MWGui
             return;
 
         updateActorStatus();
+
+        // Show the dialogue health bar for three seconds, then fade it out.
+        mNpcHealthTimer += dt;
+        constexpr float healthHoldTime = 3.f;
+        constexpr float healthFadeTime = 0.65f;
+        float targetAlpha = 1.f;
+        if (mNpcHealthTimer > healthHoldTime)
+            targetAlpha = std::max(0.f, 1.f - (mNpcHealthTimer - healthHoldTime) / healthFadeTime);
+        if (std::abs(targetAlpha - mNpcHealthAlpha) > 0.001f)
+        {
+            mNpcHealthAlpha = targetAlpha;
+            mNpcHealthBar->setAlpha(mNpcHealthAlpha);
+            if (mNpcHealthAlpha <= 0.001f)
+            {
+                mNpcHealthBar->setVisible(false);
+                mNpcHealthText->setVisible(false);
+            }
+        }
+
         updateDisposition();
         deleteLater();
 

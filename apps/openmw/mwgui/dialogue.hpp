@@ -243,6 +243,8 @@ namespace MWGui
         MyGUI::IntPoint mHistoryLastDragPosition;
         bool mHistoryWasDragged;
         bool mDialogueCameraActive;
+        float mNpcHealthTimer;
+        float mNpcHealthAlpha;
 
         std::unique_ptr<ResponseCallback> mCallback;
         std::unique_ptr<ResponseCallback> mGreetingCallback;
