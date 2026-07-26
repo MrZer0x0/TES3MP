@@ -1172,6 +1172,18 @@ void Launcher::MainDialog::play()
         mPlayPage->saveServerSettings();
         mServerDialog->setAutoRestartEnabled(mPlayPage->autoRestartServer());
 
+        if (!mServerDialog->isRunning())
+        {
+            QString portError;
+            if (!mServerDialog->setConfiguredPort(mPlayPage->serverPort(), &portError))
+            {
+                QMessageBox::warning(this, tr("Invalid server port"), portError);
+                mPendingClientAddress.clear();
+                mPendingClientPort.clear();
+                return;
+            }
+        }
+
         // Resolve the LAN address before starting the process and keep it in a
         // dedicated pending endpoint. launchClient() must not fall back to the
         // stale localhost value that was present before Auto-Start.
@@ -1242,6 +1254,17 @@ void Launcher::MainDialog::runServer()
 
     mPlayPage->saveServerSettings();
     mServerDialog->setAutoRestartEnabled(mPlayPage->autoRestartServer());
+
+    if (!mServerDialog->isRunning())
+    {
+        QString portError;
+        if (!mServerDialog->setConfiguredPort(mPlayPage->serverPort(), &portError))
+        {
+            QMessageBox::warning(this, tr("Invalid server port"), portError);
+            return;
+        }
+    }
+
     mPlayPage->switchToServerConsoleTab();
     mServerDialog->startServer();
 }
@@ -1255,7 +1278,7 @@ void Launcher::MainDialog::stopServer()
 void Launcher::MainDialog::autoStartServerChanged(bool enabled)
 {
     if (enabled && mPlayPage != nullptr && mServerDialog != nullptr)
-        mPlayPage->setLocalServerEndpoint(mServerDialog->displayAddress(), mServerDialog->configuredPort());
+        mPlayPage->setLocalServerEndpoint(mServerDialog->displayAddress(), QString());
 
     mLauncherSettings.remove(QStringLiteral("General/Server/autoStart"));
     mLauncherSettings.setValue(QStringLiteral("General/Server/autoStart"),
@@ -1270,7 +1293,7 @@ void Launcher::MainDialog::autoRestartServerChanged(bool enabled)
         mServerDialog->setAutoRestartEnabled(enabled);
 
     if (enabled && mPlayPage != nullptr && mServerDialog != nullptr)
-        mPlayPage->setLocalServerEndpoint(mServerDialog->displayAddress(), mServerDialog->configuredPort());
+        mPlayPage->setLocalServerEndpoint(mServerDialog->displayAddress(), QString());
 
     mLauncherSettings.remove(QStringLiteral("General/Server/autoRestart"));
     mLauncherSettings.setValue(QStringLiteral("General/Server/autoRestart"),

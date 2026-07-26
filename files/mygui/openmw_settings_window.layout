@@ -241,19 +241,6 @@
           <UserString key="SettingName" value="music volume"/>
           <UserString key="SettingValueType" value="Float"/>
         </Widget>
-        <Widget type="TextBox" skin="NormalText" position="4 254 352 18" align="Left Top">
-          <Property key="Caption" value="Chat TTS volume"/>
-        </Widget>
-        <Widget type="ScrollBar" skin="MW_HScroll" position="4 278 352 18" align="HStretch Top" name="ChatTtsVolume">
-          <Property key="Range" value="10000"/>
-          <Property key="Page" value="300"/>
-          <UserString key="SettingType" value="Slider"/>
-          <UserString key="SettingCategory" value="Chat TTS"/>
-          <UserString key="SettingName" value="volume"/>
-          <UserString key="SettingValueType" value="Float"/>
-          <UserString key="SettingMin" value="0.0"/>
-          <UserString key="SettingMax" value="1.0"/>
-        </Widget>
       </Widget>
       <Widget type="TabItem" skin="" position="4 32 360 358">
         <Property key="Caption" value="  #{sControls}  "/>
@@ -427,6 +414,15 @@
                 <UserString key="SettingLabelWidget" value="AnisotropyLabel"/>
                 <UserString key="SettingLabelCaption" value="Anisotropy (%s)"/>
               </Widget>
+            </Widget>
+            <Widget type="HBox" skin="" position="0 76 352 24" align="Left Top">
+              <Widget type="TextBox" skin="NormalText" position="0 4 150 18" align="Left Top">
+                <Property key="Caption" value="Optimization land"/>
+                <UserString key="ToolTipType" value="Layout"/>
+                <UserString key="ToolTipLayout" value="TextToolTip"/>
+                <UserString key="Caption_Text" value="Dynamically adjusts outdoor viewing distance. Balance targets 30 FPS with a minimum distance of 8192; Performance targets 45 FPS with 6000; Aggressive targets 60 FPS with 4000. The rendering-distance slider remains the maximum."/>
+              </Widget>
+              <Widget type="ComboBox" skin="MW_ComboBox" position="166 0 186 24" align="Right Top" name="LandOptimizationMode"/>
             </Widget>
                             <Widget type="TextBox" skin="NormalText" position="0 130 352 18" align="Left Top" name="RenderDistanceLabel">
                             <Property key="Caption" value="#{sRender_Distance}"/>
@@ -701,11 +697,11 @@
             <Property key="Caption" value=" View "/>
             <Widget type="HBox" skin="" position="8 10 336 24" align="Left Top"><Widget type="TextBox" skin="SandText" position="0 4 142 18" align="Left Top"><Property key="Caption" value="Terrain detail"/></Widget><Widget type="ComboBox" skin="MW_ComboBox" position="150 0 186 24" align="Right Top" name="TerrainPreset"/></Widget>
 			<Widget type="HBox" skin="" position="8 42 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Shaders"/><UserString key="SettingName" value="hdr lighting"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="HDR lighting and tone mapping"/></Widget></Widget>
-            <Widget type="HBox" skin="" position="8 112 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="enabled"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Groundcover"/></Widget></Widget>
-            <Widget type="TextBox" skin="NormalText" position="8 146 336 18" name="GroundcoverDensityLabel"><Property key="Caption" value="Groundcover density (%s)"/></Widget>
-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 170 336 18" align="HStretch Top"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="density"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="GroundcoverDensityLabel"/><UserString key="SettingLabelCaption" value="Groundcover density (%s)"/></Widget>
-            <Widget type="TextBox" skin="NormalText" position="8 204 336 18" name="GroundcoverDistanceLabel"><Property key="Caption" value="Groundcover distance (%s)"/></Widget>
-            <Widget type="ScrollBar" skin="MW_HScroll" position="8 228 336 18" align="HStretch Top"><Property key="Range" value="121"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="rendering distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="2048"/><UserString key="SettingMax" value="32768"/><UserString key="SettingLabelWidget" value="GroundcoverDistanceLabel"/><UserString key="SettingLabelCaption" value="Groundcover distance (%s)"/></Widget>
+            <Widget type="HBox" skin="" position="8 74 336 24" align="Left Top"><Widget type="AutoSizedButton" skin="MW_Button" position="0 0 52 24" align="Left Top"><Property key="ExpandDirection" value="Right"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="enabled"/><UserString key="SettingType" value="CheckButton"/></Widget><Widget type="AutoSizedTextBox" skin="SandText" position="60 4 270 18"><Property key="Caption" value="Groundcover"/></Widget></Widget>
+            <Widget type="TextBox" skin="NormalText" position="8 108 336 18" name="GroundcoverDensityLabel"><Property key="Caption" value="Groundcover density (%s)"/></Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="8 132 336 18" align="HStretch Top"><Property key="Range" value="101"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="density"/><UserString key="SettingValueType" value="Float"/><UserString key="SettingMin" value="0.0"/><UserString key="SettingMax" value="1.0"/><UserString key="SettingLabelWidget" value="GroundcoverDensityLabel"/><UserString key="SettingLabelCaption" value="Groundcover density (%s)"/></Widget>
+            <Widget type="TextBox" skin="NormalText" position="8 166 336 18" name="GroundcoverDistanceLabel"><Property key="Caption" value="Groundcover distance (%s)"/></Widget>
+            <Widget type="ScrollBar" skin="MW_HScroll" position="8 190 336 18" align="HStretch Top"><Property key="Range" value="121"/><Property key="Page" value="1"/><UserString key="SettingType" value="Slider"/><UserString key="SettingCategory" value="Groundcover"/><UserString key="SettingName" value="rendering distance"/><UserString key="SettingValueType" value="Integer"/><UserString key="SettingMin" value="2048"/><UserString key="SettingMax" value="32768"/><UserString key="SettingLabelWidget" value="GroundcoverDistanceLabel"/><UserString key="SettingLabelCaption" value="Groundcover distance (%s)"/></Widget>
           </Widget>
           <Widget type="TabItem" skin="" position="0 28 352 318" align="Stretch">
             <Property key="Caption" value=" Shadows "/>

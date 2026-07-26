@@ -1,5 +1,6 @@
 #include "renderingmanager.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <cstdlib>
 #include <cmath>
@@ -31,6 +32,7 @@
 #include <components/shader/shadermanager.hpp>
 
 #include <components/settings/settings.hpp>
+#include <components/misc/stringops.hpp>
 
 #include <components/sceneutil/util.hpp>
 #include <components/sceneutil/lightmanager.hpp>
@@ -51,7 +53,9 @@
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/class.hpp"
 #include "../mwgui/loadingscreen.hpp"
+#include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
+#include "../mwbase/world.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
 #include "sky.hpp"
@@ -73,6 +77,15 @@
 #include "occlusionculling.hpp"
 #include <components/sceneutil/occlusionculling.hpp>
 #include <components/terrain/terrainoccluder.hpp>
+
+namespace
+{
+    constexpr float sLandOptimizationUpdateInterval = 0.5f;
+    constexpr float sLandOptimizationRecoveryMarginFps = 3.f;
+    constexpr float sLandOptimizationMinimumStep = 256.f;
+    constexpr float sLandOptimizationMaximumStep = 2048.f;
+    constexpr float sLandOptimizationRecoveryStep = 256.f;
+}
 
 namespace MWRender
 {
@@ -224,6 +237,17 @@ namespace MWRender
         , mNavigator(navigator)
         , mMinimumAmbientLuminance(0.f)
         , mNightEyeFactor(0.f)
+        , mNearClip(0.f)
+        , mViewDistance(0.f)
+        , mConfiguredViewDistance(0.f)
+        , mLandOptimizationDistance(0.f)
+        , mLandOptimizationTargetFps(0.f)
+        , mLandOptimizationMinDistance(8192.f)
+        , mLandOptimizationTimer(0.f)
+        , mLandOptimizationFrameTime(0.f)
+        , mLandOptimizationFrameCount(0)
+        , mLandOptimizationEnabled(false)
+        , mLandOptimizationWasExterior(false)
         , mFieldOfViewOverridden(false)
         , mFieldOfViewOverride(0.f)
     {
@@ -454,7 +478,10 @@ namespace MWRender
         Nif::NIFFile::setLoadUnsupportedFiles(Settings::Manager::getBool("load unsupported nif files", "Models"));
 
         mNearClip = Settings::Manager::getFloat("near clip", "Camera");
-        mViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
+        mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
+        mViewDistance = mConfiguredViewDistance;
+        mLandOptimizationDistance = mConfiguredViewDistance;
+        updateLandOptimizationProfile();
         float fov = Settings::Manager::getFloat("field of view", "Camera");
         mFieldOfView = std::min(std::max(1.f, fov), 179.f);
         float firstPersonFov = Settings::Manager::getFloat("first person field of view", "Camera");
@@ -749,6 +776,8 @@ namespace MWRender
     {
         reportStats();
 
+        updateLandOptimization(dt, paused);
+
         mUnrefQueue->flush(mWorkQueue.get());
 
         float rainIntensity = mSky->getPrecipitationAlpha();
@@ -1024,6 +1053,9 @@ namespace MWRender
     {
         mSky->setMoonColour(false);
 
+        mLandOptimizationDistance = mConfiguredViewDistance;
+        resetLandOptimization(true);
+
         notifyWorldSpaceChanged();
         if (mObjectPaging)
             mObjectPaging->clear();
@@ -1135,6 +1167,151 @@ namespace MWRender
         }
     }
 
+    void RenderingManager::applyViewDistance(float distance)
+    {
+        if (!std::isfinite(distance))
+            return;
+
+        distance = std::max(1.f, distance);
+        if (std::abs(mViewDistance - distance) < 0.5f)
+            return;
+
+        mViewDistance = distance;
+        updateProjectionMatrix();
+    }
+
+    void RenderingManager::updateLandOptimizationProfile()
+    {
+        std::string mode = Settings::Manager::getString("optimization land", "Camera");
+        Misc::StringUtils::lowerCaseInPlace(mode);
+
+        // Preserve compatibility with the earlier boolean setting.
+        if (mode == "true" || mode == "1" || mode == "on")
+            mode = "balance";
+        else if (mode == "false" || mode == "0" || mode == "disabled")
+            mode = "off";
+
+        mLandOptimizationEnabled = mode != "off";
+        if (mode == "performance")
+        {
+            mLandOptimizationTargetFps = 45.f;
+            mLandOptimizationMinDistance = 6000.f;
+        }
+        else if (mode == "aggressive")
+        {
+            mLandOptimizationTargetFps = 60.f;
+            mLandOptimizationMinDistance = 4000.f;
+        }
+        else if (mLandOptimizationEnabled)
+        {
+            mLandOptimizationTargetFps = 30.f;
+            mLandOptimizationMinDistance = 8192.f;
+        }
+        else
+        {
+            mLandOptimizationTargetFps = 0.f;
+            mLandOptimizationMinDistance = mConfiguredViewDistance;
+        }
+    }
+
+    void RenderingManager::resetLandOptimization(bool restoreConfiguredDistance)
+    {
+        mLandOptimizationTimer = 0.f;
+        mLandOptimizationFrameTime = 0.f;
+        mLandOptimizationFrameCount = 0;
+        mLandOptimizationWasExterior = false;
+        mLandOptimizationDistance = std::clamp(mLandOptimizationDistance,
+            std::min(mLandOptimizationMinDistance, mConfiguredViewDistance), mConfiguredViewDistance);
+
+        if (restoreConfiguredDistance)
+            applyViewDistance(mConfiguredViewDistance);
+    }
+
+    void RenderingManager::updateLandOptimization(float frameDuration, bool paused)
+    {
+        if (!mLandOptimizationEnabled)
+        {
+            if (mViewDistance != mConfiguredViewDistance)
+                applyViewDistance(mConfiguredViewDistance);
+            return;
+        }
+
+        const bool isExterior = MWMechanics::getPlayer().isInCell()
+            && (MWMechanics::getPlayer().getCell()->isExterior()
+                || MWBase::Environment::get().getWorld()->isCellQuasiExterior());
+
+        if (!isExterior)
+        {
+            mLandOptimizationWasExterior = false;
+            mLandOptimizationTimer = 0.f;
+            mLandOptimizationFrameTime = 0.f;
+            mLandOptimizationFrameCount = 0;
+            applyViewDistance(mConfiguredViewDistance);
+            return;
+        }
+
+        const float minDistance = std::min(mLandOptimizationMinDistance, mConfiguredViewDistance);
+        mLandOptimizationDistance = std::clamp(mLandOptimizationDistance, minDistance, mConfiguredViewDistance);
+
+        if (!mLandOptimizationWasExterior)
+        {
+            mLandOptimizationWasExterior = true;
+            applyViewDistance(mLandOptimizationDistance);
+        }
+
+        if (paused || MWBase::Environment::get().getWindowManager()->isGuiMode())
+        {
+            mLandOptimizationTimer = 0.f;
+            mLandOptimizationFrameTime = 0.f;
+            mLandOptimizationFrameCount = 0;
+            return;
+        }
+
+        if (frameDuration <= 0.f || !std::isfinite(frameDuration))
+            return;
+
+        mLandOptimizationTimer += frameDuration;
+        mLandOptimizationFrameTime += frameDuration;
+        ++mLandOptimizationFrameCount;
+
+        if (mLandOptimizationTimer < sLandOptimizationUpdateInterval)
+            return;
+
+        const float averageFrameTime = mLandOptimizationFrameTime
+            / static_cast<float>(std::max(1u, mLandOptimizationFrameCount));
+
+        mLandOptimizationTimer = std::fmod(mLandOptimizationTimer, sLandOptimizationUpdateInterval);
+        mLandOptimizationFrameTime = 0.f;
+        mLandOptimizationFrameCount = 0;
+
+        if (averageFrameTime <= 0.f || !std::isfinite(averageFrameTime)
+            || mLandOptimizationTargetFps <= 0.f)
+            return;
+
+        const float averageFps = 1.f / averageFrameTime;
+        float adjustment = 0.f;
+        if (averageFps < mLandOptimizationTargetFps)
+        {
+            const float deficit = std::clamp(
+                (mLandOptimizationTargetFps - averageFps) / mLandOptimizationTargetFps, 0.f, 1.f);
+            adjustment = -(sLandOptimizationMinimumStep
+                + deficit * (sLandOptimizationMaximumStep - sLandOptimizationMinimumStep));
+        }
+        else if (averageFps >= mLandOptimizationTargetFps + sLandOptimizationRecoveryMarginFps)
+            adjustment = sLandOptimizationRecoveryStep;
+
+        if (adjustment == 0.f)
+            return;
+
+        const float newDistance = std::clamp(mLandOptimizationDistance + adjustment,
+            minDistance, mConfiguredViewDistance);
+        if (std::abs(newDistance - mLandOptimizationDistance) < 0.5f)
+            return;
+
+        mLandOptimizationDistance = newDistance;
+        applyViewDistance(mLandOptimizationDistance);
+    }
+
     void RenderingManager::updateTextureFiltering()
     {
         mViewer->stopThreading();
@@ -1199,11 +1376,31 @@ namespace MWRender
             }
             else if (setting.first == "Camera" && setting.second == "viewing distance")
             {
-                mViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
+                mConfiguredViewDistance = Settings::Manager::getFloat("viewing distance", "Camera");
+                mLandOptimizationDistance = std::clamp(mLandOptimizationDistance,
+                    std::min(mLandOptimizationMinDistance, mConfiguredViewDistance), mConfiguredViewDistance);
+                resetLandOptimization(false);
+
+                const bool isExterior = MWMechanics::getPlayer().isInCell()
+                    && (MWMechanics::getPlayer().getCell()->isExterior()
+                        || MWBase::Environment::get().getWorld()->isCellQuasiExterior());
+                mViewDistance = mLandOptimizationEnabled && isExterior
+                    ? mLandOptimizationDistance : mConfiguredViewDistance;
                 if (!Settings::Manager::getBool("use distant fog", "Fog"))
                     mStateUpdater->setFogEnd(mViewDistance);
                 updateProjectionMatrix();
                 rebuildTerrainViews = true;
+            }
+            else if (setting.first == "Camera" && setting.second == "optimization land")
+            {
+                updateLandOptimizationProfile();
+                if (mLandOptimizationEnabled)
+                {
+                    mLandOptimizationDistance = mConfiguredViewDistance;
+                    resetLandOptimization(false);
+                }
+                else
+                    resetLandOptimization(true);
             }
             else if (setting.first == "Camera" && setting.second == "view over shoulder")
             {

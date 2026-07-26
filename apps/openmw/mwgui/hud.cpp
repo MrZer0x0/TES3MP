@@ -7,6 +7,7 @@
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_ScrollView.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <sstream>
@@ -1014,14 +1015,31 @@ namespace MWGui
             const int nameWidth = mEnemyName ? mEnemyName->getWidth() : 0;
             const int nameHeight = mEnemyName ? mEnemyName->getHeight() : 0;
             const int barWidth = mEnemyHealth->getWidth();
+            const int totalWidth = std::max(nameWidth, barWidth);
             const int totalHeight = nameHeight + 2 + mEnemyHealth->getHeight();
-            const int baseY = std::max(0, anchorTop - totalHeight);
+
+            // Keep the complete target panel inside a small screen-safe area. These are logical
+            // GUI pixels, so the visible gap grows together with the configured GUI scaling factor.
+            constexpr int targetPanelSafeMargin = 14;
+            const int horizontalMargin = std::min(targetPanelSafeMargin,
+                std::max(0, (viewSize.width - totalWidth) / 2));
+            const int verticalMargin = std::min(targetPanelSafeMargin,
+                std::max(0, (viewSize.height - totalHeight) / 2));
+            const int maximumLeft = std::max(horizontalMargin,
+                viewSize.width - horizontalMargin - totalWidth);
+            const int maximumTop = std::max(verticalMargin,
+                viewSize.height - verticalMargin - totalHeight);
+            const int panelLeft = std::max(horizontalMargin,
+                std::min(centerX - totalWidth / 2, maximumLeft));
+            const int baseY = std::max(verticalMargin,
+                std::min(anchorTop - totalHeight, maximumTop));
 
             if (mEnemyName)
-                mEnemyName->setPosition(centerX - nameWidth / 2, baseY);
-            mEnemyHealth->setPosition(centerX - barWidth / 2, baseY + nameHeight + 2);
+                mEnemyName->setPosition(panelLeft + (totalWidth - nameWidth) / 2, baseY);
+            const int barLeft = panelLeft + (totalWidth - barWidth) / 2;
+            mEnemyHealth->setPosition(barLeft, baseY + nameHeight + 2);
             if (mEnemySummary)
-                mEnemySummary->setPosition(centerX - barWidth / 2, baseY + nameHeight + 2);
+                mEnemySummary->setPosition(barLeft, baseY + nameHeight + 2);
         }
         else
         {

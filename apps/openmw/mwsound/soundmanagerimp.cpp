@@ -372,22 +372,6 @@ namespace MWSound
         mSaySoundsQueue.emplace(ptr, std::move(sound));
     }
 
-    void SoundManager::say(const MWWorld::ConstPtr &ptr, const DecoderPtr& decoder)
-    {
-        if (!mOutput->isInitialized() || !decoder)
-            return;
-
-        MWBase::World *world = MWBase::Environment::get().getWorld();
-        const osg::Vec3f pos = world->getActorHeadTransform(ptr).getTrans();
-
-        stopSay(ptr);
-        StreamPtr sound = playVoice(decoder, pos, (ptr == MWMechanics::getPlayer()));
-        if (!sound)
-            return;
-
-        mSaySoundsQueue.emplace(ptr, std::move(sound));
-    }
-
     float SoundManager::getSaySoundLoudness(const MWWorld::ConstPtr &ptr) const
     {
         SaySoundMap::const_iterator snditer = mActiveSaySounds.find(ptr);

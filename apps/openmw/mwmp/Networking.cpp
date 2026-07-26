@@ -193,7 +193,7 @@ std::string listComparison(PacketPreInit::PluginContainer checksums, PacketPreIn
     return sstr.str();
 }
 
-Networking::Networking(): peer(RakNet::RakPeerInterface::GetInstance()), systemPacketController(peer),
+Networking::Networking(): startLocation("default"), peer(RakNet::RakPeerInterface::GetInstance()), systemPacketController(peer),
     playerPacketController(peer), actorPacketController(peer), objectPacketController(peer),
     worldstatePacketController(peer)
 {
@@ -420,6 +420,8 @@ void Networking::preInit(std::vector<std::string> &content, Files::Collections &
                 bsIn.IgnoreBytes((unsigned) RakNet::RakNetGUID::size());
                 packetPreInit.setChecksums(&checksumsResponse);
                 packetPreInit.Packet(&bsIn, false);
+                if (packetPreInit.isPacketValid())
+                    startLocation = packetPreInit.getStartLocation();
                 done = true;
                 break;
         }
@@ -523,4 +525,9 @@ Worldstate *Networking::getWorldstate()
 bool Networking::isConnected()
 {
     return connected;
+}
+
+const std::string& Networking::getStartLocation() const
+{
+    return startLocation;
 }

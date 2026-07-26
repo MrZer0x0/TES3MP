@@ -32,6 +32,7 @@
     {"SetGameMode",                     ServerFunctions::SetGameMode},\
     {"SetHostname",                     ServerFunctions::SetHostname},\
     {"SetServerPassword",               ServerFunctions::SetServerPassword},\
+    {"SetStartLocation",                 ServerFunctions::SetStartLocation},\
     {"SetDataFileEnforcementState",     ServerFunctions::SetDataFileEnforcementState},\
     {"SetScriptErrorIgnoringState",     ServerFunctions::SetScriptErrorIgnoringState},\
     {"SetRuleString",                   ServerFunctions::SetRuleString},\
@@ -250,6 +251,16 @@ public:
     * \return void
     */
     static void SetServerPassword(const char *password) noexcept;
+
+    /**
+    * \brief Set the location used while the client is showing the login or registration interface.
+    *
+    * Use "default" to keep the client hardcoded exterior cell 0, -7.
+    *
+    * \param location An exterior cell coordinate pair, named exterior, interior, or "default".
+    * \return void
+    */
+    static void SetStartLocation(const char *location) noexcept;
 
     /**
     * \brief Set the data file enforcement state of the server.

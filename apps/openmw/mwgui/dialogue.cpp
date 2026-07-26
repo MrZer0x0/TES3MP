@@ -8,10 +8,18 @@
 #include <MyGUI_RenderManager.h>
 #include <MyGUI_InputManager.h>
 
+#include <osg/Math>
+
 #include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <typeinfo>
+#include <vector>
 
 #include <components/debug/debuglog.hpp>
+#include <components/esm/loadarmo.hpp>
+#include <components/esm/loadligh.hpp>
+#include <components/misc/rng.hpp>
 #include <components/widgets/list.hpp>
 #include <components/translation/translation.hpp>
 
@@ -31,20 +39,65 @@
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
+#include "../mwbase/soundmanager.hpp"
 #include "../mwbase/world.hpp"
 #include "../mwbase/dialoguemanager.hpp"
 
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
+#include "../mwworld/inventorystore.hpp"
 #include "../mwworld/esmstore.hpp"
 
 #include "../mwmechanics/creaturestats.hpp"
 #include "../mwmechanics/actorutil.hpp"
+#include "../mwmechanics/character.hpp"
+
+#include "../mwrender/animation.hpp"
 
 #include "bookpage.hpp"
 #include "textcolours.hpp"
 
 #include "journalbooks.hpp" // to_utf8_span
+
+namespace
+{
+    struct DialogueAnimation
+    {
+        const char* mGroup;
+        int mBlendMask;
+        float mSpeed;
+        std::size_t mLoops;
+    };
+
+    float normalizeAngle(float angle)
+    {
+        while (angle > osg::PI)
+            angle -= osg::PI * 2.f;
+        while (angle < -osg::PI)
+            angle += osg::PI * 2.f;
+        return angle;
+    }
+
+    float randomRange(float minimum, float maximum)
+    {
+        return minimum + (maximum - minimum) * Misc::Rng::rollProbability();
+    }
+
+    bool dynamicActorLeftArmOccupied(const MWWorld::Ptr& ptr)
+    {
+        if (ptr.isEmpty() || !ptr.getClass().hasInventoryStore(ptr))
+            return false;
+
+        MWWorld::InventoryStore& inventory = ptr.getClass().getInventoryStore(ptr);
+        const MWWorld::ContainerStoreIterator carried
+            = inventory.getSlot(MWWorld::InventoryStore::Slot_CarriedLeft);
+        if (carried == inventory.end())
+            return false;
+
+        const std::string& type = carried->getTypeName();
+        return type == typeid(ESM::Armor).name() || type == typeid(ESM::Light).name();
+    }
+}
 
 namespace MWGui
 {
@@ -290,8 +343,16 @@ namespace MWGui
         , mPersuasionDialog(new ResponseCallback(this))
         , mHistoryWasDragged(false)
         , mDialogueCameraActive(false)
-        , mNpcHealthTimer(0.f)
-        , mNpcHealthAlpha(1.f)
+        , mDynamicDialogueActorActive(false)
+        , mDynamicDialogueActorHasOriginalYaw(false)
+        , mDynamicDialogueActorOriginalYaw(0.f)
+        , mDynamicDialogueActorAnimationTimer(0.f)
+        , mDynamicDialogueActorTransitionTimer(0.f)
+        , mDynamicDialogueActorSpeechCooldown(0.f)
+        , mDynamicDialogueActorAnimationEnding(false)
+        , mDynamicDialogueActorPendingSpeaking(false)
+        , mDynamicDialogueActorWasSpeaking(false)
+        , mDynamicDialogueActorLeftArmProtected(false)
         , mCallback(new ResponseCallback(this))
         , mGreetingCallback(new ResponseCallback(this, false))
     {
@@ -365,6 +426,7 @@ namespace MWGui
         }
         else
         {
+            stopDynamicDialogueActor();
             stopDialogueCamera();
             resetReference();
             MWBase::Environment::get().getDialogueManager()->goodbyeSelected();
@@ -377,6 +439,7 @@ namespace MWGui
     {
         positionDialogueWindow();
         startDialogueCamera();
+        startDynamicDialogueActor();
         selectInitialItem();
     }
 
@@ -417,7 +480,7 @@ namespace MWGui
     {
         const MyGUI::IntSize view = MyGUI::RenderManager::getInstance().getViewSize();
         MyGUI::IntSize size = mMainWidget->getSize();
-        size.width = std::min(720, std::max(620, view.width - 16));
+        size.width = std::min(680, std::max(620, view.width - 16));
         size.height = std::min(400, std::max(330, static_cast<int>(view.height * 0.43f)));
         mMainWidget->setSize(size);
 
@@ -429,8 +492,6 @@ namespace MWGui
 
     void DialogueWindow::startDialogueCamera()
     {
-        if (mDialogueCameraActive)
-            return;
         if (mPtr.isEmpty() || !Settings::Manager::getBool("cinematic dialogue camera", "GUI"))
             return;
         MWBase::Environment::get().getWorld()->setDialogueCameraTarget(mPtr);
@@ -443,6 +504,352 @@ namespace MWGui
             return;
         MWBase::Environment::get().getWorld()->clearDialogueCameraTarget();
         mDialogueCameraActive = false;
+    }
+
+    void DialogueWindow::startDynamicDialogueActor()
+    {
+        if (mDynamicDialogueActorActive || mPtr.isEmpty() || !mPtr.getClass().isNpc()
+            || !Settings::Manager::getBool("dynamic dialogue actors", "GUI"))
+            return;
+
+        MWMechanics::CreatureStats& stats = mPtr.getClass().getCreatureStats(mPtr);
+        if (stats.isDead() || stats.getAiSequence().isInCombat())
+            return;
+
+        MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr);
+        if (!animation)
+            return;
+
+        mDynamicDialogueActorActive = true;
+        mDynamicDialogueActorHasOriginalYaw = true;
+        mDynamicDialogueActorOriginalYaw = mPtr.getRefData().getPosition().rot[2];
+        mDynamicDialogueActorAnimationTimer = 0.2f;
+        mDynamicDialogueActorTransitionTimer = 0.f;
+        mDynamicDialogueActorSpeechCooldown = 0.f;
+        mDynamicDialogueActorAnimationEnding = false;
+        mDynamicDialogueActorPendingSpeaking = false;
+        mDynamicDialogueActorWasSpeaking = false;
+        mDynamicDialogueActorLeftArmProtected = false;
+        mDynamicDialogueActorAnimation.clear();
+    }
+
+    void DialogueWindow::playDynamicDialogueAnimation(bool speaking, bool force)
+    {
+        if (!mDynamicDialogueActorActive || mPtr.isEmpty()
+            || !Settings::Manager::getBool("dynamic dialogue actor animations", "GUI"))
+            return;
+
+        MWMechanics::CreatureStats& stats = mPtr.getClass().getCreatureStats(mPtr);
+        if (stats.isDead() || stats.getAiSequence().isInCombat()
+            || stats.getDrawState() != MWMechanics::DrawState_Nothing)
+        {
+            mDynamicDialogueActorAnimationTimer = 1.f;
+            return;
+        }
+
+        MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr);
+        if (!animation)
+        {
+            mDynamicDialogueActorAnimationTimer = 1.f;
+            return;
+        }
+
+        if (speaking && !force)
+        {
+            if (mDynamicDialogueActorSpeechCooldown > 0.f)
+                return;
+
+            // A voiced line should not force a new gesture every time. Most lines keep the
+            // current pose, while occasional lines receive a speaking gesture.
+            if (Misc::Rng::rollProbability() > 0.38f)
+            {
+                mDynamicDialogueActorSpeechCooldown = randomRange(5.f, 9.f);
+                return;
+            }
+        }
+
+        static const DialogueAnimation sSpeechAnimations[] = {
+            { "idlespeak_idlef", MWRender::Animation::BlendMask_UpperBody, 0.88f, 0 },
+            { "idlespeak_handhip", MWRender::Animation::BlendMask_UpperBody, 0.88f, 0 },
+            { "idlespeak_ready", MWRender::Animation::BlendMask_UpperBody, 0.88f, 0 },
+            { "idlespeak", MWRender::Animation::BlendMask_UpperBody, 0.88f, 0 },
+        };
+        static const DialogueAnimation sIdleAnimations[] = {
+            { "armsakimbo", MWRender::Animation::BlendMask_UpperBody, 0.66f, 10 },
+            { "armsfolded", MWRender::Animation::BlendMask_UpperBody, 0.66f, 10 },
+            { "armsatback", MWRender::Animation::BlendMask_UpperBody, 0.66f, 10 },
+            { "armsalmapray", MWRender::Animation::BlendMask_UpperBody, 0.72f, 6 },
+            { "handhippose", MWRender::Animation::BlendMask_UpperBody, 0.60f, 10 },
+            { "readypose", MWRender::Animation::BlendMask_UpperBody, 0.66f, 8 },
+            { "posealma3", MWRender::Animation::BlendMask_UpperBody, 0.80f, 4 },
+            { "idle2_copy", MWRender::Animation::BlendMask_UpperBody, 0.88f, 1 },
+            { "idle7_copy", MWRender::Animation::BlendMask_UpperBody, 0.92f, 1 },
+            { "idle8_copy", MWRender::Animation::BlendMask_UpperBody, 0.92f, 1 },
+        };
+
+        std::vector<const DialogueAnimation*> available;
+        const DialogueAnimation* begin = speaking ? std::begin(sSpeechAnimations) : std::begin(sIdleAnimations);
+        const DialogueAnimation* end = speaking ? std::end(sSpeechAnimations) : std::end(sIdleAnimations);
+        for (const DialogueAnimation* entry = begin; entry != end; ++entry)
+        {
+            if (animation->hasAnimation(entry->mGroup)
+                && (mDynamicDialogueActorAnimation.empty()
+                    || mDynamicDialogueActorAnimation != entry->mGroup))
+                available.push_back(entry);
+        }
+
+        if (available.empty())
+        {
+            for (const DialogueAnimation* entry = begin; entry != end; ++entry)
+            {
+                if (animation->hasAnimation(entry->mGroup))
+                    available.push_back(entry);
+            }
+        }
+
+        if (available.empty())
+        {
+            mDynamicDialogueActorAnimationTimer = speaking ? 3.f : 12.f;
+            return;
+        }
+
+        const DialogueAnimation& selected
+            = *available[Misc::Rng::rollDice(static_cast<int>(available.size()))];
+
+        if (!mDynamicDialogueActorAnimation.empty()
+            && animation->isPlaying(mDynamicDialogueActorAnimation))
+        {
+            if (mDynamicDialogueActorAnimation == selected.mGroup)
+            {
+                mDynamicDialogueActorAnimationTimer
+                    = speaking ? randomRange(7.f, 11.f) : randomRange(22.f, 40.f);
+                if (speaking)
+                    mDynamicDialogueActorSpeechCooldown = randomRange(10.f, 18.f);
+                return;
+            }
+
+            if (!force)
+            {
+                // OpenMW 0.47 has no transform cross-fade. Let the current KF leave its
+                // loop through the authored stop segment, then start the next pose.
+                animation->setLoopingEnabled(mDynamicDialogueActorAnimation, false);
+                mDynamicDialogueActorAnimationEnding = true;
+                mDynamicDialogueActorPendingSpeaking = speaking;
+                mDynamicDialogueActorTransitionTimer = 2.5f;
+                return;
+            }
+
+            animation->disable(mDynamicDialogueActorAnimation);
+        }
+
+        const bool leftArmProtected = dynamicActorLeftArmOccupied(mPtr);
+        int blendMask = selected.mBlendMask;
+        if (leftArmProtected)
+            blendMask &= ~MWRender::Animation::BlendMask_LeftArm;
+
+        MWRender::Animation::AnimPriority priority(MWMechanics::Priority_Default);
+        if (blendMask & MWRender::Animation::BlendMask_Torso)
+            priority[MWRender::Animation::BoneGroup_Torso] = MWMechanics::Priority_Weapon;
+        if (blendMask & MWRender::Animation::BlendMask_LeftArm)
+            priority[MWRender::Animation::BoneGroup_LeftArm] = MWMechanics::Priority_Weapon;
+        if (blendMask & MWRender::Animation::BlendMask_RightArm)
+            priority[MWRender::Animation::BoneGroup_RightArm] = MWMechanics::Priority_Weapon;
+        if (animation->isPlaying(selected.mGroup))
+            animation->disable(selected.mGroup);
+        animation->play(selected.mGroup, priority, blendMask, true, selected.mSpeed,
+            "start", "stop", 0.f, selected.mLoops, true);
+
+        if (!animation->isPlaying(selected.mGroup))
+        {
+            mDynamicDialogueActorAnimation.clear();
+            mDynamicDialogueActorLeftArmProtected = false;
+            mDynamicDialogueActorAnimationTimer = speaking ? 5.f : 14.f;
+            return;
+        }
+
+        mDynamicDialogueActorAnimation = selected.mGroup;
+        mDynamicDialogueActorLeftArmProtected = leftArmProtected;
+        mDynamicDialogueActorPendingSpeaking = false;
+        mDynamicDialogueActorAnimationEnding = false;
+        mDynamicDialogueActorTransitionTimer = 0.f;
+        mDynamicDialogueActorAnimationTimer
+            = speaking ? randomRange(7.f, 11.f) : randomRange(22.f, 40.f);
+        if (speaking)
+            mDynamicDialogueActorSpeechCooldown = randomRange(10.f, 18.f);
+    }
+
+    void DialogueWindow::updateDynamicDialogueActor(float dt)
+    {
+        if (!mDynamicDialogueActorActive || mPtr.isEmpty() || dt <= 0.f)
+            return;
+
+        MWMechanics::CreatureStats& stats = mPtr.getClass().getCreatureStats(mPtr);
+        if (stats.isDead() || stats.getAiSequence().isInCombat())
+        {
+            if (!mDynamicDialogueActorAnimation.empty())
+            {
+                if (MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr))
+                    animation->disable(mDynamicDialogueActorAnimation);
+                mDynamicDialogueActorAnimation.clear();
+                mDynamicDialogueActorLeftArmProtected = false;
+            }
+            mDynamicDialogueActorAnimationEnding = false;
+            return;
+        }
+
+        if (Settings::Manager::getBool("dynamic dialogue actor turning", "GUI"))
+        {
+            const MWWorld::Ptr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+            if (!player.isEmpty())
+            {
+                const osg::Vec3f delta = player.getRefData().getPosition().asVec3()
+                    - mPtr.getRefData().getPosition().asVec3();
+                if (delta.x() * delta.x() + delta.y() * delta.y() > 1.f)
+                {
+                    const float targetYaw = std::atan2(delta.x(), delta.y());
+                    const ESM::Position& position = mPtr.getRefData().getPosition();
+                    const float difference = normalizeAngle(targetYaw - position.rot[2]);
+                    const float easedStep = difference * (1.f - std::exp(-4.5f * dt));
+                    const float maxStep = osg::DegreesToRadians(105.f) * dt;
+                    const float step = std::max(-maxStep, std::min(maxStep, easedStep));
+                    if (std::abs(step) > 0.0001f)
+                    {
+                        MWBase::Environment::get().getWorld()->rotateObject(mPtr,
+                            position.rot[0], position.rot[1], normalizeAngle(position.rot[2] + step));
+                    }
+                }
+            }
+        }
+
+        if (!Settings::Manager::getBool("dynamic dialogue actor animations", "GUI"))
+        {
+            if (!mDynamicDialogueActorAnimation.empty())
+            {
+                if (MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr))
+                    animation->disable(mDynamicDialogueActorAnimation);
+                mDynamicDialogueActorAnimation.clear();
+                mDynamicDialogueActorLeftArmProtected = false;
+            }
+            mDynamicDialogueActorAnimationEnding = false;
+            return;
+        }
+
+        MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr);
+        if (!animation)
+            return;
+
+        mDynamicDialogueActorSpeechCooldown
+            = std::max(0.f, mDynamicDialogueActorSpeechCooldown - dt);
+
+        const bool speaking = MWBase::Environment::get().getSoundManager()->sayActive(mPtr);
+        if (!mDynamicDialogueActorAnimation.empty()
+            && dynamicActorLeftArmOccupied(mPtr) != mDynamicDialogueActorLeftArmProtected)
+        {
+            // A shield or torch may be equipped while the dialogue is open.
+            // Rebuild the pose immediately so its left-arm tracks can no longer
+            // override the equipment animation.
+            animation->disable(mDynamicDialogueActorAnimation);
+            mDynamicDialogueActorAnimation.clear();
+            mDynamicDialogueActorAnimationEnding = false;
+            mDynamicDialogueActorPendingSpeaking = false;
+            mDynamicDialogueActorTransitionTimer = 0.f;
+            mDynamicDialogueActorLeftArmProtected = false;
+            playDynamicDialogueAnimation(speaking, true);
+            return;
+        }
+
+        if (mDynamicDialogueActorAnimationEnding)
+        {
+            mDynamicDialogueActorTransitionTimer -= dt;
+            if (mDynamicDialogueActorAnimation.empty()
+                || !animation->isPlaying(mDynamicDialogueActorAnimation)
+                || mDynamicDialogueActorTransitionTimer <= 0.f)
+            {
+                if (!mDynamicDialogueActorAnimation.empty()
+                    && animation->isPlaying(mDynamicDialogueActorAnimation))
+                    animation->disable(mDynamicDialogueActorAnimation);
+
+                bool pendingSpeaking = mDynamicDialogueActorPendingSpeaking;
+                if (pendingSpeaking
+                    && !MWBase::Environment::get().getSoundManager()->sayActive(mPtr))
+                    pendingSpeaking = false;
+
+                mDynamicDialogueActorAnimation.clear();
+                mDynamicDialogueActorLeftArmProtected = false;
+                mDynamicDialogueActorAnimationEnding = false;
+                mDynamicDialogueActorTransitionTimer = 0.f;
+                playDynamicDialogueAnimation(pendingSpeaking, true);
+            }
+            return;
+        }
+
+        if (!mDynamicDialogueActorAnimation.empty()
+            && !animation->isPlaying(mDynamicDialogueActorAnimation))
+        {
+            mDynamicDialogueActorAnimation.clear();
+            mDynamicDialogueActorLeftArmProtected = false;
+            mDynamicDialogueActorAnimationTimer = randomRange(6.f, 12.f);
+        }
+
+        if (speaking)
+        {
+            if (!mDynamicDialogueActorWasSpeaking)
+            {
+                mDynamicDialogueActorWasSpeaking = true;
+                playDynamicDialogueAnimation(true);
+            }
+            return;
+        }
+
+        if (mDynamicDialogueActorWasSpeaking)
+        {
+            mDynamicDialogueActorWasSpeaking = false;
+            if (mDynamicDialogueActorAnimation.compare(0, 9, "idlespeak") == 0
+                && animation->isPlaying(mDynamicDialogueActorAnimation))
+            {
+                animation->setLoopingEnabled(mDynamicDialogueActorAnimation, false);
+                mDynamicDialogueActorAnimationEnding = true;
+                mDynamicDialogueActorPendingSpeaking = false;
+                mDynamicDialogueActorTransitionTimer = 2.5f;
+                return;
+            }
+        }
+
+        mDynamicDialogueActorAnimationTimer -= dt;
+        if (mDynamicDialogueActorAnimationTimer <= 0.f)
+            playDynamicDialogueAnimation(false);
+    }
+
+    void DialogueWindow::stopDynamicDialogueActor()
+    {
+        if (!mDynamicDialogueActorActive)
+            return;
+
+        if (!mPtr.isEmpty())
+        {
+            if (!mDynamicDialogueActorAnimation.empty())
+            {
+                if (MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr))
+                    animation->setLoopingEnabled(mDynamicDialogueActorAnimation, false);
+            }
+            if (mDynamicDialogueActorHasOriginalYaw)
+            {
+                const ESM::Position& position = mPtr.getRefData().getPosition();
+                MWBase::Environment::get().getWorld()->rotateObject(mPtr,
+                    position.rot[0], position.rot[1], mDynamicDialogueActorOriginalYaw);
+            }
+        }
+
+        mDynamicDialogueActorActive = false;
+        mDynamicDialogueActorHasOriginalYaw = false;
+        mDynamicDialogueActorAnimationTimer = 0.f;
+        mDynamicDialogueActorTransitionTimer = 0.f;
+        mDynamicDialogueActorSpeechCooldown = 0.f;
+        mDynamicDialogueActorAnimationEnding = false;
+        mDynamicDialogueActorPendingSpeaking = false;
+        mDynamicDialogueActorWasSpeaking = false;
+        mDynamicDialogueActorLeftArmProtected = false;
+        mDynamicDialogueActorAnimation.clear();
     }
 
     bool DialogueWindow::moveSelection(int direction)
@@ -531,23 +938,18 @@ namespace MWGui
         mChoicesList->setVisible(hasChoices);
         mChoicesList->setEnabled(hasChoices);
 
-        // A question is modal: while answers are displayed, hide all ordinary
-        // topics and services (barter, persuasion, training, travel, etc.).
+        // Answers temporarily replace services, persuasion and regular topics.
+        // Keep the topic list contents intact so it can be restored immediately
+        // after the answer has been selected without rebuilding dialogue state.
         mTopicsLabel->setVisible(!hasChoices);
         mTopicsList->setVisible(!hasChoices);
 
-        // DialogueWindow is created while WindowManager builds the GUI, before
-        // DialogueManager is guaranteed to be installed in Environment. Do not
-        // dereference it from the constructor-time updateChoicePane() call.
-        MWBase::DialogueManager* dialogueManager = MWBase::Environment::get().getDialogueManager();
-        const bool inChoice = dialogueManager != nullptr && dialogueManager->isInChoice();
-        mTopicsList->setEnabled(!hasChoices && !inChoice && !mGoodbye);
-
         if (hasChoices)
         {
+            const int choicesTop = 68;
+            const int choicesHeight = std::max(80, contentBottom - choicesTop);
             mChoicesLabel->setCoord(rightX, 44, rightWidth, 18);
-            mChoicesList->setCoord(rightX, 68, rightWidth, std::max(80, contentBottom - 68));
-            mTopicsList->clearSelection();
+            mChoicesList->setCoord(rightX, choicesTop, rightWidth, choicesHeight);
         }
         else
         {
@@ -763,6 +1165,7 @@ namespace MWGui
         bool sameActor = (mPtr == actor);
         if (!sameActor)
         {
+            stopDynamicDialogueActor();
             // The history is not reset here
             mKeywords.clear();
             mTopicsList->clear();
@@ -774,14 +1177,6 @@ namespace MWGui
         mPtr = actor;
         mGoodbye = false;
         mTopicsList->setEnabled(true);
-        if (!sameActor)
-        {
-            mNpcHealthTimer = 0.f;
-            mNpcHealthAlpha = 1.f;
-            mNpcHealthBar->setAlpha(1.f);
-            mNpcHealthBar->setVisible(true);
-            mNpcHealthText->setVisible(true);
-        }
 
         if (!MWBase::Environment::get().getDialogueManager()->startDialogue(actor, mGreetingCallback.get()))
         {
@@ -807,6 +1202,8 @@ namespace MWGui
         updateDisposition();
         restock();
         startDialogueCamera();
+        startDynamicDialogueActor();
+        playDynamicDialogueAnimation(false);
         selectInitialItem();
     }
 
@@ -851,6 +1248,7 @@ namespace MWGui
     {
         if (MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue))
             return;
+        stopDynamicDialogueActor();
         stopDialogueCamera();
         // Reset history
         for (DialogueText* text : mHistoryContents)
@@ -1030,6 +1428,7 @@ namespace MWGui
 
     void DialogueWindow::onGoodbyeActivated()
     {
+        stopDynamicDialogueActor();
         stopDialogueCamera();
         MWBase::Environment::get().getDialogueManager()->goodbyeSelected();
         MWBase::Environment::get().getWindowManager()->removeGuiMode(MWGui::GM_Dialogue);
@@ -1045,6 +1444,7 @@ namespace MWGui
     {
         mHistoryContents.push_back(new Response(text, title, needMargin));
         updateHistory();
+        playDynamicDialogueAnimation(true);
     }
 
     void DialogueWindow::addMessageBox(const std::string& text)
@@ -1074,9 +1474,8 @@ namespace MWGui
         mNpcHealthBar->setProgressPosition(static_cast<size_t>(currentHealth));
         mNpcHealthText->setCaption(MyGUI::utility::toString(currentHealth) + " / "
             + MyGUI::utility::toString(maximumHealth));
-        const bool healthVisible = !stats.isDead() && mNpcHealthAlpha > 0.001f;
-        mNpcHealthBar->setVisible(healthVisible);
-        mNpcHealthText->setVisible(healthVisible);
+        mNpcHealthBar->setVisible(!stats.isDead());
+        mNpcHealthText->setVisible(!stats.isDead());
     }
 
     void DialogueWindow::updateDisposition()
@@ -1096,6 +1495,7 @@ namespace MWGui
 
     void DialogueWindow::onReferenceUnavailable()
     {
+        stopDynamicDialogueActor();
         stopDialogueCamera();
         MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Dialogue);
     }
@@ -1106,26 +1506,8 @@ namespace MWGui
         if (mPtr.isEmpty())
             return;
 
+        updateDynamicDialogueActor(dt);
         updateActorStatus();
-
-        // Show the dialogue health bar for three seconds, then fade it out.
-        mNpcHealthTimer += dt;
-        constexpr float healthHoldTime = 3.f;
-        constexpr float healthFadeTime = 0.65f;
-        float targetAlpha = 1.f;
-        if (mNpcHealthTimer > healthHoldTime)
-            targetAlpha = std::max(0.f, 1.f - (mNpcHealthTimer - healthHoldTime) / healthFadeTime);
-        if (std::abs(targetAlpha - mNpcHealthAlpha) > 0.001f)
-        {
-            mNpcHealthAlpha = targetAlpha;
-            mNpcHealthBar->setAlpha(mNpcHealthAlpha);
-            if (mNpcHealthAlpha <= 0.001f)
-            {
-                mNpcHealthBar->setVisible(false);
-                mNpcHealthText->setVisible(false);
-            }
-        }
-
         updateDisposition();
         deleteLater();
 

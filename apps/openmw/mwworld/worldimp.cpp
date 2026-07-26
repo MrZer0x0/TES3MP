@@ -39,6 +39,7 @@
 #include <components/esm/cellref.hpp>
 
 #include <components/misc/constants.hpp>
+#include <components/misc/stringops.hpp>
 #include <components/misc/resourcehelpers.hpp>
 #include <components/misc/rng.hpp>
 #include <components/misc/convert.hpp>
@@ -289,20 +290,61 @@ namespace MWWorld
                 ESM::Position pos;
 
                 /*
-                    Start of tes3mp change (major)
+                    Start of ArenaMP change
 
-                    Spawn at 0, -7 by default
+                    Use the server-provided authentication location when one was
+                    explicitly configured. "default" keeps TES3MP's built-in
+                    exterior spawn at 0, -7.
                 */
-                const int cellSize = Constants::CellSizeInUnits;
-                pos.pos[0] = cellSize / 2;
-                pos.pos[1] = cellSize * -7 + cellSize / 2;
-                pos.pos[2] = 0;
-                pos.rot[0] = 0;
-                pos.rot[1] = 0;
-                pos.rot[2] = 0;
-                mWorldScene->changeToExteriorCell(pos, true);
+                const std::string& configuredStartLocation
+                    = mwmp::Main::get().getNetworking()->getStartLocation();
+                bool startLocationApplied = false;
+
+                if (!configuredStartLocation.empty()
+                    && !Misc::StringUtils::ciEqual(configuredStartLocation, "default"))
+                {
+                    try
+                    {
+                        if (findExteriorPosition(configuredStartLocation, pos))
+                        {
+                            changeToExteriorCell(pos, true);
+                            adjustPosition(getPlayerPtr(), false);
+                            startLocationApplied = true;
+                        }
+                        else if (findInteriorPosition(configuredStartLocation, pos))
+                        {
+                            changeToInteriorCell(configuredStartLocation, pos, true);
+                            startLocationApplied = true;
+                        }
+                    }
+                    catch (const std::exception& exception)
+                    {
+                        LOG_MESSAGE_SIMPLE(TimedLog::LOG_WARN,
+                            "Failed to use server start location '%s': %s",
+                            configuredStartLocation.c_str(), exception.what());
+                    }
+
+                    if (!startLocationApplied)
+                    {
+                        LOG_MESSAGE_SIMPLE(TimedLog::LOG_WARN,
+                            "Invalid server start location '%s'; falling back to exterior cell 0, -7",
+                            configuredStartLocation.c_str());
+                    }
+                }
+
+                if (!startLocationApplied)
+                {
+                    const int cellSize = Constants::CellSizeInUnits;
+                    pos.pos[0] = cellSize / 2;
+                    pos.pos[1] = cellSize * -7 + cellSize / 2;
+                    pos.pos[2] = 0;
+                    pos.rot[0] = 0;
+                    pos.rot[1] = 0;
+                    pos.rot[2] = 0;
+                    mWorldScene->changeToExteriorCell(pos, true);
+                }
                 /*
-                    End of tes3mp change (major)
+                    End of ArenaMP change
                 */
             }
         }

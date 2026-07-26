@@ -157,6 +157,29 @@ namespace
             ? "transparent" : "hidden";
     }
 
+    constexpr std::array<const char*, 4> landOptimizationModeNames =
+        { "Off", "Balance", "Performance", "Aggressive" };
+    constexpr std::array<const char*, 4> landOptimizationModes =
+        { "off", "balance", "performance", "aggressive" };
+
+    std::string getLandOptimizationMode()
+    {
+        std::string mode = Settings::Manager::getString("optimization land", "Camera");
+        Misc::StringUtils::lowerCaseInPlace(mode);
+
+        // Migrate the previous boolean setting without changing old profiles.
+        if (mode == "true" || mode == "1" || mode == "on")
+            return "balance";
+        if (mode == "false" || mode == "0" || mode == "disabled")
+            return "off";
+        for (const char* candidate : landOptimizationModes)
+        {
+            if (mode == candidate)
+                return mode;
+        }
+        return "balance";
+    }
+
     constexpr std::array<const char*, 6> terrainPresetNames =
         { "Minimum", "Low", "Balanced", "Medium", "High", "Ultra" };
     constexpr std::array<float, 6> terrainLod =
@@ -371,6 +394,7 @@ namespace MWGui
         getWidget(mWeaponSpellBoxMode, "WeaponSpellBoxMode");
         getWidget(mQuickLootMode, "QuickLootMode");
         getWidget(mTerrainPreset, "TerrainPreset");
+        getWidget(mLandOptimizationMode, "LandOptimizationMode");
         getWidget(mShadowPreset, "ShadowPreset");
         getWidget(mShadowMapQuality, "ShadowMapQuality");
 
@@ -414,6 +438,11 @@ namespace MWGui
         for (const char* name : terrainPresetNames)
             mTerrainPreset->addItem(name);
         mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
+
+        for (const char* name : landOptimizationModeNames)
+            mLandOptimizationMode->addItem(name);
+        mLandOptimizationMode->eventComboChangePosition += MyGUI::newDelegate(
+            this, &SettingsWindow::onLandOptimizationModeChanged);
 
         for (const char* name : shadowPresetNames)
             mShadowPreset->addItem(name);
@@ -474,6 +503,7 @@ namespace MWGui
         updateWeaponSpellBoxModeCombo();
         updateQuickLootModeCombo();
         updateTerrainPresetCombo();
+        updateLandOptimizationModeCombo();
         updateShadowCombos();
 
         mWindowBorderButton->setEnabled(!Settings::Manager::getBool("fullscreen", "Video"));
@@ -725,6 +755,21 @@ namespace MWGui
         mTerrainPreset->setIndexSelected(getTerrainPresetPosition());
     }
 
+    void SettingsWindow::updateLandOptimizationModeCombo()
+    {
+        const std::string mode = getLandOptimizationMode();
+        size_t position = 1;
+        for (size_t i = 0; i < landOptimizationModes.size(); ++i)
+        {
+            if (mode == landOptimizationModes[i])
+            {
+                position = i;
+                break;
+            }
+        }
+        mLandOptimizationMode->setIndexSelected(position);
+    }
+
     void SettingsWindow::updateShadowCombos()
     {
         mShadowPreset->setIndexSelected(getShadowPresetPosition());
@@ -773,6 +818,15 @@ namespace MWGui
         Settings::Manager::setBool("object paging active grid", "Terrain", true);
         Settings::Manager::setFloat("object paging merge factor", "Terrain", objectPagingMergeFactor[pos]);
         Settings::Manager::setFloat("object paging min size", "Terrain", objectPagingMinSize[pos]);
+        apply();
+    }
+
+    void SettingsWindow::onLandOptimizationModeChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, landOptimizationModes.size() - 1);
+        Settings::Manager::setString("optimization land", "Camera", landOptimizationModes[pos]);
         apply();
     }
 
@@ -1011,6 +1065,7 @@ namespace MWGui
         updateWeaponSpellBoxModeCombo();
         updateQuickLootModeCombo();
         updateTerrainPresetCombo();
+        updateLandOptimizationModeCombo();
         updateShadowCombos();
         resetScrollbars();
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mOkButton);

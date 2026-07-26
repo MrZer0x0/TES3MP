@@ -70,16 +70,36 @@ copy_if_exists "$stage_dir/share/doc" "$package_dir/doc"
 copy_if_exists "$stage_dir/share/licenses" "$package_dir/licenses"
 copy_if_exists "$stage_dir/lib" "$package_dir/lib"
 
-# Server Lua scripts are not produced by CMake install, but the old official
-# Linux package included CoreScripts beside the binaries. Keep that layout.
-if [[ ! -d "$package_dir/server" ]]; then
-    if [[ -d "server" ]]; then
-        cp -a server "$package_dir/server"
-    else
-        git clone --depth 1 https://github.com/TES3MP/CoreScripts.git "$package_dir/server"
-        rm -rf "$package_dir/server/.git"
-    fi
+# Use the ArenaMP server core bundled with this exact source revision. Prefer
+# the CMake install tree and fall back to the checked-out source tree; never
+# download a different CoreScripts revision while creating a release artifact.
+copy_if_exists "$stage_dir/share/games/openmw/server" "$package_dir/server"
+if [[ ! -d "$package_dir/server" && -d "server" ]]; then
+    cp -a server "$package_dir/server"
 fi
+for required_server_file in \
+    scripts/serverCore.lua \
+    scripts/config.lua \
+    data/banlist.json \
+    data/requiredDataFiles.json \
+    ARENAMP_CORE_VERSION.txt; do
+    if [[ ! -f "$package_dir/server/$required_server_file" ]]; then
+        echo "ERROR: bundled ArenaMP server core file is missing from the Linux package: $required_server_file" >&2
+        exit 1
+    fi
+done
+for required_data_dir in cell custom map player recordstore world; do
+    [[ -d "$package_dir/server/data/$required_data_dir" ]] || {
+        echo "ERROR: bundled ArenaMP server data directory is missing from the Linux package: $required_data_dir" >&2
+        exit 1
+    }
+done
+# Windows-only Lua modules cannot be loaded by the Linux server and are omitted.
+find "$package_dir/server" -type f -iname '*.dll' -delete
+# Repository-only marker files keep empty runtime directories in Git but must
+# not be exposed as part of the shipped server data.
+find "$package_dir/server" -type f \
+    \( -name '.gitignore' -o -name '.gitkeep' \) -delete
 
 # Copy runtime libraries like the official GNU/Linux tarball. Ubuntu runners
 # link against system MyGUI/OSG/Bullet/Boost/etc.; without bundling them the
@@ -206,15 +226,12 @@ gamedir="$(cd "$(dirname "$0")" && pwd -P)"
 userdata="$gamedir/userdata"
 mkdir -p "$userdata"
 
-# Prefer portable userdata. The C++ launcher/wizard also read/write this folder,
-# but creating defaults here makes direct launches work after unpacking.
+# Prefer portable userdata for cfg files only. The server core always runs
+# directly from the bundled server directory next to the binaries.
 case "$wrapper" in
     tes3mp-server)
         if [[ ! -f "$userdata/tes3mp-server.cfg" && -f "$gamedir/tes3mp-server-default.cfg" ]]; then
             cp -f "$gamedir/tes3mp-server-default.cfg" "$userdata/tes3mp-server.cfg"
-        fi
-        if [[ ! -d "$userdata/server" && -d "$gamedir/server" ]]; then
-            cp -a "$gamedir/server" "$userdata/server"
         fi
         ;;
     tes3mp|tes3mp-browser|openmw-launcher|openmw-wizard|*)

@@ -46,7 +46,6 @@
 #include "CellController.hpp"
 #include "MechanicsHelper.hpp"
 #include "RecordHelper.hpp"
-#include "tts/ChatTtsManager.hpp"
 
 using namespace mwmp;
 
@@ -103,7 +102,6 @@ Main::Main()
     mLocalPlayer = new LocalPlayer();
     mGUIController = new GUIController();
     mCellController = new CellController();
-    mChatTtsManager = new ChatTtsManager();
 
     server = "mp.tes3mp.com";
     port = 25565;
@@ -112,9 +110,6 @@ Main::Main()
 Main::~Main()
 {
     LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "tes3mp stopped");
-    if (mChatTtsManager)
-        mChatTtsManager->shutdown();
-    delete mChatTtsManager;
     delete mNetworking;
     delete mLocalSystem;
     delete mLocalPlayer;
@@ -186,7 +181,6 @@ void Main::postInit()
     environment.getStateManager()->newGame(true);
     MWBase::Environment::get().getMechanicsManager()->toggleAI();
     RecordHelper::createPlaceholderInteriorCell();
-    pMain->mChatTtsManager->initialize();
 }
 
 bool Main::isInitialized()
@@ -211,7 +205,6 @@ void Main::frame(float dt)
     get().updateWorld(dt);
 
     get().getGUIController()->update(dt);
-    get().getChatTtsManager()->update();
 }
 
 void Main::updateWorld(float dt) const
@@ -268,11 +261,6 @@ GUIController *Main::getGUIController() const
 CellController *Main::getCellController() const
 {
     return mCellController;
-}
-
-ChatTtsManager *Main::getChatTtsManager() const
-{
-    return mChatTtsManager;
 }
 
 bool Main::isValidPacketScript(std::string scriptId)

@@ -372,6 +372,8 @@ int runApplication(int argc, char *argv[])
 #ifdef __APPLE__
     boost::filesystem::path binary_path = boost::filesystem::system_complete(boost::filesystem::path(argv[0]));
     boost::filesystem::current_path(binary_path.parent_path());
+    const boost::filesystem::path osgPluginPath = binary_path.parent_path().parent_path() / "PlugIns" / "osgPlugins";
+    setenv("OSG_LIBRARY_PATH", osgPluginPath.string().c_str(), 0);
     setenv("OSG_GL_TEXTURE_STORAGE", "OFF", 0);
 #endif
 

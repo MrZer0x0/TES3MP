@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <MyGUI type="Layout">
-    <!-- ArenaMP cinematic dialogue based on the user-provided layout. -->
+    <!-- ArenaMP cinematic dialogue: narrower and lower, with the NPC visible above it. -->
     <Widget type="Window" skin="MW_DialogueCinematicWindow" layer="Windows" position="0 0 720 410" name="_Main">
         <Property key="MinSize" value="620 280"/>
 
@@ -55,7 +55,16 @@
             <Property key="Alpha" value="0.75"/>
             <Property key="NeedMouse" value="false"/>
         </Widget>
-
+		<Widget type="ProgressBar" skin="MW_EnergyBar_Red" position="0 0 190 16"
+            align="Right Stretch" name="NpcHealth">
+            <Property key="NeedMouse" value="false"/>
+            <Widget type="TextBox" skin="SandBrightText" position="0 0 190 16" name="NpcHealthText" align="Stretch">
+                <Property key="NeedMouse" value="false"/>
+                <Property key="TextAlign" value="Center"/>
+                <Property key="TextShadow" value="true"/>
+                <Property key="TextShadowColour" value="0 0 0"/>
+            </Widget>
+        </Widget>
 
         <Widget type="TextBox" skin="SandText" position="430 44 26 18" name="ChoicesLabel" align="Right Top">
             <Property key="Caption" value=""/>

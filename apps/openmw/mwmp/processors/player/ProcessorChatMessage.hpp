@@ -5,7 +5,6 @@
 #include "../PlayerProcessor.hpp"
 #include "apps/openmw/mwmp/Main.hpp"
 #include "apps/openmw/mwmp/GUIController.hpp"
-#include "apps/openmw/mwmp/tts/ChatTtsManager.hpp"
 
 namespace mwmp
 {
@@ -20,10 +19,7 @@ namespace mwmp
         virtual void Do(PlayerPacket &packet, BasePlayer *player)
         {
             if (player != 0)
-            {
                 Main::get().getGUIController()->printChatMessage(player->chatMessage);
-                Main::get().getChatTtsManager()->enqueue(*player);
-            }
         }
     };
 }

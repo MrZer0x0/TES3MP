@@ -166,9 +166,6 @@ namespace MWSound
         ///< Make an actor say some text.
         /// \param filename name of a sound file in "Sound/" in the data directory.
 
-        void say(const MWWorld::ConstPtr &reference, const DecoderPtr& decoder) override;
-        ///< Make an actor speak audio supplied by a custom decoder.
-
         void say(const std::string& filename) override;
         ///< Say some text, without an actor ref
         /// \param filename name of a sound file in "Sound/" in the data directory.

@@ -1,3 +1,54 @@
+ArenaMP macOS server resource signing fix v17
+
+macOS packaging:
+- серверное ядро перенесено из `OpenMW.app/Contents/MacOS/server` в `OpenMW.app/Contents/Resources/server`;
+- обычные Lua/JSON/TXT-файлы больше не воспринимаются codesign как неподписанный вложенный код;
+- лаунчер на macOS берет bundled core из Resources и синхронизирует его в writable userdata/server;
+- Windows и Linux layout не изменен;
+- валидатор запрещает возвращение каталога server внутрь Contents/MacOS;
+- CI проверяет обе CMake-ветки и путь лаунчера;
+- MACOS_CACHE_EPOCH поднят до v17.
+
+Changed in v17:
+- .github/workflows/release-builds.yml
+- CHANGED_FILES.txt
+- CMakeLists.txt
+- cmake/CMakeLists.txt
+- CI/check-server-core.sh
+- CI/macos-arm64/validate-bundle.sh
+- apps/launcher/serverdialog.cpp
+
+--- Previous cumulative fixes ---
+
+ArenaMP bundled server core Git/package fix v16
+
+Server core:
+- исправлено общее правило `.gitignore` `data`, из-за которого Git не добавлял `server/data/requiredDataFiles.json` и `banlist.json`;
+- обязательные seed JSON теперь явно отслеживаются во всех checkout;
+- сохранены пустые каталоги данных cell/custom/map/player/recordstore/world и scripts/custom;
+- runtime JSON в исходном дереве по-прежнему игнорируется;
+- маркеры Git исключены из Windows, Linux и macOS пакетов;
+- CI проверяет, что seed-файлы не только существуют, но и действительно отслеживаются Git;
+- финальная проверка каждого артефакта требует оба seed JSON и рабочие каталоги данных.
+
+Changed in v16:
+- .gitignore
+- .github/workflows/release-builds.yml
+- CMakeLists.txt
+- cmake/CMakeLists.txt
+- CI/check-server-core.sh
+- CI/linux/package-portable.sh
+- CI/macos-arm64/validate-bundle.sh
+- apps/launcher/serverdialog.cpp
+- server/ARENAMP_CORE_VERSION.txt
+- server/data/.gitignore
+- server/data/banlist.json
+- server/data/requiredDataFiles.json
+- server/data/{cell,custom,map,player,recordstore,world}/.gitkeep
+- server/scripts/custom/.gitkeep
+
+--- Previous cumulative fixes ---
+
 ArenaMP Host Mode Qt UIC build fix v46
 
 Launcher:
@@ -217,11 +268,3 @@ Changed in v48:
 - files/ui/playpage.ui
 - CHANGED_FILES.txt
 - V48_HOST_MODE_PRECEDENCE_FIX_RU.txt
-
-TTS packaging fix (2026-07-25):
-- files/tts/CMakeLists.txt
-- apps/openmw/mwmp/tts/PiperApi.hpp
-- apps/openmw/mwmp/tts/PiperApi.cpp
-- CI/tts/verify-package.sh
-- .github/workflows/release-builds.yml
-- TTS_PACKAGING_FIX.md

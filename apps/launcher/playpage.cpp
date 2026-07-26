@@ -4,8 +4,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
+#include <QIntValidator>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -60,6 +62,18 @@ namespace
             widget->setValue(parsed);
     }
 
+    void loadDoubleSpinBox(QDoubleSpinBox* widget, const QString& text, const QString& key)
+    {
+        QString value;
+        if (!findConfigAssignment(text, key, &value))
+            return;
+
+        bool ok = false;
+        const double parsed = value.toDouble(&ok);
+        if (ok)
+            widget->setValue(parsed);
+    }
+
     void loadCheckBox(QCheckBox* widget, const QString& text, const QString& key)
     {
         QString value;
@@ -90,6 +104,7 @@ Launcher::PlayPage::PlayPage(QWidget *parent)
 {
     setObjectName("PlayPage");
     setupUi(this);
+    serverPortEdit->setValidator(new QIntValidator(1, 65535, serverPortEdit));
 
     connect(playButton, SIGNAL(clicked()), this, SLOT(slotPlayClicked()));
     connect(serverButton, SIGNAL(clicked()), this, SLOT(slotServerClicked()));
@@ -244,7 +259,13 @@ void Launcher::PlayPage::switchToServerConsoleTab()
 QString Launcher::PlayPage::serverConfigPath() const
 {
     const QDir baseDir(QApplication::applicationDirPath());
-    return QDir::cleanPath(baseDir.filePath(QStringLiteral("server/scripts/config.lua")));
+#ifdef Q_OS_MAC
+    return QDir::cleanPath(
+        baseDir.filePath(QStringLiteral("../Resources/server/scripts/config.lua")));
+#else
+    return QDir::cleanPath(
+        baseDir.filePath(QStringLiteral("server/scripts/config.lua")));
+#endif
 }
 
 QString Launcher::PlayPage::replaceRawValue(const QString& text, const QString& key, const QString& value) const
@@ -276,6 +297,30 @@ void Launcher::PlayPage::populateFormFromConfig(const QString& text)
     loadSpinBox(pingDifferenceSpinBox, text, QStringLiteral("pingDifferenceRequiredForAuthority"));
     loadSpinBox(enforcedLogLevelSpinBox, text, QStringLiteral("enforcedLogLevel"));
     loadSpinBox(physicsFramerateSpinBox, text, QStringLiteral("physicsFramerate"));
+
+    loadCheckBox(arenaTacticalCombatCheckBox, text, QStringLiteral("arenaTacticalCombat"));
+    loadDoubleSpinBox(arenaCombatWeaponSheatheDelayDoubleSpinBox, text, QStringLiteral("arenaCombatWeaponSheatheDelay"));
+    loadCheckBox(arenaCombatPursuitThroughDoorsCheckBox, text, QStringLiteral("arenaCombatPursuitThroughDoors"));
+    loadSpinBox(arenaCombatPursuitGuaranteedDistanceSpinBox, text, QStringLiteral("arenaCombatPursuitGuaranteedDistance"));
+    loadSpinBox(arenaCombatPursuitDoorMaxDistanceSpinBox, text, QStringLiteral("arenaCombatPursuitDoorMaxDistance"));
+    loadDoubleSpinBox(arenaCombatPursuitMinimumChanceDoubleSpinBox, text, QStringLiteral("arenaCombatPursuitMinimumChance"));
+    loadSpinBox(arenaCombatPursuitMaxActorsSpinBox, text, QStringLiteral("arenaCombatPursuitMaxActors"));
+    loadSpinBox(arenaCombatPursuitMaxDistanceSpinBox, text, QStringLiteral("arenaCombatPursuitMaxDistance"));
+    loadCheckBox(arenaFollowersAttackOnSightCheckBox, text, QStringLiteral("arenaFollowersAttackOnSight"));
+    loadCheckBox(arenaNpcAvoidCollisionsCheckBox, text, QStringLiteral("arenaNpcAvoidCollisions"));
+    loadCheckBox(arenaNpcGiveWayCheckBox, text, QStringLiteral("arenaNpcGiveWay"));
+    loadCheckBox(arenaAllowActorsFollowOverWaterCheckBox, text, QStringLiteral("arenaAllowActorsFollowOverWater"));
+    loadSpinBox(arenaActorsProcessingRangeSpinBox, text, QStringLiteral("arenaActorsProcessingRange"));
+    loadCheckBox(arenaCanLootDuringDeathAnimationCheckBox, text, QStringLiteral("arenaCanLootDuringDeathAnimation"));
+    loadCheckBox(arenaWeaponSheathingCheckBox, text, QStringLiteral("arenaWeaponSheathing"));
+    loadCheckBox(arenaShieldSheathingCheckBox, text, QStringLiteral("arenaShieldSheathing"));
+    loadCheckBox(arenaGraphicHerbalismCheckBox, text, QStringLiteral("arenaGraphicHerbalism"));
+    loadCheckBox(arenaLongBladesUseAgilityCheckBox, text, QStringLiteral("arenaLongBladesUseAgility"));
+    loadCheckBox(arenaTwoHandedAccuracyPenaltyCheckBox, text, QStringLiteral("arenaTwoHandedAccuracyPenalty"));
+    loadCheckBox(arenaStavesAccuracyBonusCheckBox, text, QStringLiteral("arenaStavesAccuracyBonus"));
+    loadCheckBox(arenaSkillBooksLevelLimitCheckBox, text, QStringLiteral("arenaSkillBooksLevelLimit"));
+    loadCheckBox(arenaNewConstantEffectDifficultyCheckBox, text, QStringLiteral("arenaNewConstantEffectDifficulty"));
+    loadDoubleSpinBox(arenaGlobalXpMultiplierDoubleSpinBox, text, QStringLiteral("arenaGlobalXpMultiplier"));
 
     loadCheckBox(passTimeWhenEmptyCheckBox, text, QStringLiteral("passTimeWhenEmpty"));
     loadCheckBox(allowConsoleCheckBox, text, QStringLiteral("allowConsole"));
@@ -326,6 +371,11 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
         text = replaceConfigAssignment(text, key, QString::number(value));
     };
 
+    const auto replaceReal = [&text](const QString& key, double value, int precision)
+    {
+        text = replaceConfigAssignment(text, key, QString::number(value, 'f', precision));
+    };
+
     const auto replaceBool = [&text](const QString& key, bool value)
     {
         text = replaceConfigAssignment(text, key, value ? QStringLiteral("true") : QStringLiteral("false"));
@@ -350,6 +400,30 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
     replaceNumber(QStringLiteral("pingDifferenceRequiredForAuthority"), pingDifferenceSpinBox->value());
     replaceNumber(QStringLiteral("enforcedLogLevel"), enforcedLogLevelSpinBox->value());
     replaceNumber(QStringLiteral("physicsFramerate"), physicsFramerateSpinBox->value());
+
+    replaceBool(QStringLiteral("arenaTacticalCombat"), arenaTacticalCombatCheckBox->isChecked());
+    replaceReal(QStringLiteral("arenaCombatWeaponSheatheDelay"), arenaCombatWeaponSheatheDelayDoubleSpinBox->value(), 1);
+    replaceBool(QStringLiteral("arenaCombatPursuitThroughDoors"), arenaCombatPursuitThroughDoorsCheckBox->isChecked());
+    replaceNumber(QStringLiteral("arenaCombatPursuitGuaranteedDistance"), arenaCombatPursuitGuaranteedDistanceSpinBox->value());
+    replaceNumber(QStringLiteral("arenaCombatPursuitDoorMaxDistance"), arenaCombatPursuitDoorMaxDistanceSpinBox->value());
+    replaceReal(QStringLiteral("arenaCombatPursuitMinimumChance"), arenaCombatPursuitMinimumChanceDoubleSpinBox->value(), 2);
+    replaceNumber(QStringLiteral("arenaCombatPursuitMaxActors"), arenaCombatPursuitMaxActorsSpinBox->value());
+    replaceNumber(QStringLiteral("arenaCombatPursuitMaxDistance"), arenaCombatPursuitMaxDistanceSpinBox->value());
+    replaceBool(QStringLiteral("arenaFollowersAttackOnSight"), arenaFollowersAttackOnSightCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaNpcAvoidCollisions"), arenaNpcAvoidCollisionsCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaNpcGiveWay"), arenaNpcGiveWayCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaAllowActorsFollowOverWater"), arenaAllowActorsFollowOverWaterCheckBox->isChecked());
+    replaceNumber(QStringLiteral("arenaActorsProcessingRange"), arenaActorsProcessingRangeSpinBox->value());
+    replaceBool(QStringLiteral("arenaCanLootDuringDeathAnimation"), arenaCanLootDuringDeathAnimationCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaWeaponSheathing"), arenaWeaponSheathingCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaShieldSheathing"), arenaShieldSheathingCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaGraphicHerbalism"), arenaGraphicHerbalismCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaLongBladesUseAgility"), arenaLongBladesUseAgilityCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaTwoHandedAccuracyPenalty"), arenaTwoHandedAccuracyPenaltyCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaStavesAccuracyBonus"), arenaStavesAccuracyBonusCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaSkillBooksLevelLimit"), arenaSkillBooksLevelLimitCheckBox->isChecked());
+    replaceBool(QStringLiteral("arenaNewConstantEffectDifficulty"), arenaNewConstantEffectDifficultyCheckBox->isChecked());
+    replaceReal(QStringLiteral("arenaGlobalXpMultiplier"), arenaGlobalXpMultiplierDoubleSpinBox->value(), 2);
 
     replaceBool(QStringLiteral("passTimeWhenEmpty"), passTimeWhenEmptyCheckBox->isChecked());
     replaceBool(QStringLiteral("allowConsole"), allowConsoleCheckBox->isChecked());

@@ -150,7 +150,7 @@ namespace MWGui
         void addMessageBox(const std::string& text);
 
         void onFrame(float dt) override;
-        void clear() override { stopDialogueCamera(); resetReference(); }
+        void clear() override { stopDynamicDialogueActor(); stopDialogueCamera(); resetReference(); }
 
         void updateTopics();
 
@@ -205,6 +205,10 @@ namespace MWGui
         void positionDialogueWindow();
         void startDialogueCamera();
         void stopDialogueCamera();
+        void startDynamicDialogueActor();
+        void updateDynamicDialogueActor(float dt);
+        void stopDynamicDialogueActor();
+        void playDynamicDialogueAnimation(bool speaking, bool force = false);
 
         bool mIsCompanion;
         std::list<std::string> mKeywords;
@@ -243,8 +247,17 @@ namespace MWGui
         MyGUI::IntPoint mHistoryLastDragPosition;
         bool mHistoryWasDragged;
         bool mDialogueCameraActive;
-        float mNpcHealthTimer;
-        float mNpcHealthAlpha;
+        bool mDynamicDialogueActorActive;
+        bool mDynamicDialogueActorHasOriginalYaw;
+        float mDynamicDialogueActorOriginalYaw;
+        float mDynamicDialogueActorAnimationTimer;
+        float mDynamicDialogueActorTransitionTimer;
+        float mDynamicDialogueActorSpeechCooldown;
+        bool mDynamicDialogueActorAnimationEnding;
+        bool mDynamicDialogueActorPendingSpeaking;
+        bool mDynamicDialogueActorWasSpeaking;
+        bool mDynamicDialogueActorLeftArmProtected;
+        std::string mDynamicDialogueActorAnimation;
 
         std::unique_ptr<ResponseCallback> mCallback;
         std::unique_ptr<ResponseCallback> mGreetingCallback;

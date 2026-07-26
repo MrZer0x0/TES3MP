@@ -13,6 +13,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QRegularExpression>
+#include <QStandardPaths>
 #include <QNetworkInterface>
 #include <QPlainTextEdit>
 #include <QProcess>
@@ -23,6 +25,147 @@
 #include <QTimer>
 #include <QTcpSocket>
 #include <QVBoxLayout>
+
+namespace
+{
+    bool copyFileReplacing(const QString& sourcePath, const QString& destinationPath, QString* errorMessage)
+    {
+        const QFileInfo sourceInfo(sourcePath);
+        if (!sourceInfo.exists() || !sourceInfo.isFile())
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Bundled server file is missing: %1")
+                    .arg(QDir::toNativeSeparators(sourcePath));
+            return false;
+        }
+
+        const QFileInfo destinationInfo(destinationPath);
+        if (!QDir().mkpath(destinationInfo.absolutePath()))
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not create userdata directory: %1")
+                    .arg(QDir::toNativeSeparators(destinationInfo.absolutePath()));
+            return false;
+        }
+
+        if (destinationInfo.exists() && !QFile::remove(destinationPath))
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not replace server configuration: %1")
+                    .arg(QDir::toNativeSeparators(destinationPath));
+            return false;
+        }
+
+        if (!QFile::copy(sourcePath, destinationPath))
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not copy server configuration from %1 to %2")
+                    .arg(QDir::toNativeSeparators(sourcePath), QDir::toNativeSeparators(destinationPath));
+            return false;
+        }
+
+        QFile::setPermissions(destinationPath, sourceInfo.permissions());
+        return true;
+    }
+
+    bool writeTextFile(const QString& path, const QString& text, QString* errorMessage)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not write server configuration: %1")
+                    .arg(QDir::toNativeSeparators(path));
+            return false;
+        }
+
+        const QByteArray data = text.toUtf8();
+        if (file.write(data) != data.size())
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not finish writing server configuration: %1")
+                    .arg(QDir::toNativeSeparators(path));
+            return false;
+        }
+        return true;
+    }
+
+    bool setIniValue(const QString& configPath, const QString& sectionName,
+        const QString& keyName, const QString& value, QString* errorMessage)
+    {
+        QFile configFile(configPath);
+        if (!configFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            if (errorMessage)
+                *errorMessage = QObject::tr("Could not read server configuration: %1")
+                    .arg(QDir::toNativeSeparators(configPath));
+            return false;
+        }
+
+        const QByteArray originalData = configFile.readAll();
+        configFile.close();
+        const QString lineEnding = originalData.contains("\r\n")
+            ? QStringLiteral("\r\n") : QStringLiteral("\n");
+        QStringList lines = QString::fromUtf8(originalData)
+            .split(QRegularExpression(QStringLiteral("\r?\n")));
+
+        int sectionLine = -1;
+        int insertionLine = lines.size();
+        int valueLine = -1;
+        QString currentSection;
+
+        for (int i = 0; i < lines.size(); ++i)
+        {
+            const QString trimmed = lines.at(i).trimmed();
+            if (trimmed.startsWith(QLatin1Char('[')) && trimmed.endsWith(QLatin1Char(']')))
+            {
+                const QString section = trimmed.mid(1, trimmed.size() - 2).trimmed();
+                if (sectionLine >= 0 && currentSection == sectionName)
+                {
+                    insertionLine = i;
+                    break;
+                }
+                currentSection = section;
+                if (section == sectionName)
+                    sectionLine = i;
+                continue;
+            }
+
+            if (currentSection != sectionName || trimmed.startsWith(QLatin1Char('#'))
+                || trimmed.startsWith(QLatin1Char(';')))
+                continue;
+
+            const int equalsPosition = trimmed.indexOf(QLatin1Char('='));
+            if (equalsPosition >= 0 && trimmed.left(equalsPosition).trimmed() == keyName)
+            {
+                valueLine = i;
+                break;
+            }
+        }
+
+        if (valueLine >= 0)
+        {
+            const QString originalLine = lines.at(valueLine);
+            const int equalsPosition = originalLine.indexOf(QLatin1Char('='));
+            lines[valueLine] = equalsPosition >= 0
+                ? originalLine.left(equalsPosition + 1) + QLatin1Char(' ') + value
+                : keyName + QStringLiteral(" = ") + value;
+        }
+        else if (sectionLine >= 0)
+        {
+            lines.insert(insertionLine, keyName + QStringLiteral(" = ") + value);
+        }
+        else
+        {
+            if (!lines.isEmpty() && !lines.last().isEmpty())
+                lines.append(QString());
+            lines.append(QLatin1Char('[') + sectionName + QLatin1Char(']'));
+            lines.append(keyName + QStringLiteral(" = ") + value);
+        }
+
+        return writeTextFile(configPath, lines.join(lineEnding), errorMessage);
+    }
+}
 
 Launcher::ServerDialog::ServerDialog(QWidget* parent)
     : QWidget(parent)
@@ -111,6 +254,15 @@ bool Launcher::ServerDialog::startServer()
     if (!mRawLog.isEmpty())
         appendStatusLine(QStringLiteral("----------------------------------------"));
 
+    QString preparationError;
+    if (!preparePortableServer(&preparationError))
+    {
+        QMessageBox::warning(this, tr("Error preparing ArenaMP server"), preparationError);
+        appendStatusLine(tr("Server preparation failed: %1").arg(preparationError));
+        mStopButton->setEnabled(false);
+        return false;
+    }
+
     const ServerConfig config = readServerConfig();
     mAddressLabel->setText(tr("Connect IP: %1").arg(resolveDisplayAddress(config.localAddress)));
     mPortLabel->setText(tr("Port: %1").arg(config.port));
@@ -133,7 +285,7 @@ bool Launcher::ServerDialog::startServer()
     mProcess->setArguments(QStringList());
     mProcess->setProcessChannelMode(QProcess::SeparateChannels);
 
-    const QString workingDirectory = QFileInfo(config.configPath).absolutePath();
+    const QString workingDirectory = serverRuntimeBasePath();
     mProcess->setWorkingDirectory(workingDirectory);
 
     mLastStartMs = QDateTime::currentMSecsSinceEpoch();
@@ -188,6 +340,29 @@ QString Launcher::ServerDialog::displayAddress() const
 QString Launcher::ServerDialog::configuredPort() const
 {
     return readServerConfig().port;
+}
+
+bool Launcher::ServerDialog::setConfiguredPort(const QString& port, QString* errorMessage)
+{
+    bool portOk = false;
+    const uint parsedPort = port.trimmed().toUInt(&portOk);
+    if (!portOk || parsedPort == 0 || parsedPort > 65535)
+    {
+        if (errorMessage)
+            *errorMessage = tr("Port must be a number from 1 to 65535.");
+        return false;
+    }
+
+    QString preparationError;
+    if (!preparePortableServer(&preparationError))
+    {
+        if (errorMessage)
+            *errorMessage = preparationError;
+        return false;
+    }
+
+    return setIniValue(readServerConfig().configPath, QStringLiteral("General"),
+        QStringLiteral("port"), QString::number(parsedPort), errorMessage);
 }
 
 bool Launcher::ServerDialog::autoRestartEnabled() const
@@ -332,19 +507,20 @@ Launcher::ServerDialog::ServerConfig Launcher::ServerDialog::readServerConfig() 
     ServerConfig result;
     result.localAddress = QStringLiteral("0.0.0.0");
     result.port = QStringLiteral("25565");
-    const QDir baseDir(applicationBasePath());
-    const QDir userDir(baseDir.filePath(QStringLiteral("userdata")));
 
-    result.serverHomePath = baseDir.filePath(QStringLiteral("server"));
+    const QDir serverBaseDir(serverRuntimeBasePath());
+    const QDir userDir(QDir(runtimeDataBasePath()).filePath(QStringLiteral("userdata")));
+    result.serverHomePath = serverBaseDir.filePath(QStringLiteral("server"));
     result.configPath = userDir.filePath(QStringLiteral("tes3mp-server.cfg"));
 
-    // Load from lowest to highest priority. Userdata config is last, so
-    // launcher-side server settings prefer the same portable userdata folder
-    // as the game and wizard settings.
+    QString configuredPluginHome = QStringLiteral("./server");
+
+    // Load from lowest to highest priority. The server scripts always come
+    // from the bundled server directory; userdata contains only the cfg file.
     QStringList configCandidates;
-    configCandidates << baseDir.filePath(QStringLiteral("tes3mp-server-default.cfg"))
+    configCandidates << serverBaseDir.filePath(QStringLiteral("tes3mp-server-default.cfg"))
                      << userDir.filePath(QStringLiteral("tes3mp-server-default.cfg"))
-                     << baseDir.filePath(QStringLiteral("tes3mp-server.cfg"))
+                     << serverBaseDir.filePath(QStringLiteral("tes3mp-server.cfg"))
                      << userDir.filePath(QStringLiteral("tes3mp-server.cfg"));
 
     for (const QString& configPath : configCandidates)
@@ -353,7 +529,7 @@ Launcher::ServerDialog::ServerConfig Launcher::ServerDialog::readServerConfig() 
         if (!file.exists() || !file.open(QIODevice::ReadOnly | QIODevice::Text))
             continue;
 
-        result.configPath = configPath;
+        result.configPath = QFileInfo(configPath).absoluteFilePath();
 
         QString currentSection;
         QTextStream in(&file);
@@ -384,18 +560,64 @@ Launcher::ServerDialog::ServerConfig Launcher::ServerDialog::readServerConfig() 
             }
             else if (currentSection == QLatin1String("Plugins") && key == QLatin1String("home"))
             {
-                result.serverHomePath = value;
+                configuredPluginHome = value;
             }
         }
     }
 
-    if (QDir::isRelativePath(result.serverHomePath))
-        result.serverHomePath = baseDir.absoluteFilePath(result.serverHomePath);
+    if (QDir::isRelativePath(configuredPluginHome))
+        result.serverHomePath = serverBaseDir.absoluteFilePath(configuredPluginHome);
     else
-        result.serverHomePath = QDir(result.serverHomePath).absolutePath();
+        result.serverHomePath = QDir(configuredPluginHome).absolutePath();
+
+    // Do not allow a legacy portable config to redirect the launcher back to
+    // userdata/server. That directory is no longer an active server tree.
+    const QString legacyServerPath = QDir(userDir.absolutePath()).absoluteFilePath(QStringLiteral("server"));
+    if (QDir::cleanPath(result.serverHomePath) == QDir::cleanPath(legacyServerPath))
+        result.serverHomePath = serverBaseDir.filePath(QStringLiteral("server"));
 
     result.configPath = QFileInfo(result.configPath).absoluteFilePath();
     return result;
+}
+
+bool Launcher::ServerDialog::preparePortableServer(QString* errorMessage) const
+{
+    const QDir serverBaseDir(serverRuntimeBasePath());
+    const QString bundledServerPath = serverBaseDir.filePath(QStringLiteral("server"));
+    const QString bundledCore = QDir(bundledServerPath).filePath(QStringLiteral("scripts/serverCore.lua"));
+    const QString bundledConfig = QDir(bundledServerPath).filePath(QStringLiteral("scripts/config.lua"));
+    const QString bundledVersion = QDir(bundledServerPath).filePath(QStringLiteral("ARENAMP_CORE_VERSION.txt"));
+
+    if (!QFileInfo::exists(bundledCore) || !QFileInfo::exists(bundledConfig)
+        || !QFileInfo::exists(bundledVersion))
+    {
+        if (errorMessage)
+            *errorMessage = tr("The bundled ArenaMP server core is incomplete: %1")
+                .arg(QDir::toNativeSeparators(bundledServerPath));
+        return false;
+    }
+
+    const QString userDataPath = QDir(runtimeDataBasePath()).filePath(QStringLiteral("userdata"));
+    if (!QDir().mkpath(userDataPath))
+    {
+        if (errorMessage)
+            *errorMessage = tr("Could not create userdata directory: %1")
+                .arg(QDir::toNativeSeparators(userDataPath));
+        return false;
+    }
+
+    const QString userConfigPath = QDir(userDataPath).filePath(QStringLiteral("tes3mp-server.cfg"));
+    if (!QFileInfo::exists(userConfigPath))
+    {
+        const QString defaultConfigPath = serverBaseDir.filePath(QStringLiteral("tes3mp-server-default.cfg"));
+        if (!copyFileReplacing(defaultConfigPath, userConfigPath, errorMessage))
+            return false;
+    }
+
+    // Keep the editable cfg in userdata, but always run the bundled server
+    // tree. No files or directories are created under userdata/server.
+    return setIniValue(userConfigPath, QStringLiteral("Plugins"), QStringLiteral("home"),
+        QStringLiteral("./server"), errorMessage);
 }
 
 QString Launcher::ServerDialog::resolveServerExecutable() const
@@ -479,9 +701,28 @@ QString Launcher::ServerDialog::applicationBasePath() const
     return QCoreApplication::applicationDirPath();
 }
 
+QString Launcher::ServerDialog::serverRuntimeBasePath() const
+{
+#ifdef Q_OS_MAC
+    return QDir(applicationBasePath()).absoluteFilePath(QStringLiteral("../Resources"));
+#else
+    return applicationBasePath();
+#endif
+}
+
+QString Launcher::ServerDialog::runtimeDataBasePath() const
+{
+#ifdef Q_OS_MAC
+    const QString writablePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!writablePath.isEmpty())
+        return writablePath;
+#endif
+    return applicationBasePath();
+}
+
 QString Launcher::ServerDialog::backupDirectoryPath() const
 {
-    QDir dir(applicationBasePath());
+    QDir dir(runtimeDataBasePath());
     const QString backupPath = dir.absoluteFilePath(QStringLiteral("Backup"));
     QDir().mkpath(backupPath);
     return backupPath;
@@ -591,7 +832,7 @@ void Launcher::ServerDialog::cleanupOldLogsIfNeeded()
 
     mRestartCounter = 0;
 
-    QDir logDir(QDir(applicationBasePath()).absoluteFilePath(QStringLiteral("userdata")));
+    QDir logDir(QDir(runtimeDataBasePath()).absoluteFilePath(QStringLiteral("userdata")));
     if (!logDir.exists())
         return;
 

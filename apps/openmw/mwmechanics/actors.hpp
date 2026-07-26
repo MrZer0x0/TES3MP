@@ -65,6 +65,9 @@ namespace MWMechanics
 
             void predictAndAvoidCollisions(float duration);
 
+            void updateDynamicIdleActor(const MWWorld::Ptr& ptr, Actor& actorState, float duration);
+            void stopDynamicIdleActor(const MWWorld::Ptr& ptr, Actor& actorState, bool immediate);
+
         public:
 
             Actors();

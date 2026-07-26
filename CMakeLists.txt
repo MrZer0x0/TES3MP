@@ -5,6 +5,14 @@ if(POLICY CMP0141)
     cmake_policy(SET CMP0141 NEW)
 endif()
 
+# This legacy branch relies on CMake's FindBoost module. CMake 3.30+ prefers
+# BoostConfig through CMP0167, but Homebrew Boost 1.90 no longer provides a
+# separate Boost.System library. Keep the legacy finder explicitly instead of
+# relying on CMake's policy fallback warning.
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+endif()
+
 project(OpenMW LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -165,6 +173,8 @@ ENDIF()
 
 # OS X deployment
 option(OPENMW_OSX_DEPLOYMENT OFF)
+option(OPENMW_OSX_USE_IMAGEIO_PLUGIN "Use osgdb_imageio instead of separate JPEG/PNG OSG plugins on macOS" OFF)
+set(OPENMW_OSX_BUNDLE_SEARCH_DIRS "" CACHE STRING "Additional dependency directories used by BundleUtilities on macOS")
 
 if (MSVC)
     option(OPENMW_MP_BUILD "Build OpenMW with /MP flag" OFF)
@@ -242,6 +252,17 @@ set(USED_OSG_PLUGINS
     osgdb_png
     osgdb_serializers_osg
     osgdb_tga)
+
+# Homebrew OpenSceneGraph on macOS uses Apple's ImageIO plugin as the
+# default image loader instead of shipping separate osgdb_jpeg/osgdb_png
+# modules.  Keep the legacy list for other platforms and OSG builds, but
+# allow the macOS packaging workflow to select the plugin that actually
+# exists in the Homebrew bottle.
+if(APPLE AND OPENMW_OSX_USE_IMAGEIO_PLUGIN)
+    list(REMOVE_ITEM USED_OSG_PLUGINS osgdb_jpeg osgdb_png)
+    list(APPEND USED_OSG_PLUGINS osgdb_imageio)
+    message(STATUS "ArenaMP macOS: using osgdb_imageio for JPEG/PNG support")
+endif()
 # Start of tes3mp addition
 #
 # Don't require certain dependencies for the server
@@ -428,7 +449,17 @@ ELSE(BUILD_OPENMW OR BUILD_OPENCS)
 ENDIF(BUILD_OPENMW OR BUILD_OPENCS)
 # End of tes3mp addition
 
-set(BOOST_COMPONENTS system filesystem program_options iostreams)
+set(BOOST_COMPONENTS filesystem program_options iostreams)
+if(APPLE)
+    # Homebrew Boost 1.90+ no longer ships Boost.System as a separate
+    # library on macOS. This legacy project uses CMake's FindBoost module,
+    # which otherwise fails with "Could NOT find Boost (missing: system)".
+    # Boost.System is header-only, so do not request or link a component
+    # library on Apple platforms.
+    add_definitions(-DBOOST_ERROR_CODE_HEADER_ONLY -DBOOST_SYSTEM_NO_LIB)
+else()
+    list(INSERT BOOST_COMPONENTS 0 system)
+endif()
 if(WIN32)
     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} locale)
     if(MSVC)
@@ -830,6 +861,36 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
 
     install(DIRECTORY "${APP_BUNDLE_DIR}" USE_SOURCE_PERMISSIONS DESTINATION "." COMPONENT Runtime)
 
+    # Bundle the ArenaMP server core as application resources, not beside the
+    # Mach-O executables. A plain data directory under Contents/MacOS is treated
+    # by codesign as nested code and breaks sealing of openmw-launcher.
+    install(DIRECTORY "${OpenMW_SOURCE_DIR}/server/"
+            USE_SOURCE_PERMISSIONS
+            DESTINATION "${APP_BUNDLE_NAME}/Contents/Resources/server"
+            COMPONENT Runtime
+            PATTERN "*.dll" EXCLUDE
+            PATTERN ".gitignore" EXCLUDE
+            PATTERN ".gitkeep" EXCLUDE)
+
+    # MyGUI 3.4.2 is produced as a framework on macOS and its LC_LOAD_DYLIB
+    # install name points to @executable_path/../lib/MyGUIEngine.framework.
+    # BundleUtilities treats that path as already embedded and will not copy the
+    # source framework automatically, so install it before fixup_bundle scans.
+    set(OPENMW_OSX_MYGUI_FRAMEWORK "")
+    if (DEFINED MyGUI_LIBRARY AND IS_DIRECTORY "${MyGUI_LIBRARY}" AND "${MyGUI_LIBRARY}" MATCHES "\\.framework$")
+        set(OPENMW_OSX_MYGUI_FRAMEWORK "${MyGUI_LIBRARY}")
+        install(DIRECTORY "${OPENMW_OSX_MYGUI_FRAMEWORK}"
+                USE_SOURCE_PERMISSIONS
+                DESTINATION "${APP_BUNDLE_NAME}/Contents/lib"
+                COMPONENT Runtime)
+        if (BUILD_OPENCS)
+            install(DIRECTORY "${OPENMW_OSX_MYGUI_FRAMEWORK}"
+                    USE_SOURCE_PERMISSIONS
+                    DESTINATION "${OPENCS_BUNDLE_NAME}/Contents/lib"
+                    COMPONENT Runtime)
+        endif()
+    endif()
+
     set(CPACK_GENERATOR "DragNDrop")
     set(CPACK_PACKAGE_VERSION ${OPENMW_VERSION})
     set(CPACK_PACKAGE_VERSION_MAJOR ${OPENMW_VERSION_MAJOR})
@@ -867,7 +928,7 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
         set(ABSOLUTE_PLUGINS ${PLUGIN_ABS} ${ABSOLUTE_PLUGINS})
     endforeach ()
 
-    set(OSG_PLUGIN_PREFIX_DIR "osgPlugins-${OPENSCENEGRAPH_VERSION}")
+    set(OSG_PLUGIN_PREFIX_DIR "osgPlugins")
 
     # installs used plugins in bundle at given path (bundle_path must be relative to ${CMAKE_INSTALL_PREFIX})
     # and returns list of install paths for all installed plugins
@@ -900,28 +961,68 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
         set(OPENCS_PLUGINS ${OPENCS_PLUGINS} "${INSTALLED_OPENCS_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
     endif()
 
-    install(CODE "
+    set(OPENMW_FIXUP_INSTALL_CODE [=[
         function(gp_item_default_embedded_path_override item default_embedded_path_var)
-            if (\${item} MATCHES ${OSG_PLUGIN_PREFIX_DIR})
-                set(path \"@executable_path/../PlugIns/${OSG_PLUGIN_PREFIX_DIR}\")
-                set(\${default_embedded_path_var} \"\${path}\" PARENT_SCOPE)
+            if ("${item}" MATCHES "@OSG_PLUGIN_PREFIX_DIR@")
+                set(path "@executable_path/../PlugIns/@OSG_PLUGIN_PREFIX_DIR@")
+                set(${default_embedded_path_var} "${path}" PARENT_SCOPE)
             endif()
         endfunction()
 
-        fixup_bundle(\"${INSTALLED_OPENMW_APP}\" \"${PLUGINS}\" \"\")
-        " COMPONENT Runtime)
+        function(remove_staging_mygui_framework app_path)
+            set(staging_framework "${app_path}/Contents/lib/MyGUIEngine.framework")
+            set(bundled_framework "${app_path}/Contents/Frameworks/MyGUIEngine.framework")
+            if (EXISTS "${staging_framework}")
+                file(GLOB bundled_mygui_binaries "${bundled_framework}/Versions/*/MyGUIEngine")
+                if (NOT bundled_mygui_binaries)
+                    message(FATAL_ERROR "BundleUtilities did not create the final MyGUI framework in ${bundled_framework}")
+                endif()
+                file(REMOVE_RECURSE "${staging_framework}")
+                file(GLOB remaining_lib_entries "${app_path}/Contents/lib/*")
+                if (NOT remaining_lib_entries)
+                    file(REMOVE_RECURSE "${app_path}/Contents/lib")
+                endif()
+                message(STATUS "Removed temporary MyGUI framework after BundleUtilities fixup: ${staging_framework}")
+            endif()
+        endfunction()
+
+        fixup_bundle("@INSTALLED_OPENMW_APP@" "@PLUGINS@" "@OPENMW_OSX_BUNDLE_SEARCH_DIRS@")
+        remove_staging_mygui_framework("@INSTALLED_OPENMW_APP@")
+    ]=])
+    string(CONFIGURE "${OPENMW_FIXUP_INSTALL_CODE}" OPENMW_FIXUP_INSTALL_CODE @ONLY)
+    install(CODE "${OPENMW_FIXUP_INSTALL_CODE}" COMPONENT Runtime)
 
     if(BUILD_OPENCS)
-        install(CODE "
+        set(OPENCS_FIXUP_INSTALL_CODE [=[
             function(gp_item_default_embedded_path_override item default_embedded_path_var)
-                if (\${item} MATCHES ${OSG_PLUGIN_PREFIX_DIR})
-                    set(path \"@executable_path/../PlugIns/${OSG_PLUGIN_PREFIX_DIR}\")
-                    set(\${default_embedded_path_var} \"\${path}\" PARENT_SCOPE)
+                if ("${item}" MATCHES "@OSG_PLUGIN_PREFIX_DIR@")
+                    set(path "@executable_path/../PlugIns/@OSG_PLUGIN_PREFIX_DIR@")
+                    set(${default_embedded_path_var} "${path}" PARENT_SCOPE)
                 endif()
             endfunction()
 
-            fixup_bundle(\"${INSTALLED_OPENCS_APP}\" \"${OPENCS_PLUGINS}\" \"\")
-            " COMPONENT Runtime)
+            function(remove_staging_mygui_framework app_path)
+                set(staging_framework "${app_path}/Contents/lib/MyGUIEngine.framework")
+                set(bundled_framework "${app_path}/Contents/Frameworks/MyGUIEngine.framework")
+                if (EXISTS "${staging_framework}")
+                    file(GLOB bundled_mygui_binaries "${bundled_framework}/Versions/*/MyGUIEngine")
+                    if (NOT bundled_mygui_binaries)
+                        message(FATAL_ERROR "BundleUtilities did not create the final MyGUI framework in ${bundled_framework}")
+                    endif()
+                    file(REMOVE_RECURSE "${staging_framework}")
+                    file(GLOB remaining_lib_entries "${app_path}/Contents/lib/*")
+                    if (NOT remaining_lib_entries)
+                        file(REMOVE_RECURSE "${app_path}/Contents/lib")
+                    endif()
+                    message(STATUS "Removed temporary MyGUI framework after BundleUtilities fixup: ${staging_framework}")
+                endif()
+            endfunction()
+
+            fixup_bundle("@INSTALLED_OPENCS_APP@" "@OPENCS_PLUGINS@" "@OPENMW_OSX_BUNDLE_SEARCH_DIRS@")
+            remove_staging_mygui_framework("@INSTALLED_OPENCS_APP@")
+        ]=])
+        string(CONFIGURE "${OPENCS_FIXUP_INSTALL_CODE}" OPENCS_FIXUP_INSTALL_CODE @ONLY)
+        install(CODE "${OPENCS_FIXUP_INSTALL_CODE}" COMPONENT Runtime)
     endif()
     include(CPack)
 elseif(NOT APPLE)
@@ -960,6 +1061,11 @@ elseif(NOT APPLE)
         # Start of tes3mp addition
         INSTALL(FILES "${INSTALL_SOURCE}/tes3mp-client-default.cfg" DESTINATION ".")
         INSTALL(FILES "${INSTALL_SOURCE}/tes3mp-server-default.cfg" DESTINATION ".")
+        INSTALL(DIRECTORY "${OpenMW_SOURCE_DIR}/server/"
+                USE_SOURCE_PERMISSIONS
+                DESTINATION "server"
+                PATTERN ".gitignore" EXCLUDE
+                PATTERN ".gitkeep" EXCLUDE)
         # End of tes3mp addition
         INSTALL(FILES "${INSTALL_SOURCE}/gamecontrollerdb.txt" DESTINATION ".")
 
@@ -1106,6 +1212,13 @@ elseif(NOT APPLE)
         # Start of tes3mp addition
         INSTALL(FILES "${INSTALL_SOURCE}/tes3mp-client-default.cfg" DESTINATION "${SYSCONFDIR}" COMPONENT "openmw")
         INSTALL(FILES "${INSTALL_SOURCE}/tes3mp-server-default.cfg" DESTINATION "${SYSCONFDIR}" COMPONENT "openmw-mp")
+        INSTALL(DIRECTORY "${OpenMW_SOURCE_DIR}/server/"
+                USE_SOURCE_PERMISSIONS
+                DESTINATION "${DATADIR}/server"
+                COMPONENT "openmw-mp"
+                PATTERN "*.dll" EXCLUDE
+                PATTERN ".gitignore" EXCLUDE
+                PATTERN ".gitkeep" EXCLUDE)
         # End of tes3mp addition
 
         IF(BUILD_OPENCS)

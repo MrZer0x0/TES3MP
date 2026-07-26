@@ -28,6 +28,7 @@ namespace Launcher
         bool isServerReachable(int timeoutMs = 300) const;
         QString displayAddress() const;
         QString configuredPort() const;
+        bool setConfiguredPort(const QString& port, QString* errorMessage = nullptr);
         bool autoRestartEnabled() const;
         void setAutoRestartEnabled(bool enabled);
 
@@ -60,9 +61,12 @@ namespace Launcher
         void updateLogView();
         QTextCodec* currentCodec() const;
         ServerConfig readServerConfig() const;
+        bool preparePortableServer(QString* errorMessage = nullptr) const;
         QString resolveServerExecutable() const;
         QString resolveDisplayAddress(const QString& bindAddress) const;
         QString applicationBasePath() const;
+        QString serverRuntimeBasePath() const;
+        QString runtimeDataBasePath() const;
         QString backupDirectoryPath() const;
         QString makeBackupArchivePath() const;
         bool startBackupArchive(QString* errorMessage = nullptr);

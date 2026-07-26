@@ -694,6 +694,57 @@
                 </widget>
                </item>
                <item>
+                <widget class="QGroupBox" name="arenaMechanicsGroupBox">
+                 <property name="title">
+                  <string>ArenaMP NPC and combat mechanics</string>
+                 </property>
+                 <layout class="QGridLayout" name="arenaMechanicsGridLayout">
+                  <property name="horizontalSpacing"><number>16</number></property>
+                  <property name="verticalSpacing"><number>5</number></property>
+                  <item row="0" column="0" colspan="2">
+                   <widget class="QCheckBox" name="arenaTacticalCombatCheckBox">
+                    <property name="text"><string>Tactical NPC combat</string></property>
+                    <property name="toolTip"><string>Enable ArenaMP strafing, circling, retreats, dodge jumps and stuck recovery while AiCombat stays active.</string></property>
+                   </widget>
+                  </item>
+                  <item row="0" column="2" colspan="2">
+                   <widget class="QCheckBox" name="arenaCombatPursuitThroughDoorsCheckBox">
+                    <property name="text"><string>Hostile NPC pursuit through doors</string></property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0"><widget class="QLabel" name="label_arenaPursuitGuaranteed"><property name="text"><string>Guaranteed distance</string></property></widget></item>
+                  <item row="1" column="1"><widget class="QSpinBox" name="arenaCombatPursuitGuaranteedDistanceSpinBox"><property name="maximum"><number>100000</number></property><property name="suffix"><string> units</string></property></widget></item>
+                  <item row="1" column="2"><widget class="QLabel" name="label_arenaPursuitDoorMax"><property name="text"><string>Door maximum distance</string></property></widget></item>
+                  <item row="1" column="3"><widget class="QSpinBox" name="arenaCombatPursuitDoorMaxDistanceSpinBox"><property name="maximum"><number>100000</number></property><property name="suffix"><string> units</string></property></widget></item>
+                  <item row="2" column="0"><widget class="QLabel" name="label_arenaPursuitChance"><property name="text"><string>Minimum pursuit chance</string></property></widget></item>
+                  <item row="2" column="1"><widget class="QDoubleSpinBox" name="arenaCombatPursuitMinimumChanceDoubleSpinBox"><property name="decimals"><number>2</number></property><property name="maximum"><double>1.000000000000000</double></property><property name="singleStep"><double>0.050000000000000</double></property></widget></item>
+                  <item row="2" column="2"><widget class="QLabel" name="label_arenaPursuitMaxActors"><property name="text"><string>Maximum door pursuers</string></property></widget></item>
+                  <item row="2" column="3"><widget class="QSpinBox" name="arenaCombatPursuitMaxActorsSpinBox"><property name="maximum"><number>100</number></property></widget></item>
+                  <item row="3" column="0"><widget class="QLabel" name="label_arenaPursuitLeash"><property name="text"><string>Same-cell pursuit leash</string></property></widget></item>
+                  <item row="3" column="1"><widget class="QSpinBox" name="arenaCombatPursuitMaxDistanceSpinBox"><property name="maximum"><number>1000000</number></property><property name="specialValueText"><string>Unlimited</string></property><property name="suffix"><string> units</string></property></widget></item>
+                  <item row="3" column="2"><widget class="QLabel" name="label_arenaSheatheDelay"><property name="text"><string>Weapon sheathe delay</string></property></widget></item>
+                  <item row="3" column="3"><widget class="QDoubleSpinBox" name="arenaCombatWeaponSheatheDelayDoubleSpinBox"><property name="decimals"><number>1</number></property><property name="maximum"><double>60.000000000000000</double></property><property name="singleStep"><double>0.500000000000000</double></property><property name="suffix"><string> sec</string></property></widget></item>
+                  <item row="4" column="0" colspan="2"><widget class="QCheckBox" name="arenaFollowersAttackOnSightCheckBox"><property name="text"><string>Followers defend immediately</string></property></widget></item>
+                  <item row="4" column="2" colspan="2"><widget class="QCheckBox" name="arenaAllowActorsFollowOverWaterCheckBox"><property name="text"><string>Allow NPC following over water</string></property></widget></item>
+                  <item row="5" column="0" colspan="2"><widget class="QCheckBox" name="arenaNpcAvoidCollisionsCheckBox"><property name="text"><string>NPCs avoid collisions</string></property></widget></item>
+                  <item row="5" column="2" colspan="2"><widget class="QCheckBox" name="arenaNpcGiveWayCheckBox"><property name="text"><string>NPCs give way</string></property></widget></item>
+                  <item row="6" column="0" colspan="2"><widget class="QCheckBox" name="arenaLongBladesUseAgilityCheckBox"><property name="text"><string>Long blades use Agility scaling</string></property></widget></item>
+                  <item row="6" column="2" colspan="2"><widget class="QCheckBox" name="arenaTwoHandedAccuracyPenaltyCheckBox"><property name="text"><string>Two-handed accuracy penalty</string></property></widget></item>
+                  <item row="7" column="0" colspan="2"><widget class="QCheckBox" name="arenaStavesAccuracyBonusCheckBox"><property name="text"><string>Staves use accuracy bonus</string></property></widget></item>
+                  <item row="7" column="2" colspan="2"><widget class="QCheckBox" name="arenaSkillBooksLevelLimitCheckBox"><property name="text"><string>Skill books have level limits</string></property></widget></item>
+                  <item row="8" column="0" colspan="2"><widget class="QCheckBox" name="arenaNewConstantEffectDifficultyCheckBox"><property name="text"><string>New constant-effect difficulty</string></property></widget></item>
+                  <item row="8" column="2"><widget class="QLabel" name="label_arenaXpMultiplier"><property name="text"><string>Global XP multiplier</string></property></widget></item>
+                  <item row="8" column="3"><widget class="QDoubleSpinBox" name="arenaGlobalXpMultiplierDoubleSpinBox"><property name="decimals"><number>2</number></property><property name="minimum"><double>0.010000000000000</double></property><property name="maximum"><double>100.000000000000000</double></property><property name="singleStep"><double>0.100000000000000</double></property></widget></item>
+                  <item row="9" column="0"><widget class="QLabel" name="label_arenaActorsProcessingRange"><property name="text"><string>Actor processing range</string></property></widget></item>
+                  <item row="9" column="1"><widget class="QSpinBox" name="arenaActorsProcessingRangeSpinBox"><property name="minimum"><number>500</number></property><property name="maximum"><number>1000000</number></property><property name="suffix"><string> units</string></property></widget></item>
+                  <item row="9" column="2" colspan="2"><widget class="QCheckBox" name="arenaCanLootDuringDeathAnimationCheckBox"><property name="text"><string>Loot during death animation</string></property></widget></item>
+                  <item row="10" column="0" colspan="2"><widget class="QCheckBox" name="arenaWeaponSheathingCheckBox"><property name="text"><string>Weapon sheathing</string></property></widget></item>
+                  <item row="10" column="2" colspan="2"><widget class="QCheckBox" name="arenaShieldSheathingCheckBox"><property name="text"><string>Shield sheathing</string></property></widget></item>
+                  <item row="11" column="0" colspan="2"><widget class="QCheckBox" name="arenaGraphicHerbalismCheckBox"><property name="text"><string>Graphic herbalism</string></property></widget></item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
                 <widget class="QGroupBox" name="sharingGroupBox">
                  <property name="title">
                   <string>Shared progress</string>

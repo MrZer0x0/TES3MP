@@ -11,7 +11,6 @@
 #include "../Networking.hpp"
 #include "../Main.hpp"
 #include "../LocalPlayer.hpp"
-#include "../tts/ChatTtsManager.hpp"
 
 #include "../GUIController.hpp"
 
@@ -172,11 +171,6 @@ namespace mwmp
         Networking *networking = Main::get().getNetworking();
 
         localPlayer->chatMessage = str;
-
-        // Queue the local character immediately. Do not wait for the server echo:
-        // system messages and player messages share ID_CHAT_MESSAGE in TES3MP.
-        if (Main::get().getChatTtsManager())
-            Main::get().getChatTtsManager()->enqueueLocal(*localPlayer, str);
 
         networking->getPlayerPacket(ID_CHAT_MESSAGE)->setPlayer(localPlayer);
         networking->getPlayerPacket(ID_CHAT_MESSAGE)->Send();

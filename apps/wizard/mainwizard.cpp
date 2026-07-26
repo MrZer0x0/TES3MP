@@ -231,6 +231,23 @@ Wizard::MainWizard::MainWizard(QWidget *parent) :
         const boost::filesystem::path& dataPath = installationPath / "Data Files";
         addInstallation(toQString(dataPath), false);
     }
+
+    // When the Wizard is started again for an existing portable build, load its
+    // manifest immediately instead of waiting for a page-change signal. This
+    // keeps every build.ini value authoritative throughout the whole run.
+    QStringList manifestInstallations;
+    for (auto it = mInstallations.constBegin(); it != mInstallations.constEnd(); ++it)
+    {
+        if (!Config::BuildManifest::findForDataDir(it.key()).isEmpty())
+            manifestInstallations.append(it.key());
+    }
+    if (manifestInstallations.size() == 1)
+    {
+        const QString path = manifestInstallations.constFirst();
+        setField(QStringLiteral("installation.path"), path);
+        configureDataFiles(path);
+        addLogText(tr("Automatically applied build.ini for the detected build: %1").arg(path));
+    }
 }
 
 Wizard::MainWizard::~MainWizard()
@@ -639,11 +656,16 @@ bool Wizard::MainWizard::loadBuildManifest(const QString& dataFilesPath)
         mGameSettings.setValue(QStringLiteral("encoding"), encodingForLanguage(mBuildLanguage));
     }
 
+    mLauncherSettings.setValue(QStringLiteral("General/Build/name"), mBuildName);
+    mLauncherSettings.setValue(QStringLiteral("General/Server/vanillaBuild"),
+        manifest.vanillaServerCompatibility ? QStringLiteral("true") : QStringLiteral("false"));
+    writeClientEndpoint(mBuildServerAddress, mBuildServerPort);
+
     const bool hasOrderedConfiguration = !manifest.contentFiles.isEmpty()
         || !manifest.groundcoverFiles.isEmpty() || !manifest.archives.isEmpty();
     if (!hasOrderedConfiguration)
     {
-        addLogText(tr("The detected build.ini does not contain content, groundcover or archive entries; automatic detection will be used."));
+        addLogText(tr("The detected build.ini does not contain content, groundcover or archive entries; its build, language, data path and server settings were applied, and content will be detected automatically."));
         return false;
     }
 
@@ -658,8 +680,6 @@ bool Wizard::MainWizard::loadBuildManifest(const QString& dataFilesPath)
     mLauncherSettings.setContentList(mBuildName, profileFiles, manifest.groundcoverFiles,
         !manifest.groundcoverFiles.isEmpty());
     mLauncherSettings.setCurrentContentListName(mBuildName);
-    mLauncherSettings.setValue(QStringLiteral("General/Build/name"), mBuildName);
-    writeClientEndpoint(mBuildServerAddress, mBuildServerPort);
 
     addLogText(tr("Loaded build manifest: %1").arg(manifestPath));
     return true;
@@ -899,11 +919,28 @@ void Wizard::MainWizard::importerStarted()
 
 void Wizard::MainWizard::importerFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    if (exitCode != 0 || exitStatus == QProcess::CrashExit)
+    const QString path = field(QStringLiteral("installation.path")).toString();
+    const QString manifestPath = Config::BuildManifest::findForDataDir(path);
+    const bool importerSucceeded = exitCode == 0 && exitStatus != QProcess::CrashExit;
+
+    // Even a failed importer can leave a partially rewritten openmw.cfg. When
+    // this is a portable build, always restore every authoritative build.ini
+    // value and its exact plugin/groundcover/archive order before continuing.
+    if (!importerSucceeded && manifestPath.isEmpty())
         return;
 
-    // Re-read the settings
+    // The legacy importer may reorder content and fallback archives. Re-read
+    // whatever it wrote, then make build.ini authoritative again and persist
+    // the exact settings stored by the build author.
     setupGameSettings();
+    if (!path.isEmpty())
+        configureDataFiles(path);
+    writeSettings();
+
+    if (importerSucceeded)
+        addLogText(tr("Reapplied every build.ini setting after Morrowind.ini import, including exact content, groundcover and archive order."));
+    else
+        addLogText(tr("The Morrowind.ini importer failed, but build.ini was reapplied to restore every setting and the exact file order."));
 }
 
 void Wizard::MainWizard::accept()

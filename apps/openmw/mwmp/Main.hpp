@@ -12,7 +12,6 @@ namespace mwmp
     class LocalSystem;
     class LocalPlayer;
     class Networking;
-    class ChatTtsManager;
 
     class Main
     {
@@ -41,7 +40,6 @@ namespace mwmp
         LocalPlayer *getLocalPlayer() const;
         GUIController *getGUIController() const;
         CellController *getCellController() const;
-        ChatTtsManager *getChatTtsManager() const;
 
         void updateWorld(float dt) const;
 
@@ -62,7 +60,6 @@ namespace mwmp
 
         GUIController *mGUIController;
         CellController *mCellController;
-        ChatTtsManager *mChatTtsManager;
 
         std::string server;
         unsigned short port;

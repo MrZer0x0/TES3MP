@@ -248,6 +248,10 @@ namespace MWRender
 
     private:
         void updateProjectionMatrix();
+        void updateLandOptimization(float frameDuration, bool paused);
+        void updateLandOptimizationProfile();
+        void applyViewDistance(float distance);
+        void resetLandOptimization(bool restoreConfiguredDistance);
         void updateTextureFiltering();
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
@@ -310,6 +314,15 @@ namespace MWRender
 
         float mNearClip;
         float mViewDistance;
+        float mConfiguredViewDistance;
+        float mLandOptimizationDistance;
+        float mLandOptimizationTargetFps;
+        float mLandOptimizationMinDistance;
+        float mLandOptimizationTimer;
+        float mLandOptimizationFrameTime;
+        unsigned int mLandOptimizationFrameCount;
+        bool mLandOptimizationEnabled;
+        bool mLandOptimizationWasExterior;
         bool mFieldOfViewOverridden;
         float mFieldOfViewOverride;
         float mFieldOfView;

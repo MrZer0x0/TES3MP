@@ -1,4 +1,4 @@
-# ArenaMP
+# ArenaMP (Morrowind Online)
 
 ArenaMP is a next-generation fork of TES3MP 0.8.1 based on OpenMW 0.47.0.
 
@@ -241,15 +241,14 @@ ArenaMP includes multiple optimizations intended to reduce CPU and GPU overhead.
 - terrain, objects, NPCs, and interiors can be excluded from shadow casting;
 - scene bounds can be calculated from aggregate bounds rather than every primitive.
 
-### AI Optimization
+### Multiplayer AI Settings
 
-The server-side NPC controller uses time slicing:
+ArenaMP keeps NPC combat movement in the engine and synchronizes the selected
+mechanics from the bundled server `config.lua`. This avoids a high-frequency Lua
+loop issuing repeated AI packets for every actor. Pursuit distance, door pursuit,
+maximum pursuers, tactical combat and related actor rules can be changed from the
+launcher and are enforced identically for every connected client.
 
-- NPC updates are distributed across several timer slices;
-- a single NPC error does not stop the global update loop;
-- expensive discovery and cleanup work runs less frequently;
-- per-NPC cooldowns reduce repeated command traffic;
-- command timing jitter prevents all NPCs from updating simultaneously.
 
 ## Occlusion Culling
 
@@ -323,35 +322,32 @@ The engine-side combat controller can support:
 
 The goal is to keep the normal combat package active while performing movement maneuvers, instead of constantly replacing `StartCombat` with temporary travel packages.
 
-### Server-Side AI Controller
+### Bundled ArenaMP Server Core
 
-The optional server script also provides:
+Windows, GNU/Linux and macOS packages contain the same server scripts from the
+repository `server/` directory. Packaging no longer downloads a different
+CoreScripts revision. Windows includes the native Lua DLL modules from the
+provided core; Linux and macOS omit Windows DLLs and use the included portable
+Lua JSON implementation when a native CJSON module is unavailable.
 
-- multiple combat tactics;
-- target locking;
-- NPC scaling based on player level;
-- optional bounty-based scaling;
-- stamina-based tactical actions;
-- self-healing and ally healing;
-- critical-health retreat;
-- stuck detection;
-- follower protection;
-- leash and return behavior;
-- pursuit through doors;
-- quest-NPC exclusion;
-- configurable cooldowns and action probabilities.
+The launcher edits the active `server/scripts/config.lua` and exposes ArenaMP
+controls for:
 
-Script path:
+- tactical combat;
+- weapon sheathe delay;
+- pursuit through teleport doors;
+- guaranteed and maximum pursuit distances;
+- minimum pursuit chance and maximum number of pursuers;
+- same-cell pursuit leash;
+- follower aggression, collision avoidance and giving way;
+- following over water;
+- ArenaMP weapon, skill-book, enchantment and XP rules.
 
-```text
-server/scripts/custom/AI_NPC_Controller.lua
-```
-
-Enable it in `customScripts.lua`:
-
-```lua
-require("custom.AI_NPC_Controller")
-```
+On first server start the launcher creates an active copy under `userdata/server`.
+When the bundled core version changes, system scripts are updated while world
+JSON data, `scripts/custom`, `customScripts.lua` and existing scalar `config.lua`
+values are preserved. A backup of the previous config is retained beside it.
+See `server/ARENAMP_CONFIG.md` for the complete setting list.
 
 ### Pursuit Through Doors
 

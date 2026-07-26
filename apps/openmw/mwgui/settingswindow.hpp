@@ -39,6 +39,7 @@ namespace MWGui
             MyGUI::ComboBox* mWeaponSpellBoxMode;
             MyGUI::ComboBox* mQuickLootMode;
             MyGUI::ComboBox* mTerrainPreset;
+            MyGUI::ComboBox* mLandOptimizationMode;
             MyGUI::ComboBox* mShadowPreset;
             MyGUI::ComboBox* mShadowMapQuality;
 
@@ -68,11 +69,13 @@ namespace MWGui
             void onWeaponSpellBoxModeChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onQuickLootModeChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onTerrainPresetChanged(MyGUI::ComboBox* _sender, size_t pos);
+            void onLandOptimizationModeChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onShadowPresetChanged(MyGUI::ComboBox* _sender, size_t pos);
             void onShadowMapQualityChanged(MyGUI::ComboBox* _sender, size_t pos);
             void updateWeaponSpellBoxModeCombo();
             void updateQuickLootModeCombo();
             void updateTerrainPresetCombo();
+            void updateLandOptimizationModeCombo();
             void updateShadowCombos();
 
             void onRebindAction(MyGUI::Widget* _sender);

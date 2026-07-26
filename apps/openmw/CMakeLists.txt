@@ -106,9 +106,6 @@ add_openmw_dir (mwmp Main Networking LocalSystem LocalPlayer DedicatedPlayer Pla
 add_openmw_dir (mwmp/GUI GUIChat GUILogin PlayerMarkerCollection GUIDialogList TextInputDialog
     )
 
-add_openmw_dir (mwmp/tts ChatTtsManager ChatMessageParser LanguageDetector PcmDecoder PiperApi VoiceIdentity
-    )
-
 add_openmw_dir(mwmp/processors BaseClientPacketProcessor SystemProcessor PlayerProcessor ObjectProcessor ActorProcessor
     WorldstateProcessor ProcessorInitializer
     )
@@ -255,6 +252,12 @@ if(APPLE)
     configure_file("${OpenMW_BINARY_DIR}/openmw.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
     configure_file("${OpenMW_BINARY_DIR}/gamecontrollerdb.txt" ${BUNDLE_RESOURCES_DIR} COPYONLY)
 
+    # All macOS executables use ../Resources as their local configuration path.
+    # Ship both TES3MP defaults inside the app so the client, browser and server
+    # can start from a freshly unpacked bundle.
+    configure_file("${OpenMW_BINARY_DIR}/tes3mp-client-default.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
+    configure_file("${OpenMW_BINARY_DIR}/tes3mp-server-default.cfg" ${BUNDLE_RESOURCES_DIR} COPYONLY)
+
     add_custom_command(TARGET tes3mp
         POST_BUILD
         COMMAND cp "${OpenMW_BINARY_DIR}/resources/version" "${BUNDLE_RESOURCES_DIR}/resources")
@@ -264,9 +267,18 @@ if(APPLE)
     target_link_libraries(tes3mp ${COCOA_FRAMEWORK} ${IOKIT_FRAMEWORK})
 
     if (FFmpeg_FOUND)
+        # VideoDecodeAcceleration.framework was deprecated long ago and is not
+        # present in current macOS SDKs. FFmpeg uses VideoToolbox on modern
+        # Apple platforms; link only frameworks that actually exist.
         find_library(COREVIDEO_FRAMEWORK CoreVideo)
-        find_library(VDA_FRAMEWORK VideoDecodeAcceleration)
-        target_link_libraries(tes3mp z ${COREVIDEO_FRAMEWORK} ${VDA_FRAMEWORK})
+        find_library(VIDEOTOOLBOX_FRAMEWORK VideoToolbox)
+        target_link_libraries(tes3mp z)
+        if (COREVIDEO_FRAMEWORK)
+            target_link_libraries(tes3mp ${COREVIDEO_FRAMEWORK})
+        endif()
+        if (VIDEOTOOLBOX_FRAMEWORK)
+            target_link_libraries(tes3mp ${VIDEOTOOLBOX_FRAMEWORK})
+        endif()
     endif()
 endif(APPLE)
 
