@@ -33,8 +33,17 @@ namespace
     QString replaceConfigAssignment(const QString& text, const QString& key, const QString& value)
     {
         const QRegularExpression pattern(QStringLiteral("(^|\\n)(\\s*config\\.%1\\s*=\\s*)([^\\r\\n]+)").arg(QRegularExpression::escape(key)));
+        const QRegularExpressionMatch match = pattern.match(text);
+        if (!match.hasMatch())
+            return text;
+
+        // Only update the first, user-editable declaration. Several ArenaMP
+        // settings are assigned again later when their values are clamped. A
+        // global regular-expression replacement would replace the first line
+        // of a multi-line clamp call and leave its arguments behind as invalid
+        // Lua syntax.
         QString result = text;
-        result.replace(pattern, QStringLiteral("\\1\\2") + value);
+        result.replace(match.capturedStart(3), match.capturedLength(3), value);
         return result;
     }
 

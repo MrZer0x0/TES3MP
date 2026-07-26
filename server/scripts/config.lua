@@ -269,7 +269,7 @@ config.synchronizedClientScriptIds = {
 -- Location shown behind the login/register interface before authentication.
 -- "default" keeps the client hardcoded exterior cell 0, -7.
 -- Other examples: "0, 0", "Balmora", "Balmora, Guild of Mages".
-config.startLocation = "default"
+config.startLocation = "Seyda Neen"
 
 -- Whether the instanced spawn should be used instead of the noninstanced one
 config.useInstancedSpawn = true
