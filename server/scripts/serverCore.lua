@@ -14,6 +14,10 @@ end
 
 require("color")
 require("config")
+localization = require("localization")
+localization.LoadDictionary("core", "locales.core")
+localization.InstallWrappers()
+friendlyFire = require("friendlyFire")
 require("time")
 
 customEventHooks = require("customEventHooks")
@@ -183,6 +187,7 @@ function OnServerInit()
     local eventStatus = customEventHooks.triggerValidators("OnServerInit", {})
 
     if eventStatus.validDefaultHandler then
+        friendlyFire.Initialize()
         logicHandler.InitializeWorld()
 
         for priorityLevel, recordStoreTypes in ipairs(config.recordStoreLoadOrder) do

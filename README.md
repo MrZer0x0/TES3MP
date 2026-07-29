@@ -1,4 +1,4 @@
-# ArenaMP (Morrowind Online)
+# ArenaMP
 
 ArenaMP is a next-generation fork of TES3MP 0.8.1 based on OpenMW 0.47.0.
 

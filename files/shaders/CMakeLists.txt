@@ -9,6 +9,9 @@ set(DDIRRELATIVE resources/shaders)
 set(SHADER_FILES
     lib/water/ripples.glsl
     fullscreen_tri.vert
+    bloom_extract_horizontal.frag
+    bloom_vertical.frag
+    bloom_composite.frag
     ripples_blobber.frag
     ripples_simulate.frag
     groundcover_vertex.glsl

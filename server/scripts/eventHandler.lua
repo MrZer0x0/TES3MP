@@ -428,6 +428,8 @@ eventHandler.OnPlayerConnect = function(pid, playerName)
 
     Players[pid] = Player(pid, playerName)
     Players[pid].name = playerName
+    Players[pid].language = localization.GetLanguage(pid)
+    tes3mp.LogAppend(enumerations.log.INFO, "- Client language flag: " .. Players[pid].language)
     
     local eventStatus = customEventHooks.triggerValidators("OnPlayerConnect", {pid})
     
@@ -506,14 +508,13 @@ eventHandler.OnPlayerConnect = function(pid, playerName)
             table.insert(pidsByIpAddress[ipAddress], pid)
         end
 
-        message = "Welcome " .. playerName .. "\nYou have " .. tostring(config.loginTime) ..
-            " seconds to"
-
         if Players[pid]:HasAccount() then
-            message = message .. " log in.\n"
+            message = localization.Get(pid, "core", "welcome_login",
+                { name = playerName, seconds = config.loginTime })
             guiHelper.ShowLogin(pid)
         else
-            message = message .. " register.\n"
+            message = localization.Get(pid, "core", "welcome_register",
+                { name = playerName, seconds = config.loginTime })
             guiHelper.ShowRegister(pid)
         end
 
@@ -700,10 +701,11 @@ eventHandler.OnGUIAction = function(pid, idGui, data)
                         tes3mp.BanAddress(tes3mp.GetIP(pid))
                     else
                         Players[pid]:FinishLogin()
-                        Players[pid]:Message("You have successfully logged in.\n" .. config.chatWindowInstructions)
+                        Players[pid]:Message(localization.Get(pid, "core", "login_success") ..
+                            localization.Get(pid, "core", "chat_instructions"))
 
                         if WorldInstance:HasRunStartupScripts() == false then
-                            Players[pid]:Message(config.startupScriptsInstructions)
+                            Players[pid]:Message(localization.Get(pid, "core", "startup_welcome"))
                         end
                     end
                 elseif idGui == guiHelper.ID.REGISTER then
@@ -720,10 +722,11 @@ eventHandler.OnGUIAction = function(pid, idGui, data)
                         return
                     end
                     Players[pid]:Register(data)
-                    Players[pid]:Message("You have successfully registered.\n" .. config.chatWindowInstructions)
+                    Players[pid]:Message(localization.Get(pid, "core", "register_success") ..
+                        localization.Get(pid, "core", "chat_instructions"))
 
                     if WorldInstance:HasRunStartupScripts() == false then
-                        Players[pid]:Message(config.startupScriptsInstructions)
+                        Players[pid]:Message(localization.Get(pid, "core", "startup_welcome"))
                     end
                 end
             end

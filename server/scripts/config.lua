@@ -1,5 +1,15 @@
 config = {}
 
+-- Server message language. Keep this setting at the top so it is easy to find.
+-- "AUTO": use each client's detected RU/EN language.
+-- "RU": force Russian server messages for every client.
+-- "EN": force English server messages for every client.
+config.serverLanguage = "AUTO"
+
+-- Fallback used in AUTO mode before a client language is available.
+-- Supported fallback flags: EN and RU.
+config.defaultLanguage = "EN"
+
 -- The path used by the server for its data folder
 config.dataPath = tes3mp.GetDataPath()
 
@@ -73,6 +83,12 @@ config.arenaSkillBooksLevelLimit = true
 config.arenaNewConstantEffectDifficulty = true
 config.arenaGlobalXpMultiplier = 1.0
 
+-- Player-versus-player damage policy.
+-- "disabled": players cannot harm other players.
+-- "enabled":  all player-versus-player damage is allowed.
+-- "group":    damage is blocked only between allied players (/invite + /join).
+config.friendlyFireMode = "group"
+
 -- Keep values loaded from a manually edited config.lua inside the ranges that
 -- the ArenaMP engine and launcher support. Invalid values fall back to the
 -- defaults above instead of sending malformed settings to every client.
@@ -109,6 +125,36 @@ end
 config.arenaActorsProcessingRange = math.max(config.arenaActorsProcessingRange,
     config.arenaCombatPursuitDoorMaxDistance)
 config.arenaGlobalXpMultiplier = clampNumber(config.arenaGlobalXpMultiplier, 0.01, 100, 1.0)
+
+local serverLanguageAliases = {
+    auto = "AUTO", client = "AUTO", clients = "AUTO", detected = "AUTO",
+    ru = "RU", russian = "RU", ["ru-ru"] = "RU",
+    en = "EN", english = "EN", ["en-us"] = "EN", ["en-gb"] = "EN"
+}
+
+if type(config.serverLanguage) == "string" then
+    config.serverLanguage = serverLanguageAliases[string.lower(config.serverLanguage)] or "AUTO"
+else
+    config.serverLanguage = "AUTO"
+end
+
+if type(config.defaultLanguage) == "string" and string.upper(config.defaultLanguage) == "RU" then
+    config.defaultLanguage = "RU"
+else
+    config.defaultLanguage = "EN"
+end
+
+local friendlyFireAliases = {
+    disabled = "disabled", off = "disabled", ["false"] = "disabled", ["0"] = "disabled",
+    enabled = "enabled", on = "enabled", ["true"] = "enabled", ["1"] = "enabled",
+    group = "group", party = "group", allies = "group", ally = "group"
+}
+
+if type(config.friendlyFireMode) == "string" then
+    config.friendlyFireMode = friendlyFireAliases[string.lower(config.friendlyFireMode)] or "group"
+else
+    config.friendlyFireMode = "group"
+end
 
 -- The game settings to enforce for players
 -- Any regular OpenMW [Game] setting can be added to this table. ArenaMP settings
@@ -164,6 +210,7 @@ setGameSetting("staves receive accuracy bonus instead of two handed penalty", co
 setGameSetting("skill books have level limit", config.arenaSkillBooksLevelLimit)
 setGameSetting("use new constant effect difficulty logic", config.arenaNewConstantEffectDifficulty)
 setGameSetting("global XP gain multiplier", config.arenaGlobalXpMultiplier)
+setGameSetting("friendly fire mode", config.friendlyFireMode)
 
 -- The VR settings to enforce for players
 config.vrSettings = {
@@ -247,7 +294,7 @@ config.disabledClientScriptIds = {
     -- original character generation's scripts
     "CharGenRaceNPC", "CharGenClassNPC", "CharGenStatsSheet", "CharGenDoorGuardTalker",
     "CharGenBed", "CharGenStuffRoom", "CharGenFatigueBarrel", "CharGenDialogueMessage",
-    "CharGenDoorEnterCaptain", "CharGenDoorExitCaptain", "CharGenJournalMessage",
+    "CharGenDoorExitCaptain", "CharGenJournalMessage",
     -- OpenMW's default blacklist
     "Museum", "MockChangeScript", "doortestwarp", "WereChange2Script", "wereDreamScript2",
     "wereDreamScript3"

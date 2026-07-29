@@ -45,7 +45,38 @@
             <item><property name="text"><string>Ultra</string></property></item>
            </widget>
           </item>
-          <item row="1" column="0" colspan="3">
+          <item row="1" column="0">
+           <widget class="QLabel" name="terrainDetailLabel">
+            <property name="text"><string>Terrain detail:</string></property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="2">
+           <widget class="QComboBox" name="terrainDetailComboBox">
+            <property name="toolTip"><string>Maximum PBR is available only with High or Ultra terrain detail.</string></property>
+            <item><property name="text"><string>Minimum</string></property></item>
+            <item><property name="text"><string>Low</string></property></item>
+            <item><property name="text"><string>Balanced</string></property></item>
+            <item><property name="text"><string>Medium</string></property></item>
+            <item><property name="text"><string>High</string></property></item>
+            <item><property name="text"><string>Ultra</string></property></item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="pbrQualityLabel">
+            <property name="text"><string>PBR quality:</string></property>
+           </widget>
+          </item>
+          <item row="2" column="1" colspan="2">
+           <widget class="QComboBox" name="pbrQualityComboBox">
+            <property name="toolTip"><string>Maximum PBR automatically selects High terrain detail. Lower terrain settings automatically use Quality PBR.</string></property>
+            <item><property name="text"><string>Disabled</string></property></item>
+            <item><property name="text"><string>Simple</string></property></item>
+            <item><property name="text"><string>Balanced</string></property></item>
+            <item><property name="text"><string>Quality</string></property></item>
+            <item><property name="text"><string>Maximum</string></property></item>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="3">
            <widget class="QCheckBox" name="autoSelectQualityCheckBox">
             <property name="text">
              <string>Use the detected hardware recommendation when Automatic is selected</string>
@@ -53,7 +84,7 @@
             <property name="checked"><bool>true</bool></property>
            </widget>
           </item>
-          <item row="2" column="0" colspan="3">
+          <item row="4" column="0" colspan="3">
            <widget class="QCheckBox" name="vendorOptimizationsCheckBox">
             <property name="text">
              <string>Apply safe vendor-specific OpenGL and OpenSceneGraph optimizations</string>
@@ -61,12 +92,12 @@
             <property name="checked"><bool>true</bool></property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="5" column="1">
            <widget class="QPushButton" name="applyQualityButton">
             <property name="text"><string>Apply preset</string></property>
            </widget>
           </item>
-          <item row="3" column="2">
+          <item row="5" column="2">
            <widget class="QPushButton" name="detectHardwareButton">
             <property name="text"><string>Detect hardware again</string></property>
            </widget>

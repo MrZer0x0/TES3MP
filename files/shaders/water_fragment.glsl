@@ -383,6 +383,7 @@ uniform float rippleMapHalfWorldSize;
 uniform float useActorRipples;
 
 #include "shadows_fragment.glsl"
+#include "atmosphere.glsl"
 
 float frustumDepth;
 
@@ -754,7 +755,8 @@ void main(void) {
     float fogVal = clamp((linearDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
 #endif
     
-    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, gl_Fog.color.xyz, fogVal);
+    vec3 arenaBlendedFog = arenaFogColour(gl_Fog.color.xyz, position.xyz - camPos);
+    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, arenaBlendedFog, fogVal);
 
     applyShadowDebugOverlay();
 }

@@ -67,6 +67,7 @@ set(MYGUI_FILES
     openmw_quickkeys_menu.layout
     openmw_quickkeys_menu_assign.layout
     openmw_quickloot.layout
+    openmw_player_animation_menu.layout
     openmw_itemselection_dialog.layout
     openmw_magicselection_dialog.layout
     openmw_spell_buying_window.layout

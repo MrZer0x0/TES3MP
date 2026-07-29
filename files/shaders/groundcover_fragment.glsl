@@ -49,6 +49,7 @@ centroid varying vec3 shadowDiffuseLighting;
 #include "shadows_fragment.glsl"
 #include "lighting.glsl"
 #include "alpha.glsl"
+#include "atmosphere.glsl"
 
 void main()
 {
@@ -127,7 +128,9 @@ void main()
 #else
     float fogValue = clamp((linearDepth - gl_Fog.start) * gl_Fog.scale, 0.0, 1.0);
 #endif
-    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, gl_Fog.color.xyz, fogValue);
+    vec3 arenaWorldFogDirection = passWorldPos - cameraPos;
+    vec3 arenaBlendedFog = arenaFogColour(gl_Fog.color.xyz, arenaWorldFogDirection);
+    gl_FragData[0].xyz = mix(gl_FragData[0].xyz, arenaBlendedFog, fogValue);
 
     applyShadowDebugOverlay();
 }

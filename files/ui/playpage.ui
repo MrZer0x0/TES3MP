@@ -444,69 +444,107 @@
                  </property>
                  <layout class="QFormLayout" name="generalSettingsFormLayout">
                   <item row="0" column="0">
+                   <widget class="QLabel" name="label_serverLanguage">
+                    <property name="text">
+                     <string>Server language</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QComboBox" name="serverLanguageComboBox">
+                    <property name="toolTip">
+                     <string>AUTO uses each client's detected language. RU or EN forces one language for every server message.</string>
+                    </property>
+                    <item>
+                     <property name="text">
+                      <string>Auto (client language)</string>
+                     </property>
+                     <property name="userData" stdset="0">
+                      <string>AUTO</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Русский</string>
+                     </property>
+                     <property name="userData" stdset="0">
+                      <string>RU</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>English</string>
+                     </property>
+                     <property name="userData" stdset="0">
+                      <string>EN</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
                    <widget class="QLabel" name="label_gameMode">
                     <property name="text">
                      <string>Game mode</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="0" column="1">
+                  <item row="1" column="1">
                    <widget class="QLineEdit" name="gameModeEdit">
                     <property name="placeholderText">
                      <string>Default</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="0">
+                  <item row="2" column="0">
                    <widget class="QLabel" name="label_dataPath">
                     <property name="text">
                      <string>Data path</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="1">
+                  <item row="2" column="1">
                    <widget class="QLineEdit" name="dataPathEdit">
                     <property name="placeholderText">
                      <string>Server data directory</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="2" column="0">
+                  <item row="3" column="0">
                    <widget class="QLabel" name="label_loginTime">
                     <property name="text">
                      <string>Login time (sec)</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="2" column="1">
+                  <item row="3" column="1">
                    <widget class="QSpinBox" name="loginTimeSpinBox">
                     <property name="maximum">
                      <number>3600</number>
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="0">
+                  <item row="4" column="0">
                    <widget class="QLabel" name="label_maxClientsPerIP">
                     <property name="text">
                      <string>Max clients per IP</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="1">
+                  <item row="4" column="1">
                    <widget class="QSpinBox" name="maxClientsPerIPSpinBox">
                     <property name="maximum">
                      <number>128</number>
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="0">
+                  <item row="5" column="0">
                    <widget class="QLabel" name="label_difficulty">
                     <property name="text">
                      <string>Difficulty</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="1">
+                  <item row="5" column="1">
                    <widget class="QSpinBox" name="difficultySpinBox">
                     <property name="minimum">
                      <number>-1000</number>
@@ -516,14 +554,14 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="0">
+                  <item row="6" column="0">
                    <widget class="QLabel" name="label_databaseType">
                     <property name="text">
                      <string>Database type</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="1">
+                  <item row="6" column="1">
                    <widget class="QComboBox" name="databaseTypeComboBox">
                     <item>
                      <property name="text">
@@ -543,14 +581,14 @@
                     </item>
                    </widget>
                   </item>
-                  <item row="6" column="0">
+                  <item row="7" column="0">
                    <widget class="QLabel" name="label_enforcedLogLevel">
                     <property name="text">
                      <string>Enforced log level</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="1">
+                  <item row="7" column="1">
                    <widget class="QSpinBox" name="enforcedLogLevelSpinBox">
                     <property name="minimum">
                      <number>-1</number>
@@ -560,14 +598,14 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="0">
+                  <item row="8" column="0">
                    <widget class="QLabel" name="label_physicsFramerate">
                     <property name="text">
                      <string>Physics framerate</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="1">
+                  <item row="8" column="1">
                    <widget class="QSpinBox" name="physicsFramerateSpinBox">
                     <property name="maximum">
                      <number>1000</number>

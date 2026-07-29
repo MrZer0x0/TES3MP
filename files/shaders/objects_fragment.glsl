@@ -86,6 +86,7 @@ uniform mat4 osg_ViewMatrixInverse;
 #include "helpsettings.glsl"
 #include "vertexcolors.glsl"
 #include "shadows_fragment.glsl"
+#define ARENAMP_FRAGMENT_SHADER 1
 #include "lighting.glsl"
 #include "parallax.glsl"
 #include "alpha.glsl"
@@ -102,37 +103,54 @@ void main()
 #if @diffuseMap
     vec2 adjustedDiffuseUV = diffuseMapUV;
 #endif
+#if @normalMap
+    vec2 adjustedNormalUV = normalMapUV;
+#endif
+#if @specularMap
+    vec2 adjustedSpecularUV = specularMapUV;
+#endif
 
 #if @normalMap
-    vec4 normalTex = texture2D(normalMap, normalMapUV);
+    vec4 normalTex = texture2D(normalMap, adjustedNormalUV);
 
     vec3 normalizedNormal = normalize(passNormal);
     vec3 normalizedTangent = normalize(passTangent.xyz);
     vec3 binormal = cross(normalizedTangent, normalizedNormal) * passTangent.w;
     mat3 tbnTranspose = mat3(normalizedTangent, binormal, normalizedNormal);
 
-    vec3 viewNormal = gl_NormalMatrix * normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+    vec3 viewNormal = gl_NormalMatrix * normalize(tbnTranspose * pbrSafeTangentNormal(normalTex.xyz));
 #endif
 
 #if (!@normalMap && (@parallax || @forcePPL))
     vec3 viewNormal = gl_NormalMatrix * normalize(passNormal);
 #endif
 
-#if @parallax
+#if @parallax && @materialQuality >= 2
+    float parallaxDirectVisibility = 1.0;
+    float parallaxAmbientVisibility = 1.0;
+    float parallaxRawHeight = normalTex.a;
     vec3 parallaxCameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
     vec3 objectPos = (gl_ModelViewMatrixInverse * vec4(passViewPos, 1)).xyz;
     vec3 eyeDir = normalize(parallaxCameraPos - objectPos);
-    vec2 offset = getParallaxOffset(eyeDir, tbnTranspose, normalTex.a, (passTangent.w > 0.0) ? -1.f : 1.f);
-    adjustedDiffuseUV += offset; // only offset diffuse for now, other textures are more likely to be using a completely different UV set
-
-    // TODO: check not working as the same UV buffer is being bound to different targets
-    // if diffuseMapUV == normalMapUV
-#if 1
-    // fetch a new normal using updated coordinates
-    normalTex = texture2D(normalMap, adjustedDiffuseUV);
-    viewNormal = gl_NormalMatrix * normalize(tbnTranspose * (normalTex.xyz * 2.0 - 1.0));
+    vec3 lightDirObject = normalize((gl_ModelViewMatrixInverse
+        * vec4(normalize(lcalcPosition(0)), 0.0)).xyz);
+    vec2 offset = getMaterialParallaxOffset(eyeDir, lightDirObject, tbnTranspose,
+        normalMap, adjustedNormalUV, (passTangent.w > 0.0) ? -1.0 : 1.0,
+        length(passViewPos), parallaxRawHeight,
+        parallaxDirectVisibility, parallaxAmbientVisibility);
+#if @diffuseMap
+    vec2 diffuseUvDelta = diffuseMapUV - normalMapUV;
+    if (dot(diffuseUvDelta, diffuseUvDelta) < 0.00000025)
+        adjustedDiffuseUV += offset;
 #endif
-
+    adjustedNormalUV += offset;
+#if @specularMap
+    vec2 specularUvDelta = specularMapUV - normalMapUV;
+    if (dot(specularUvDelta, specularUvDelta) < 0.00000025)
+        adjustedSpecularUV += offset;
+#endif
+    normalTex = texture2D(normalMap, adjustedNormalUV);
+    viewNormal = gl_NormalMatrix * normalize(tbnTranspose * pbrSafeTangentNormal(normalTex.xyz));
 #endif
 
 #if @diffuseMap
@@ -140,6 +158,12 @@ void main()
     gl_FragData[0].a *= coveragePreservingAlphaScale(diffuseMap, adjustedDiffuseUV);
 #else
     gl_FragData[0] = vec4(1.0);
+#endif
+
+#if @materialQuality > 0 && @specularMap
+    vec4 arenaSpecTex = texture2D(specularMap, adjustedSpecularUV);
+    bool arenaPackedPbr = pbrLooksLikePackedParameters(arenaSpecTex);
+    float arenaMaterialAO = arenaPackedPbr ? pbrPackedAO(arenaSpecTex) : 1.0;
 #endif
 
     vec4 diffuseColor = getDiffuseColor();
@@ -179,7 +203,11 @@ void main()
 #endif
 
 #if @preLightEnv
+    #if @materialQuality > 0
+    gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma * 0.22;
+#else
     gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma;
+#endif
 #endif
 
 #endif
@@ -192,6 +220,14 @@ void main()
 #else
     vec3 diffuseLight, ambientLight;
     doLighting(passViewPos, normalize(viewNormal), shadowing, diffuseLight, ambientLight);
+#if @parallax && @materialQuality >= 2
+    diffuseLight *= parallaxDirectVisibility;
+    ambientLight *= parallaxAmbientVisibility;
+#endif
+#if @materialQuality >= 4 && @specularMap
+    if (arenaPackedPbr)
+        ambientLight *= arenaMaterialAO;
+#endif
     vec3 emission = getEmissionColor().xyz * emissiveMult;
     lighting = diffuseColor.xyz * diffuseLight + getAmbientColor().xyz * ambientLight + emission;
     clampLightingResult(lighting);
@@ -200,7 +236,11 @@ void main()
     gl_FragData[0].xyz *= lighting;
 
 #if @envMap && !@preLightEnv
+    #if @materialQuality > 0
+    gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma * 0.22;
+#else
     gl_FragData[0].xyz += texture2D(envMap, envTexCoordGen).xyz * envMapColor.xyz * envLuma;
+#endif
 #endif
 
     // Convert to linear space for lighting calculations
@@ -210,22 +250,42 @@ void main()
     gl_FragData[0].xyz += texture2D(emissiveMap, emissiveMapUV).xyz;
 #endif
 
+#if @materialQuality > 0
 #if @specularMap
-    vec4 specTex = texture2D(specularMap, specularMapUV);
-    float shininess = specTex.a * 255.0;
-    vec3 matSpec = specTex.xyz;
+    float shininess;
+    vec3 matSpec;
+    if (arenaPackedPbr)
+    {
+        float roughness = pbrPackedRoughness(arenaSpecTex);
+        shininess = pbrShininessFromRoughness(roughness);
+#if @materialQuality >= 4
+        // Rafael maps: red = SSS, green = roughness, blue = AO.
+        // Use neutral dielectric F0 instead of interpreting those channels as colour.
+        matSpec = vec3(0.007);
 #else
-    float shininess = gl_FrontMaterial.shininess;
-    vec3 matSpec = getSpecularColor().xyz;
+        float smoothness = 1.0 - roughness;
+        matSpec = vec3(0.004 + 0.016 * smoothness * smoothness);
+#endif
+    }
+    else
+    {
+        shininess = clamp(arenaSpecTex.a * 255.0, 1.0, 192.0);
+        float legacyLuma = dot(arenaSpecTex.rgb, vec3(0.2126, 0.7152, 0.0722));
+        matSpec = mix(vec3(min(legacyLuma, 0.045)), clamp(arenaSpecTex.rgb, 0.0, 0.07), 0.06);
+    }
+#else
+    float shininess = clamp(gl_FrontMaterial.shininess, 1.0, 192.0);
+    vec3 matSpec = clamp(getSpecularColor().xyz, 0.0, 0.045);
 #endif
 
-    if (matSpec != vec3(0.0))
+    if (dot(matSpec, matSpec) > 0.000001)
     {
 #if (!@normalMap && !@parallax && !@forcePPL)
         vec3 viewNormal = gl_NormalMatrix * normalize(passNormal);
 #endif
         gl_FragData[0].xyz += getSpecular(normalize(viewNormal), normalize(passViewPos.xyz), shininess, matSpec) * shadowing;
     }
+#endif
 
     // Apply tonemapping after all lighting calculations
     gl_FragData[0].xyz = toneMap(gl_FragData[0].xyz);

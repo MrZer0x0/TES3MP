@@ -1,6 +1,7 @@
+#include "lighting_pbr_compat.glsl"
+
 #if @hdrLighting
 #include "lighting_util.glsl"
-#include "lighting_pbr_compat.glsl"
 
 // Bloom и glow параметры (можно настроить через uniforms или defines)
 #ifndef BLOOM_STRENGTH
@@ -160,9 +161,19 @@ void doLighting(vec3 viewPos, vec3 viewNormal, out vec3 diffuseLight, out vec3 a
 vec3 getSpecular(vec3 viewNormal, vec3 viewDirection, float shininess, vec3 matSpec)
 {
     vec3 lightDir = normalize(lcalcPosition(0));
+#if @materialQuality >= 4
     vec3 viewDir = normalize(-viewDirection);
     return pbrSunSpecular(normalize(viewNormal), viewDir, lightDir, shininess,
         lcalcSpecular(0).xyz * matSpec);
+#else
+    float NdotL = dot(viewNormal, lightDir);
+    if (NdotL <= 0.0)
+        return vec3(0.0);
+    vec3 halfVec = normalize(lightDir - viewDirection);
+    float NdotH = dot(viewNormal, halfVec);
+    return pow(max(NdotH, 0.0), max(1e-4, shininess))
+        * lcalcSpecular(0).xyz * matSpec * 0.35;
+#endif
 }
 
 #else
@@ -258,12 +269,19 @@ void doLighting(vec3 viewPos, vec3 viewNormal, out vec3 diffuseLight, out vec3 a
 vec3 getSpecular(vec3 viewNormal, vec3 viewDirection, float shininess, vec3 matSpec)
 {
     vec3 lightDir = normalize(lcalcPosition(0));
+#if @materialQuality >= 4
+    vec3 viewDir = normalize(-viewDirection);
+    return pbrSunSpecular(normalize(viewNormal), viewDir, lightDir, shininess,
+        lcalcSpecular(0).xyz * matSpec);
+#else
     float NdotL = dot(viewNormal, lightDir);
     if (NdotL <= 0.0)
         return vec3(0.0);
     vec3 halfVec = normalize(lightDir - viewDirection);
     float NdotH = dot(viewNormal, halfVec);
-    return pow(max(NdotH, 0.0), max(1e-4, shininess)) * lcalcSpecular(0).xyz * matSpec;
+    return pow(max(NdotH, 0.0), max(1e-4, shininess))
+        * lcalcSpecular(0).xyz * matSpec * 0.35;
+#endif
 }
 
 #endif

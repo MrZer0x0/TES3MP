@@ -956,10 +956,8 @@ if (OPENMW_OSX_DEPLOYMENT AND APPLE)
     install_plugins_for_bundle("${APP_BUNDLE_NAME}" PLUGINS)
     set(PLUGINS ${PLUGINS} "${INSTALLED_OPENMW_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
 
-    if(BUILD_OPENCS)
-        install_plugins_for_bundle("${OPENCS_BUNDLE_NAME}" OPENCS_PLUGINS)
-        set(OPENCS_PLUGINS ${OPENCS_PLUGINS} "${INSTALLED_OPENCS_APP}/Contents/PlugIns/${QT_COCOA_PLUGIN_GROUP}/${QT_COCOA_PLUGIN_NAME}")
-    endif()
+    # SDL3 is deployed by CI/macos-arm64/build-package.sh after installation.
+    # This keeps runtime deployment independent of project CMake install branches.
 
     set(OPENMW_FIXUP_INSTALL_CODE [=[
         function(gp_item_default_embedded_path_override item default_embedded_path_var)

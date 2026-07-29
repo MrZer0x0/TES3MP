@@ -122,6 +122,8 @@ function BasePlayer:__init(pid, playerName)
     end
 
     self.pid = pid
+    -- Session language reported by the client: RU or EN.
+    self.language = "EN"
     self.loggedIn = false
     self.isNewlyRegistered = false
     self.loginTimerId = nil
