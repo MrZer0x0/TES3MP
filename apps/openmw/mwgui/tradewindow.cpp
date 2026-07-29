@@ -6,6 +6,7 @@
 #include <MyGUI_ControllerRepeatClick.h>
 
 #include <components/widgets/numericeditbox.hpp>
+#include <components/settings/settings.hpp>
 
 /*
     Start of tes3mp addition
@@ -28,6 +29,9 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/esmstore.hpp"
+#include "../mwworld/interactionanimation.hpp"
+
+#include "../mwrender/animation.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/creaturestats.hpp"
@@ -328,17 +332,21 @@ namespace MWGui
 
         bool offerAccepted = mTrading.haggle(player, mPtr, mCurrentBalance, mCurrentMerchantOffer);
 
-        // apply disposition change if merchant is NPC
-        if ( mPtr.getClass().isNpc() ) {
+        // Apply disposition and play a voiced reaction if the merchant is an NPC.
+        // Persuasion voice topics provide race/gender-specific positive and angry lines,
+        // while DialogueManager handles subtitles and TES3MP actor-sound synchronization.
+        if (mPtr.getClass().isNpc()) {
             int dispositionDelta = offerAccepted
                 ? gmst.find("iBarterSuccessDisposition")->mValue.getInteger()
                 : gmst.find("iBarterFailDisposition")->mValue.getInteger();
 
             MWBase::Environment::get().getDialogueManager()->applyBarterDispositionChange(dispositionDelta);
+            MWBase::Environment::get().getDialogueManager()->say(mPtr,
+                offerAccepted ? "Admire Success" : "Taunt Success");
         }
 
         // display message on haggle failure
-        if ( !offerAccepted ) {
+        if (!offerAccepted) {
             MWBase::Environment::get().getWindowManager()->
                 messageBox("#{sNotifyMessage9}");
             return;
@@ -347,6 +355,14 @@ namespace MWGui
         // make the item transfer
         mTradeModel->transferItems();
         playerItemModel->transferItems();
+
+        ///snapshot the gold you recieve, if any, for EncoreMP XP calculations further down
+        int goldRecieved = 0;
+        if (mCurrentBalance > 0)
+        {
+            goldRecieved = mCurrentBalance;
+        }
+
 
         // transfer the gold
         if (mCurrentBalance != 0)
@@ -371,6 +387,112 @@ namespace MWGui
             /*
                 End of tes3mp change (major)
             */
+        }
+
+        /// EncoreMP system for calcualting XP gained from sales
+
+        int sumBaseSold = 0;
+        int sumBasePurchased = 0;
+
+        if (!merchantBought.empty())
+        {
+            ///sum the base gold value of all items you are selling
+            for (const ItemStack& stack : merchantBought)
+            {
+                MWWorld::Ptr objectPtr = stack.mBase;
+                int singleValue = objectPtr.getClass().getValue(objectPtr);
+
+                for (int i = 0; i < stack.mCount; ++i)
+                {
+                    if (singleValue > 0)
+                    {
+                        sumBaseSold += singleValue;
+                    }
+                }
+            }
+
+            ///sum the base gold value of all items you are recieving
+            if (!playerBought.empty())
+            {
+                for (const ItemStack& stack : playerBought)
+                {
+                    MWWorld::Ptr objectPtr = stack.mBase;
+                    int singleValue = objectPtr.getClass().getValue(objectPtr);
+
+                    for (int i = 0; i < stack.mCount; ++i)
+                    {
+                        if (singleValue > 0)
+                        {
+                            sumBasePurchased += singleValue;
+                        }
+                    }
+                }
+
+            }
+
+        }
+
+        MWWorld::Ptr playerPtr = MWBase::Environment::get().getWorld()->getPlayerPtr();
+
+        /// calculate the barter value of everything you sold
+        const int barterItemsSold = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(playerPtr, sumBaseSold, false);
+
+        ///calculate the barter value of everything you purchased
+        const int barterItemsPurchased = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(playerPtr, sumBasePurchased, true);
+
+        ///sum the gold you recieved and the barter value of the items you recieved
+        int totalValuePurchased = (barterItemsPurchased + goldRecieved);
+
+        ///cap the total value of what you have gained to be no more than the barter value of what you sold
+        totalValuePurchased = std::min(barterItemsSold, totalValuePurchased);
+
+        ///calculate the ratio of what your items were worth in this transaction to what you got
+        float xpMultiplier = 1.0f;
+        if (barterItemsSold > 0)
+        {
+            xpMultiplier = ((float)totalValuePurchased / (float)barterItemsSold);
+        }
+
+        /// use the barter value of items sold to determine XP gain
+        float xpAwardIncrements = 0.0f;
+        if (barterItemsSold > 0)
+        {
+            xpAwardIncrements = (float(barterItemsSold) / 50.0f);
+        }
+
+        ///apply the multiplier for potentially underselling items
+        xpAwardIncrements *= xpMultiplier;
+
+        ///award experience if items were sold for a non zero value
+        if (barterItemsSold > 0)
+        {
+            if (xpAwardIncrements > 0.0f)
+            {
+                player.getClass().skillUsageSucceeded(player, ESM::Skill::Mercantile, 0, xpAwardIncrements);
+            }
+        }
+
+
+        /// end of EncoreMP xp gain system
+
+
+        if (mCurrentBalance != 0
+            && Settings::Manager::getBool("animated interactions", "GUI")
+            && Settings::Manager::getBool("animated barter handoff", "GUI"))
+        {
+            if (mCurrentBalance < 0)
+            {
+                MWWorld::InteractionAnimation::playOneShot("give-to-player",
+                    MWRender::Animation::BlendMask_UpperBody, 2.f, 0.8325f, 1,
+                    MWWorld::InteractionAnimation::Prop_Gold);
+            }
+            else
+            {
+                MWWorld::InteractionAnimation::playOneShot("loot1",
+                    MWRender::Animation::BlendMask_Torso
+                        | MWRender::Animation::BlendMask_RightArm,
+                    0.7f, 1.f);
+            }
         }
 
         eventTradeDone();
@@ -489,23 +611,36 @@ namespace MWGui
         // The offered price must be capped at 75% of the base price to avoid exploits
         // connected to buying and selling the same item.
         // This value has been determined by researching the limitations of the vanilla formula
-        // and may not be sufficient if getBarterOffer behavior has been changed.
+        // and may not be sufficient if getBarterOffer behavior has been changed
+
+        // EncoreMP: I changed it, the above comments were from openMW, it wasn't sufficient when you considered haggling as well
         const std::vector<ItemStack>& playerBorrowed = playerTradeModel->getItemsBorrowedToUs();
         for (const ItemStack& itemStack : playerBorrowed)
         {
             const int basePrice = getEffectiveValue(itemStack.mBase, itemStack.mCount);
-            const int cap = static_cast<int>(std::max(1.f, 0.75f * basePrice)); // Minimum buying price -- 75% of the base
+            const int cap = static_cast<int>(std::max(1.f, 0.90f * basePrice)); // Minimum buying price -- 90% of the base
+            const int lowcap = static_cast<int>(1.50f * basePrice); // maximum buying price -- 150% of the base
             const int buyingPrice = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, basePrice, true);
-            merchantOffer -= std::max(cap, buyingPrice);
+
+            int localbuyprice = std::max(cap, buyingPrice);
+            localbuyprice = std::min(lowcap, localbuyprice);
+
+            merchantOffer -= localbuyprice;
         }
 
         const std::vector<ItemStack>& merchantBorrowed = mTradeModel->getItemsBorrowedToUs();
         for (const ItemStack& itemStack : merchantBorrowed)
         {
             const int basePrice = getEffectiveValue(itemStack.mBase, itemStack.mCount);
-            const int cap = static_cast<int>(std::max(1.f, 0.75f * basePrice)); // Maximum selling price -- 75% of the base
+            const int cap = static_cast<int>(std::max(1.f, 0.60f * basePrice)); // Maximum selling price -- 60% of the base
+            const int lowcap = static_cast<int>(0.20f * basePrice); // minimum selling price -- 20% of the base
             const int sellingPrice = MWBase::Environment::get().getMechanicsManager()->getBarterOffer(mPtr, basePrice, false);
-            merchantOffer += mPtr.getClass().isNpc() ? std::min(cap, sellingPrice) : sellingPrice;
+
+            int localsellprice = std::max(lowcap, sellingPrice);
+            localsellprice = std::min(cap, localsellprice);
+
+
+            merchantOffer += mPtr.getClass().isNpc() ? localsellprice : sellingPrice;
         }
 
         int diff = merchantOffer - mCurrentMerchantOffer;

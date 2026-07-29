@@ -66,10 +66,20 @@ namespace Files
         const boost::filesystem::path& getLogPath() const;
         const boost::filesystem::path& getScreenshotPath() const;
 
+        /// Return the canonical portable TES3MP settings path:
+        /// <installation>/userdata/settings.cfg.
+        ///
+        /// ArenaMP deliberately does not fall back to a Documents copy here,
+        /// because the launcher and the client must load and save the same file.
+        boost::filesystem::path getPrimarySettingsPath() const;
+
+        /// Return Documents/NirnSave/OpenMW/settings.cfg for explicit legacy import only.
+        boost::filesystem::path getDocumentsSettingsPath() const;
+
     private:
         typedef Files::FixedPath<> FixedPathType;
 
-        typedef const boost::filesystem::path& (FixedPathType::* path_type_f)() const;
+        typedef const boost::filesystem::path& (ConfigurationManager::* path_type_f)() const;
         typedef std::map<std::string, path_type_f> TokensMappingContainer;
 
         bool loadConfig(const boost::filesystem::path& path,
@@ -83,6 +93,9 @@ namespace Files
 
         FixedPathType mFixedPath;
 
+        boost::filesystem::path mLocalPath;
+        boost::filesystem::path mUserConfigPath;
+        boost::filesystem::path mUserDataPath;
         boost::filesystem::path mLogPath;
         boost::filesystem::path mScreenshotPath;
 

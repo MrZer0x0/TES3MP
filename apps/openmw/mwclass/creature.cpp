@@ -56,6 +56,10 @@
 #include "../mwmechanics/combat.hpp"
 #include "../mwmechanics/actorutil.hpp"
 
+//EncoreMp addition
+#include "../mwmechanics/aipackage.hpp"
+
+
 namespace
 {
     bool isFlagBitSet(const MWWorld::ConstPtr &ptr, ESM::Creature::Flags bitMask)
@@ -378,6 +382,7 @@ namespace MWClass
         }
 
         float damage = min + (max - min) * attackStrength;
+
         bool healthdmg = true;
         if (!weapon.isEmpty())
         {
@@ -500,6 +505,27 @@ namespace MWClass
         if (!object.isEmpty())
             stats.setLastHitObject(object.getCellRef().getRefId());
 
+        // determine if the attacker is a creature allied with the player, and set Boolean to true if so
+
+        bool attackerIsPlayerAlly = false;
+
+        if (!attacker.isEmpty() && attacker.getClass().isActor())
+        {
+            MWMechanics::CreatureStats& statsAttacker = attacker.getClass().getCreatureStats(attacker);
+            for (const auto& package : statsAttacker.getAiSequence())
+            {
+                if (!package) continue;
+                if (package && package->followTargetThroughDoors())
+                {
+                    const MWWorld::Ptr& master = package->getTarget();
+                    if (master.isEmpty()) continue;
+                    bool masterIsPlayer = (master == MWMechanics::getPlayer()) || mwmp::PlayerList::isDedicatedPlayer(master);
+                    if (!masterIsPlayer) continue;
+                    attackerIsPlayerAlly = true;
+                }
+            }
+        }
+
         if (damage < 0.001f)
             damage = 0;
 
@@ -551,7 +577,22 @@ namespace MWClass
                 damage = std::max(1.f, damage);
                 if (!attacker.isEmpty())
                 {
-                    damage = scaleDamage(damage, attacker, ptr);
+                    // neccessary here to introduce a fork in behaviour, otherwise attacks on the player
+                    // would double dip in damage scaling by calling both difficulty scaling functions
+                    // no need to guard here against attacker is player, since this is creature specific combat
+                    MWWorld::Ptr player = MWMechanics::getPlayer();
+                    if (ptr == player)
+                    {
+                        damage = scaleDamage(damage, attacker, ptr);
+                    }
+                    else
+                    {
+                        if (attackerIsPlayerAlly)
+                        {
+                            float allyDamageMult = allyDamageDealt();
+                            damage *= allyDamageMult;
+                        }
+                    }
                     MWBase::Environment::get().getWorld()->spawnBloodEffect(ptr, hitPosition);
                 }
 
@@ -563,6 +604,26 @@ namespace MWClass
             }
             else
             {
+                if (!attacker.isEmpty())
+                {
+                    MWWorld::Ptr player = MWMechanics::getPlayer();
+                    if (damage > 0)
+                    {
+                        if (ptr == player)
+                        {
+                            damage = scaleHandDamage(damage, attacker, ptr);
+                        }
+                        else
+                        {
+                            if (attackerIsPlayerAlly)
+                            {
+                                float allyDamageMult = allyDamageDealt();
+                                damage *= allyDamageMult;
+                            }
+                        }
+                        
+                    }
+                }
                 MWMechanics::DynamicStat<float> fatigue(stats.getFatigue());
                 fatigue.setCurrent(fatigue.getCurrent() - damage, true);
                 stats.setFatigue(fatigue);
@@ -760,7 +821,24 @@ namespace MWClass
     float Creature::getArmorRating (const MWWorld::Ptr& ptr) const
     {
         // Equipment armor rating is deliberately ignored.
-        return getCreatureStats(ptr).getMagicEffects().get(ESM::MagicEffect::Shield).getMagnitude();
+
+        float creaturearmour = 0.0f;
+        creaturearmour += 10.0f;
+        creaturearmour += getCreatureStats(ptr).getMagicEffects().get(ESM::MagicEffect::Shield).getMagnitude();
+
+        int creaturelevel = getCreatureStats(ptr).getLevel();
+
+        if (creaturelevel >= 5)
+        {
+            creaturearmour += 2.0f;
+        }
+
+        if (creaturelevel >= 10)
+        {
+            creaturearmour += 3.0f;
+        }
+
+        return creaturearmour;
     }
 
     float Creature::getCapacity (const MWWorld::Ptr& ptr) const

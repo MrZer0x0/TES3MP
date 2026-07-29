@@ -47,11 +47,21 @@
 #include "tickableeffects.hpp"
 #include "weapontype.hpp"
 
+
+// EncoreMP additions
+
+#include "difficultyscaling.hpp"
+
+
+
+
 namespace MWMechanics
 {
     CastSpell::CastSpell(const MWWorld::Ptr &caster, const MWWorld::Ptr &target, const bool fromProjectile, const bool manualSpell)
         : mCaster(caster)
         , mTarget(target)
+        , mEnchantmentType(-1)
+        , mSourceType(SourceType::Spell)
         , mFromProjectile(fromProjectile)
         , mManualSpell(manualSpell)
     {
@@ -149,6 +159,16 @@ namespace MWMechanics
                 MWBase::Environment::get().getWorld()->getStore().get<ESM::MagicEffect>().find (
                 effectIt->mEffectID);
 
+            const bool isHarmful = (magicEffect->mData.mFlags & ESM::MagicEffect::Harmful) != 0;
+
+            // Apply friendly fire per effect rather than per spell, so mixed
+            // spells may still heal or buff a protected player while their
+            // harmful components (damage, drain, absorb, paralysis, etc.) are
+            // discarded. This also covers touch, projectile, area, reflected,
+            // enchanted-weapon and damage-over-time spell applications.
+            if (isHarmful && !MechanicsHelper::isFriendlyFireAllowed(caster, target))
+                continue;
+
             // Re-casting a bound equipment effect has no effect if the spell is still active
             if (magicEffect->mData.mFlags & ESM::MagicEffect::NonRecastable && targetSpells.isSpellActive(mId))
             {
@@ -174,7 +194,6 @@ namespace MWMechanics
                 continue;
 
             // Notify the target actor they've been hit
-            bool isHarmful = magicEffect->mData.mFlags & ESM::MagicEffect::Harmful;
             if (target.getClass().isActor() && target != caster && !caster.isEmpty() && isHarmful)
                 target.getClass().onHit(target, 0.0f, true, MWWorld::Ptr(), caster, osg::Vec3f(), true);
 
@@ -197,6 +216,93 @@ namespace MWMechanics
 
             // Try resisting.
             float magnitudeMult = getEffectMultiplier(effectIt->mEffectID, target, caster, spell, &targetEffects);
+
+            // Start of EncoreMP resistance caps
+
+            if (target == getPlayer())
+            {
+                int effectholder = 1;
+                effectholder = effectIt->mEffectID;
+
+                float magcap = 0.4f;
+
+                //sub system to add 10% of willpower to magic resist
+                MWWorld::Ptr player = getPlayer();
+                const MWMechanics::CreatureStats &playerStats = player.getClass().getCreatureStats(player);
+                float playerWill = playerStats.getAttribute(ESM::Attribute::Willpower).getModified();
+                float willMagicResist = 0.0f;
+
+                if (playerWill > 50.0f)
+                {
+                    playerWill -= 50.0f;
+                    willMagicResist = (playerWill / 500.0f);
+                }
+
+                //check for drain effects
+                if (effectholder == 17 || effectholder == 18 || effectholder == 19 || effectholder == 20 || effectholder == 21)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+                //check for damage effects
+                if (effectholder == 22 || effectholder == 23 || effectholder == 24 || effectholder == 25 || effectholder == 26)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+                //check for absorb effects
+                if (effectholder == 85 || effectholder == 86 || effectholder == 87 || effectholder == 88 || effectholder == 89)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+                //check for weakness to elemental magicka poison effects
+                if (effectholder == 28 || effectholder == 29 || effectholder == 30 || effectholder == 31 || effectholder == 35)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+
+                //check for other weakness effects normal weps common blight
+                if (effectholder == 32 || effectholder == 33 || effectholder == 36)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+                //check for negative illusion and alteration effects
+                if (effectholder == 7 || effectholder == 46 || effectholder == 47 || effectholder == 48)
+                {
+                    magnitudeMult -= willMagicResist;
+                    if (magnitudeMult < magcap)
+                    {
+                        magnitudeMult = magcap;
+                    }
+                }
+
+            }
+
+            // End of EncoreMP resistance caps
+
             if (magnitudeMult == 0)
             {
                 // Fully resisted, show message
@@ -209,6 +315,98 @@ namespace MWMechanics
             {
                 float magnitude = effectIt->mMagnMin + Misc::Rng::rollDice(effectIt->mMagnMax - effectIt->mMagnMin + 1);
                 magnitude *= magnitudeMult;
+
+                // EncoreMP determine if spellcaster is allied to the player
+
+                bool casterIsPlayerAlly = false;
+
+                if (!caster.isEmpty() && caster.getClass().isActor())
+                {
+                    MWMechanics::CreatureStats& statsCaster = caster.getClass().getCreatureStats(caster);
+                    for (const auto& lpackage : statsCaster.getAiSequence())
+                    {
+                        if (!lpackage) continue;
+                        if (lpackage && lpackage->followTargetThroughDoors())
+                        {
+                            const MWWorld::Ptr& master = lpackage->getTarget();
+                            if (master.isEmpty()) continue;
+                            bool masterIsPlayer = (master == MWMechanics::getPlayer()) || mwmp::PlayerList::isDedicatedPlayer(master);
+                            if (!masterIsPlayer) continue;
+                            casterIsPlayerAlly = true;
+                        }
+                    }
+                }
+
+                // end of ally determination
+
+                // EncoreMP enchantment on strike scaling begin
+
+                const MWWorld::Ptr player = MWMechanics::getPlayer();
+
+                int effectholder = effectIt->mEffectID;
+
+                // spell effects are 14, 15, 16 elements, 18 drain health, 23 damage health, 27 poison and 86 absorb health
+                if (mEnchantmentType == ESM::Enchantment::WhenStrikes && target != player && (effectholder == 14 || effectholder == 15 || effectholder == 16 || effectholder == 18 || effectholder == 23 || effectholder == 27 || effectholder == 86))
+                {
+                    if (caster == player)
+                    {
+                        magnitude *= onstrikeDamageScale();
+                    }
+                    else if (casterIsPlayerAlly)
+                    {
+                        magnitude *= allyDamageDealt();
+                    }
+
+                }
+
+                // EncoreMP enchantment on strike scaling end
+
+
+                // EncoreMP castonce and whenused scaling begin
+
+                if ((mEnchantmentType == ESM::Enchantment::CastOnce || mEnchantmentType == ESM::Enchantment::WhenUsed) && target != player && target != caster && (effectholder == 14 || effectholder == 15 || effectholder == 16 || effectholder == 18 || effectholder == 23 || effectholder == 27 || effectholder == 86))
+                {
+                    if (caster == player)
+                    {
+                        magnitude *= castenchantedDamagescale();
+                    }
+                    else if (casterIsPlayerAlly)
+                    {
+                        magnitude *= allyDamageDealt();
+                    }
+                }
+
+                // EncoreMP castonce and whenused scaling end
+
+
+                // EncoreMP general spellcasting start, for now it is using the same damage scale as enchanted items
+
+                if (mSourceType == SourceType::Spell && target != player && target != caster && (effectholder == 14 || effectholder == 15 || effectholder == 16 || effectholder == 18 || effectholder == 23 || effectholder == 27 || effectholder == 86))
+                {
+                    if (caster == player)
+                    {
+                        magnitude *= castenchantedDamagescale();
+                    }
+                    else if (casterIsPlayerAlly)
+                    {
+                        magnitude *= allyDamageDealt();
+                    }
+                }
+
+                // EncoreMP general spellcasting end
+
+
+
+                // EncoreMP magic damage taken begin
+
+                if (target == player && mCaster != player && !caster.isEmpty() && !reflected && caster.getClass().isActor() && (effectholder == 14 || effectholder == 15 || effectholder == 16 || effectholder == 18 || effectholder == 23 || effectholder == 27 || effectholder == 86))
+                {
+                    magnitude *= magicdamagetaken();
+                }
+
+                // EncoreMP magic damage taken end
+
+
 
                 if (!target.getClass().isActor())
                 {
@@ -575,11 +773,7 @@ namespace MWMechanics
                 MWBase::Environment::get().getWorld()->getPlayer().getMarkedPosition(markedCell, markedPosition);
                 if (markedCell)
                 {
-                    const ESM::Cell* markedEsmCell = markedCell->getCell();
-                    if (!markedEsmCell)
-                        return true;
-
-                    MWWorld::ActionTeleport action(markedCell->isExterior() ? "" : markedEsmCell->mName,
+                    MWWorld::ActionTeleport action(markedCell->isExterior() ? "" : markedCell->getCell()->mName,
                                             markedPosition, false);
                     action.execute(target);
                     anim->removeEffect(effectId);
@@ -608,7 +802,18 @@ namespace MWMechanics
 
     bool CastSpell::cast(const MWWorld::Ptr &item, bool launchProjectile)
     {
+
+        {
+            const std::string &refId = item.getCellRef().getRefId();
+            auto &store = MWBase::Environment::get().getWorld()->getStore();
+            if (auto spell = store.get<ESM::Spell>().search(refId))
+                return cast(spell);
+        }
+
+        mSourceType = SourceType::EnchantedItem;
+
         std::string enchantmentName = item.getClass().getEnchantment(item);
+
         if (enchantmentName.empty())
             throw std::runtime_error("can't cast an item without an enchantment");
 
@@ -616,6 +821,9 @@ namespace MWMechanics
         mId = item.getCellRef().getRefId();
 
         const ESM::Enchantment* enchantment = MWBase::Environment::get().getWorld()->getStore().get<ESM::Enchantment>().find(enchantmentName);
+
+        // EncoreMP 1 line addition
+        mEnchantmentType = enchantment->mData.mType;    
 
         mStack = false;
 
@@ -641,6 +849,10 @@ namespace MWMechanics
             {
                 if (mCaster == getPlayer())
                 {
+                    if (type == ESM::Enchantment::WhenStrikes)
+                    {
+                        return false;
+                    }
                     MWBase::Environment::get().getWindowManager()->messageBox("#{sMagicInsufficientCharge}");
 
                     // Failure sound
@@ -674,6 +886,18 @@ namespace MWMechanics
                 }
                 return false;
             }
+
+            //EncoreMP, reduce cost of on-strike enchantments, V0.92
+            if (mCaster == getPlayer())
+            {
+                if (type == ESM::Enchantment::WhenStrikes)
+                {
+                    castCost *= 0.25;
+                    castCost = std::max(1, castCost);
+                }
+            }
+
+
             // Reduce charge
             item.getCellRef().setEnchantmentCharge(item.getCellRef().getEnchantmentCharge() - castCost);
         }
@@ -709,9 +933,12 @@ namespace MWMechanics
 
     bool CastSpell::cast(const ESM::Potion* potion)
     {
+        // EncoreMP, potions no longer stack with copies of themself
+
+        mSourceType = SourceType::Potion;
         mSourceName = potion->mName;
         mId = potion->mId;
-        mStack = true;
+        mStack = false;
 
         inflict(mCaster, mCaster, potion->mEffects, ESM::RT_Self);
 
@@ -720,6 +947,7 @@ namespace MWMechanics
 
     bool CastSpell::cast(const ESM::Spell* spell)
     {
+        mSourceType = SourceType::Spell;
         mSourceName = spell->mName;
         mId = spell->mId;
         mStack = false;
@@ -814,8 +1042,22 @@ namespace MWMechanics
                 stats.getSpells().usePower(spell);
         }
 
+        // EncoreMP, more XP from high costed spells
+
+        float xpMult = 1.0f;
+        float spellCost = spell->mData.mCost;
+
+        if (spellCost > 5.0f)
+        {
+            xpMult = (spellCost * 0.0889f);
+            xpMult += 0.556f;
+        }
+
         if (!mManualSpell && mCaster == getPlayer() && spellIncreasesSkill(spell))
-            mCaster.getClass().skillUsageSucceeded(mCaster, spellSchoolToSkill(school), 0);
+            mCaster.getClass().skillUsageSucceeded(mCaster, spellSchoolToSkill(school), 0, xpMult);
+
+        // end of EncoreMP, more XP from high costed spells
+
 
         // A non-actor doesn't play its spell cast effects from a character controller, so play them here
         if (!mCaster.getClass().isActor())
@@ -833,6 +1075,7 @@ namespace MWMechanics
 
     bool CastSpell::cast (const ESM::Ingredient* ingredient)
     {
+        mSourceType = SourceType::Ingredient;
         mId = ingredient->mId;
         mStack = true;
         mSourceName = ingredient->mName;

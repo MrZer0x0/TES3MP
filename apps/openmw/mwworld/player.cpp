@@ -44,8 +44,7 @@ namespace MWWorld
       : mCellStore(nullptr),
         mLastKnownExteriorPosition(0,0,0),
         mMarkedPosition(ESM::Position()),
-        mMarkedCellId(ESM::CellId()),
-        mHasMark(false),
+        mMarkedCell(nullptr),
         mAutoMove(false),
         mForwardBackward(0),
         mTeleported(false),
@@ -322,48 +321,22 @@ namespace MWWorld
 
     void Player::markPosition(CellStore *markedCell, const ESM::Position& markedPosition)
     {
+        mMarkedCell = markedCell;
         mMarkedPosition = markedPosition;
-
-        if (markedCell && markedCell->getCell())
-        {
-            mMarkedCellId = markedCell->getCell()->getCellId();
-            mHasMark = true;
-        }
-        else
-        {
-            mMarkedCellId = ESM::CellId();
-            mHasMark = false;
-        }
     }
 
     void Player::getMarkedPosition(CellStore*& markedCell, ESM::Position &markedPosition) const
     {
-        markedCell = nullptr;
-
-        if (!mHasMark)
-            return;
-
-        markedPosition = mMarkedPosition;
-
-        try
-        {
-            markedCell = MWBase::Environment::get().getWorld()->getCell(mMarkedCellId);
-        }
-        catch (...)
-        {
-            return;
-        }
-
-        if (markedCell == nullptr || markedCell->getCell() == nullptr)
-            markedCell = nullptr;
+        markedCell = mMarkedCell;
+        if (mMarkedCell)
+            markedPosition = mMarkedPosition;
     }
 
     void Player::clear()
     {
         mCellStore = nullptr;
         mSign.clear();
-        mMarkedCellId = ESM::CellId();
-        mHasMark = false;
+        mMarkedCell = nullptr;
         mAutoMove = false;
         mForwardBackward = 0;
         mTeleported = false;
@@ -410,11 +383,11 @@ namespace MWWorld
         player.mLastKnownExteriorPosition[1] = mLastKnownExteriorPosition.y();
         player.mLastKnownExteriorPosition[2] = mLastKnownExteriorPosition.z();
 
-        if (mHasMark)
+        if (mMarkedCell)
         {
             player.mHasMark = true;
             player.mMarkedPosition = mMarkedPosition;
-            player.mMarkedCell = mMarkedCellId;
+            player.mMarkedCell = mMarkedCell->getCell()->getCellId();
         }
         else
             player.mHasMark = false;
@@ -506,13 +479,11 @@ namespace MWWorld
             if (player.mHasMark)
             {
                 mMarkedPosition = player.mMarkedPosition;
-                mMarkedCellId = player.mMarkedCell;
-                mHasMark = true;
+                mMarkedCell = world.getCell (player.mMarkedCell);
             }
             else
             {
-                mMarkedCellId = ESM::CellId();
-                mHasMark = false;
+                mMarkedCell = nullptr;
             }
 
             mForwardBackward = 0;
