@@ -150,6 +150,14 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
+
+          # before_script.msvc.sh activates VsDevCmd only inside its own shell.
+          # Ninja stores the absolute cl.exe path, but the next Actions step still
+          # needs INCLUDE/LIB/LIBPATH from the Visual Studio developer environment.
+          source MSVC2022_64_Ninja/activate_msvc.sh
+          test -n "${INCLUDE:-}"
+          test -n "${LIB:-}"
+
           cmake --build MSVC2022_64_Ninja --config Release --parallel 2
           cmake --install MSVC2022_64_Ninja --config Release
           printf '%s\n' "$GITHUB_SHA" > MSVC2022_64_Ninja/.arenamp-cache-sha
@@ -191,8 +199,6 @@ jobs:
         run: |
           set +e
           mkdir -p actions-artifacts/windows-x64
-          archive="ArenaMP-Windows-x64-${GITHUB_REF_NAME}.zip"
-          [[ -f "$archive" ]] && cp "$archive" actions-artifacts/windows-x64/
           [[ -f MSVC2022_64_Ninja/CMakeCache.txt ]] \
             && cp MSVC2022_64_Ninja/CMakeCache.txt actions-artifacts/windows-x64/
           ccache --show-stats > actions-artifacts/windows-x64/ccache-stats.txt 2>&1 || true
@@ -202,14 +208,24 @@ jobs:
             "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_REF" "$GITHUB_SHA" "$RUNNER_ARCH" "$RUNNER_OS" \
             > actions-artifacts/windows-x64/BUILD_INFO.txt
 
-      - name: Upload Windows archive and diagnostics
-        if: always()
+      - name: Publish ready Windows ZIP
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-Windows-x64-${{ github.ref_name }}
-          path: actions-artifacts/windows-x64/
+          path: ArenaMP-Windows-x64-${{ github.ref_name }}.zip
           if-no-files-found: error
+          compression-level: 0
           retention-days: 30
+
+      - name: Upload Windows diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Windows-x64-${{ github.ref_name }}-diagnostics
+          path: actions-artifacts/windows-x64/
+          if-no-files-found: warn
+          retention-days: 14
 
   linux-steamdeck-x64:
     if: github.event_name == 'push' || inputs.build_linux
@@ -345,8 +361,6 @@ jobs:
         run: |
           set +e
           mkdir -p actions-artifacts/linux-steamdeck
-          archive="ArenaMP-Linux-x86_64-SteamDeck-${GITHUB_REF_NAME}.tar.gz"
-          [ -f "$archive" ] && cp "$archive" actions-artifacts/linux-steamdeck/
           [ -f build/CMakeCache.txt ] && cp build/CMakeCache.txt actions-artifacts/linux-steamdeck/
           ccache --show-stats > actions-artifacts/linux-steamdeck/ccache-stats.txt 2>&1 || true
           find build -maxdepth 3 -type f 2>/dev/null | sort > actions-artifacts/linux-steamdeck/build-files.txt || true
@@ -354,14 +368,24 @@ jobs:
             "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_REF" "$GITHUB_SHA" "$RUNNER_ARCH" "$RUNNER_OS" \
             > actions-artifacts/linux-steamdeck/BUILD_INFO.txt
 
-      - name: Upload Linux / Steam Deck artifact
-        if: always()
+      - name: Publish ready Linux tar.gz
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}
-          path: actions-artifacts/linux-steamdeck/
+          path: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}.tar.gz
           if-no-files-found: error
+          compression-level: 0
           retention-days: 30
+
+      - name: Upload Linux diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-Linux-x86_64-SteamDeck-${{ github.ref_name }}-diagnostics
+          path: actions-artifacts/linux-steamdeck/
+          if-no-files-found: warn
+          retention-days: 14
 
   macos-arm64:
     if: (github.event_name == 'push' || inputs.build_macos_arm64) && github.repository_owner != ''
@@ -415,6 +439,10 @@ jobs:
             exit 1
           fi
           grep -q 'OPENMW_OSX_USE_IMAGEIO_PLUGIN:BOOL=ON' CI/macos-arm64/configure.sh
+          grep -q -- '-DBUILD_WIZARD=ON' CI/macos-arm64/configure.sh
+          grep -q "require_cache_exact 'BUILD_WIZARD:BOOL=ON'" CI/macos-arm64/configure.sh
+          grep -q 'Contents/MacOS/openmw-wizard' CI/macos-arm64/build-package.sh
+          grep -q 'openmw-launcher openmw-wizard tes3mp' CI/macos-arm64/validate-bundle.sh
           test -f server/scripts/serverCore.lua
           test -f server/scripts/config.lua
           test -f server/data/banlist.json
@@ -438,12 +466,31 @@ jobs:
             exit 1
           fi
           grep -q 'WEBP_PREFIX="$(brew --prefix webp)"' CI/macos-arm64/configure.sh
+          grep -q 'SDL3_PREFIX="$(brew --prefix sdl3)"' CI/macos-arm64/configure.sh
+          grep -Fq 'SDL3_SOURCE="$SDL3_PREFIX/lib/libSDL3.dylib"' CI/macos-arm64/build-package.sh
+          grep -Fq "install_name_tool -id '@rpath/libSDL3.dylib'" CI/macos-arm64/build-package.sh
+          grep -Fq 'ln -s ../Frameworks/libSDL3.dylib "$SDL3_MACOS_DIR/libSDL3.dylib"' CI/macos-arm64/build-package.sh
+          grep -q 'bundled sdl2-compat successfully loaded bundled SDL3' CI/macos-arm64/build-package.sh
+          grep -Fq 'SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"' CI/macos-arm64/build-package.sh
+          grep -Fq 'dlopen(argv[1], RTLD_NOW | RTLD_LOCAL)' CI/macos-arm64/build-package.sh
+          if grep -Fq 'sdl2-compat)/include/SDL2' CI/macos-arm64/build-package.sh; then
+            echo 'SDL runtime probe must not depend on Homebrew SDL headers.' >&2
+            exit 1
+          fi
+          grep -q 'sdl2-compat sdl3' CI/macos-arm64/install-deps.sh
+          grep -q 'SDL3 runtime required by sdl2-compat' CI/macos-arm64/validate-bundle.sh
+          if grep -R -q 'OPENMW_OSX_SDL3_LIBRARY' CMakeLists.txt CI/macos-arm64/configure.sh; then
+            echo 'Obsolete SDL3 CMake cache deployment path is still present.' >&2
+            exit 1
+          fi
           grep -q 'OPENMW_OSX_MYGUI_FRAMEWORK' CMakeLists.txt
           grep -q 'DESTINATION "${APP_BUNDLE_NAME}/Contents/lib"' CMakeLists.txt
           grep -q 'remove_staging_mygui_framework' CMakeLists.txt
           grep -q 'OPENMW_FIXUP_INSTALL_CODE' CMakeLists.txt
           grep -Fq 'string(CONFIGURE "${OPENMW_FIXUP_INSTALL_CODE}" OPENMW_FIXUP_INSTALL_CODE @ONLY)' CMakeLists.txt
           bash -n CI/macos-arm64/check-install-script-syntax.sh
+          bash CI/macos-arm64/check-posix-server-paths.sh
+          bash CI/macos-arm64/check-raknet-ack-sentinel.sh
           grep -q 'temporary MyGUI staging framework remains' CI/macos-arm64/validate-bundle.sh
           grep -q 'macdeployqt' CI/macos-arm64/build-package.sh
           grep -q 'sign-bundle.sh' CI/macos-arm64/build-package.sh
@@ -511,6 +558,10 @@ jobs:
           grep -q 'OPENMW_USE_SYSTEM_BULLET:BOOL=OFF' CI/macos-arm64/configure.sh
           grep -q 'USE_DOUBLE_PRECISION:BOOL=ON' CI/macos-arm64/configure.sh
           grep -q 'OPENMW_OSX_USE_IMAGEIO_PLUGIN:BOOL=ON' CI/macos-arm64/configure.sh
+          grep -q -- '-DBUILD_WIZARD=ON' CI/macos-arm64/configure.sh
+          grep -q "require_cache_exact 'BUILD_WIZARD:BOOL=ON'" CI/macos-arm64/configure.sh
+          grep -q 'Contents/MacOS/openmw-wizard' CI/macos-arm64/build-package.sh
+          grep -q 'openmw-launcher openmw-wizard tes3mp' CI/macos-arm64/validate-bundle.sh
           grep -q 'set(OSG_PLUGIN_PREFIX_DIR "osgPlugins")' CMakeLists.txt
           grep -q 'OSG_LIBRARY_PATH' apps/openmw/main.cpp
           if grep -R -F 'osgPlugins-${OPENSCENEGRAPH_VERSION}' CMakeLists.txt cmake/CMakeLists.txt; then
@@ -522,12 +573,31 @@ jobs:
           grep -q 'check-ffmpeg-cache.sh' CI/macos-arm64/configure.sh
           grep -q 'open-scene-graph webp' CI/macos-arm64/install-deps.sh
           grep -q 'WEBP_PREFIX="$(brew --prefix webp)"' CI/macos-arm64/configure.sh
+          grep -q 'SDL3_PREFIX="$(brew --prefix sdl3)"' CI/macos-arm64/configure.sh
+          grep -Fq 'SDL3_SOURCE="$SDL3_PREFIX/lib/libSDL3.dylib"' CI/macos-arm64/build-package.sh
+          grep -Fq "install_name_tool -id '@rpath/libSDL3.dylib'" CI/macos-arm64/build-package.sh
+          grep -Fq 'ln -s ../Frameworks/libSDL3.dylib "$SDL3_MACOS_DIR/libSDL3.dylib"' CI/macos-arm64/build-package.sh
+          grep -q 'bundled sdl2-compat successfully loaded bundled SDL3' CI/macos-arm64/build-package.sh
+          grep -Fq 'SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"' CI/macos-arm64/build-package.sh
+          grep -Fq 'dlopen(argv[1], RTLD_NOW | RTLD_LOCAL)' CI/macos-arm64/build-package.sh
+          if grep -Fq 'sdl2-compat)/include/SDL2' CI/macos-arm64/build-package.sh; then
+            echo 'SDL runtime probe must not depend on Homebrew SDL headers.' >&2
+            exit 1
+          fi
+          grep -q 'sdl2-compat sdl3' CI/macos-arm64/install-deps.sh
+          grep -q 'SDL3 runtime required by sdl2-compat' CI/macos-arm64/validate-bundle.sh
+          if grep -R -q 'OPENMW_OSX_SDL3_LIBRARY' CMakeLists.txt CI/macos-arm64/configure.sh; then
+            echo 'Obsolete SDL3 CMake cache deployment path is still present.' >&2
+            exit 1
+          fi
           grep -q 'OPENMW_OSX_MYGUI_FRAMEWORK' CMakeLists.txt
           grep -q 'DESTINATION "${APP_BUNDLE_NAME}/Contents/lib"' CMakeLists.txt
           grep -q 'remove_staging_mygui_framework' CMakeLists.txt
           grep -q 'OPENMW_FIXUP_INSTALL_CODE' CMakeLists.txt
           grep -Fq 'string(CONFIGURE "${OPENMW_FIXUP_INSTALL_CODE}" OPENMW_FIXUP_INSTALL_CODE @ONLY)' CMakeLists.txt
           bash -n CI/macos-arm64/check-install-script-syntax.sh
+          bash CI/macos-arm64/check-posix-server-paths.sh
+          bash CI/macos-arm64/check-raknet-ack-sentinel.sh
           grep -q 'temporary MyGUI staging framework remains' CI/macos-arm64/validate-bundle.sh
           bash -n CI/macos-arm64/check-ffmpeg-cache.sh
           if grep -q 'critical macOS dependency remains unresolved' CI/macos-arm64/configure.sh; then
@@ -612,7 +682,6 @@ jobs:
         run: |
           set +e
           mkdir -p actions-artifacts/macos-arm64
-          [ -d artifacts ] && cp -a artifacts/. actions-artifacts/macos-arm64/
           [ -f build/CMakeCache.txt ] && cp build/CMakeCache.txt actions-artifacts/macos-arm64/
           [ -f MACOS_BUILD_REVISION.txt ] && cp MACOS_BUILD_REVISION.txt actions-artifacts/macos-arm64/
           [ -f CRABNET_BUILD_REVISION.txt ] && cp CRABNET_BUILD_REVISION.txt actions-artifacts/macos-arm64/
@@ -628,11 +697,21 @@ jobs:
             "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID" "$GITHUB_REF" "$GITHUB_SHA" "$(git rev-parse HEAD 2>/dev/null)" "$RUNNER_ARCH" "$RUNNER_OS" \
             > actions-artifacts/macos-arm64/BUILD_INFO.txt
 
-      - name: Upload macOS ARM64 artifact
-        if: always()
+      - name: Publish ready macOS DMG
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental
-          path: actions-artifacts/macos-arm64/
+          path: artifacts/*.dmg
           if-no-files-found: error
+          compression-level: 0
           retention-days: 30
+
+      - name: Upload macOS diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaMP-macOS-arm64-${{ github.ref_name }}-experimental-diagnostics
+          path: actions-artifacts/macos-arm64/
+          if-no-files-found: warn
+          retention-days: 14

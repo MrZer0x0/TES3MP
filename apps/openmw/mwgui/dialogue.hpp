@@ -21,32 +21,6 @@ namespace MWGui
 {
     class ResponseCallback;
 
-    class PersuasionDialog : public WindowModal
-    {
-    public:
-        PersuasionDialog(ResponseCallback* callback);
-
-        void onOpen() override;
-
-        MyGUI::Widget* getDefaultKeyFocus() override;
-
-    private:
-        std::unique_ptr<ResponseCallback> mCallback;
-
-        MyGUI::Button* mCancelButton;
-        MyGUI::Button* mAdmireButton;
-        MyGUI::Button* mIntimidateButton;
-        MyGUI::Button* mTauntButton;
-        MyGUI::Button* mBribe10Button;
-        MyGUI::Button* mBribe100Button;
-        MyGUI::Button* mBribe1000Button;
-        MyGUI::TextBox* mGoldLabel;
-
-        void onCancel (MyGUI::Widget* sender);
-        void onPersuade (MyGUI::Widget* sender);
-    };
-
-
     struct Link
     {
         virtual ~Link() {}
@@ -150,7 +124,7 @@ namespace MWGui
         void addMessageBox(const std::string& text);
 
         void onFrame(float dt) override;
-        void clear() override { stopDynamicDialogueActor(); stopDialogueCamera(); resetReference(); }
+        void clear() override { mPersuasionMode = false; stopDynamicDialogueActor(); stopDialogueCamera(); resetReference(); }
 
         void updateTopics();
 
@@ -199,6 +173,10 @@ namespace MWGui
         void restock();
         void deleteLater();
         void updateChoicePane();
+        void openPersuasionPane();
+        void closePersuasionPane();
+        void performPersuasion(int index);
+        void rebuildPersuasionChoices();
         bool moveSelection(int direction);
         bool activateSelection();
         void selectInitialItem();
@@ -215,7 +193,9 @@ namespace MWGui
 
         std::vector<DialogueText*> mHistoryContents;
         std::vector<std::pair<std::string, int> > mChoices;
+        std::vector<int> mPersuasionChoices;
         bool mGoodbye;
+        bool mPersuasionMode;
 
         std::vector<Link*> mLinks;
         std::map<std::string, Link*> mTopicLinks;
@@ -239,8 +219,6 @@ namespace MWGui
         MyGUI::Button* mUpButton;
         MyGUI::Button* mDownButton;
         MyGUI::Button* mSelectButton;
-
-        PersuasionDialog mPersuasionDialog;
 
         MyGUI::IntSize mCurrentWindowSize;
         MyGUI::IntPoint mHistoryDragStart;

@@ -6,9 +6,11 @@
 #include <MyGUI_ScrollView.h>
 #include <MyGUI_Gui.h>
 #include <MyGUI_TabControl.h>
+#include <MyGUI_LanguageManager.h>
 
 #include <SDL_video.h>
 
+#include <algorithm>
 #include <iomanip>
 #include <numeric>
 #include <utility>
@@ -36,15 +38,22 @@
 
 namespace
 {
+    constexpr int settingsWindowWidth = 640;
+    constexpr int settingsWindowHeight = 500;
+
+    std::string arenaText(const std::string& key)
+    {
+        return MyGUI::LanguageManager::getInstance().replaceTags("#{arenamp=" + key + "}");
+    }
 
     std::string textureMipmappingToStr(const std::string& val)
     {
-        if (val == "linear")  return "Trilinear";
-        if (val == "nearest") return "Bilinear";
+        if (val == "linear")  return arenaText("value.trilinear");
+        if (val == "nearest") return arenaText("value.bilinear");
         if (val != "none")
             Log(Debug::Warning) << "Warning: Invalid texture mipmap option: "<< val;
 
-        return "Other";
+        return arenaText("value.other");
     }
 
     void parseResolution (int &x, int &y, const std::string& str)
@@ -129,13 +138,15 @@ namespace
 
     constexpr std::array<int, 5> shadowMapResolutions = { 512, 1024, 2048, 4096, 8192 };
     constexpr std::array<const char*, 5> shadowMapQualityNames =
-        { "Balanced", "High", "Very high", "Detailed", "Maximum" };
+        { "value.balanced", "value.high", "value.very_high", "value.detailed", "value.maximum" };
     constexpr std::array<const char*, 6> shadowPresetNames =
-        { "Disabled", "Actor", "NPC", "Object", "Terrain", "Indoor" };
+        { "value.disabled", "value.actor", "value.npc", "value.object", "value.terrain", "value.indoor" };
 
+    constexpr std::array<const char*, 4> hdrTonemapperNames =
+        { "value.aces", "value.reinhard", "value.filmic", "value.neutral" };
 
     constexpr std::array<const char*, 3> weaponSpellBoxModeNames =
-        { "Hide with bars", "Keep at 40%", "Always visible" };
+        { "value.hidden", "value.transparent", "value.visible" };
     constexpr std::array<const char*, 3> weaponSpellBoxModes =
         { "hidden", "transparent", "visible" };
 
@@ -158,9 +169,17 @@ namespace
     }
 
     constexpr std::array<const char*, 4> landOptimizationModeNames =
-        { "Off", "Balance", "Performance", "Aggressive" };
+        { "value.off", "value.balance", "value.performance", "value.aggressive" };
     constexpr std::array<const char*, 4> landOptimizationModes =
         { "off", "balance", "performance", "aggressive" };
+
+    constexpr float landOptimizedDistanceMin = 4000.f;
+    constexpr float landOptimizedDistanceMax = 40000.f;
+    void clampOptimizedLandDistance(float distance)
+    {
+        distance = std::clamp(distance, landOptimizedDistanceMin, landOptimizedDistanceMax);
+        Settings::Manager::setFloat("viewing distance", "Camera", distance);
+    }
 
     std::string getLandOptimizationMode()
     {
@@ -180,8 +199,35 @@ namespace
         return "balance";
     }
 
+    constexpr std::array<const char*, 5> materialQualityNames =
+        { "value.none", "value.simple", "value.balanced", "value.quality", "value.ultra" };
+    constexpr std::array<const char*, 5> materialQualityModes =
+        { "none", "simple", "balanced", "quality", "ultra" };
+
+    std::string getMaterialQualityMode()
+    {
+        std::string mode = Settings::Manager::getString("material quality", "Shaders");
+        Misc::StringUtils::lowerCaseInPlace(mode);
+        for (const char* candidate : materialQualityModes)
+        {
+            if (mode == candidate)
+                return mode;
+        }
+
+        // Migrate older configurations that only exposed the individual map toggles.
+        const bool normals = Settings::Manager::getBool("auto use object normal maps", "Shaders")
+            || Settings::Manager::getBool("auto use terrain normal maps", "Shaders");
+        const bool specular = Settings::Manager::getBool("auto use object specular maps", "Shaders")
+            || Settings::Manager::getBool("auto use terrain specular maps", "Shaders");
+        if (!normals)
+            return "none";
+        if (!specular)
+            return "simple";
+        return "balanced";
+    }
+
     constexpr std::array<const char*, 6> terrainPresetNames =
-        { "Minimum", "Low", "Balanced", "Medium", "High", "Ultra" };
+        { "value.minimum", "value.low", "value.balanced", "value.medium", "value.high", "value.ultra" };
     constexpr std::array<float, 6> terrainLod =
         { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
     constexpr std::array<int, 6> vertexLod =
@@ -196,6 +242,38 @@ namespace
         { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
     constexpr std::array<float, 6> objectPagingMinSize =
         { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+
+    constexpr size_t highTerrainPresetIndex = 4;
+    constexpr size_t ultraMaterialQualityIndex = 4;
+    constexpr size_t qualityMaterialQualityIndex = 3;
+
+    void applyTerrainPresetSettings(size_t pos)
+    {
+        pos = std::min(pos, terrainPresetNames.size() - 1);
+        Settings::Manager::setBool("distant terrain", "Terrain", true);
+        Settings::Manager::setFloat("lod factor", "Terrain", terrainLod[pos]);
+        Settings::Manager::setInt("vertex lod mod", "Terrain", vertexLod[pos]);
+        Settings::Manager::setInt("composite map level", "Terrain", compositeLevel[pos]);
+        Settings::Manager::setInt("composite map resolution", "Terrain", compositeResolution[pos]);
+        Settings::Manager::setFloat("max composite geometry size", "Terrain", maxCompositeGeometrySize[pos]);
+        Settings::Manager::setBool("object paging", "Terrain", true);
+        Settings::Manager::setBool("object paging active grid", "Terrain", true);
+        Settings::Manager::setFloat("object paging merge factor", "Terrain", objectPagingMergeFactor[pos]);
+        Settings::Manager::setFloat("object paging min size", "Terrain", objectPagingMinSize[pos]);
+    }
+
+    void applyMaterialQualitySettings(size_t pos)
+    {
+        pos = std::min(pos, materialQualityModes.size() - 1);
+        Settings::Manager::setString("material quality", "Shaders", materialQualityModes[pos]);
+
+        const bool normalMaps = pos >= 1;
+        const bool specularMaps = pos >= 2;
+        Settings::Manager::setBool("auto use object normal maps", "Shaders", normalMaps);
+        Settings::Manager::setBool("auto use terrain normal maps", "Shaders", normalMaps);
+        Settings::Manager::setBool("auto use object specular maps", "Shaders", specularMaps);
+        Settings::Manager::setBool("auto use terrain specular maps", "Shaders", specularMaps);
+    }
 
     size_t getTerrainPresetPosition()
     {
@@ -267,7 +345,7 @@ namespace
     std::string getShadowMapQualityLabel(size_t position)
     {
         position = std::min(position, shadowMapResolutions.size() - 1);
-        return std::string(shadowMapQualityNames[position]) + " - "
+        return arenaText(shadowMapQualityNames[position]) + " - "
             + MyGUI::utility::toString(shadowMapResolutions[position]);
     }
 }
@@ -293,21 +371,6 @@ namespace MWGui
             }
             if (type == sliderType)
             {
-                /*
-                    Start of tes3mp addition
-
-                    Hide difficulty widget because it has no use in multiplayer, with
-                    the difficulty being set by the server instead
-                */
-                if (getSettingName(current) == "difficulty")
-                {
-                    widget->setEnabled(false);
-                    widget->setVisible(false);
-                }
-                /*
-                    End of tes3mp addition
-                */
-
                 MyGUI::ScrollBar* scroll = current->castType<MyGUI::ScrollBar>();
                 std::string valueStr;
                 std::string valueType = getSettingValueType(current);
@@ -361,9 +424,10 @@ namespace MWGui
         {
             MyGUI::TextBox* textBox;
             getWidget(textBox, labelWidgetName);
-            std::string labelCaption = scroller->getUserString("SettingLabelCaption");
+            std::string labelCaption = MyGUI::LanguageManager::getInstance().replaceTags(
+                scroller->getUserString("SettingLabelCaption"));
             labelCaption = Misc::StringUtils::format(labelCaption, value);
-            textBox->setCaptionWithReplacing(labelCaption);
+            textBox->setCaption(labelCaption);
         }
     }
 
@@ -376,6 +440,10 @@ namespace MWGui
         setTitle("#{sOptions}");
 
         getWidget(mSettingsTab, "SettingsTab");
+        getWidget(mSectionList, "SectionList");
+        getWidget(mInterfaceScroll, "InterfaceScroll");
+        getWidget(mDisplayScroll, "DisplayScroll");
+        getWidget(mHdrScroll, "HdrScroll");
         getWidget(mOkButton, "OkButton");
         getWidget(mResolutionList, "ResolutionList");
         getWidget(mFullscreenButton, "FullscreenButton");
@@ -390,13 +458,40 @@ namespace MWGui
         getWidget(mWaterReflectionDetail, "WaterReflectionDetail");
         getWidget(mLightingMethodButton, "LightingMethodButton");
         getWidget(mLightsResetButton, "LightsResetButton");
+        getWidget(mHdrTonemapper, "HdrTonemapper");
+        getWidget(mHdrResetButton, "HdrResetButton");
         getWidget(mMaxLights, "MaxLights");
         getWidget(mWeaponSpellBoxMode, "WeaponSpellBoxMode");
         getWidget(mQuickLootMode, "QuickLootMode");
         getWidget(mTerrainPreset, "TerrainPreset");
+        getWidget(mMaterialQuality, "MaterialQuality");
         getWidget(mLandOptimizationMode, "LandOptimizationMode");
+        getWidget(mOptimizedRenderDistanceSlider, "OptimizedRenderingDistanceSlider");
+        getWidget(mManualRenderDistanceBox, "ManualRenderDistanceBox");
+        getWidget(mOptimizedRenderDistanceBox, "OptimizedRenderDistanceBox");
         getWidget(mShadowPreset, "ShadowPreset");
         getWidget(mShadowMapQuality, "ShadowMapQuality");
+
+        mMainWidget->setSize(settingsWindowWidth, settingsWindowHeight);
+
+        const std::array<const char*, 12> sectionKeys = {
+            "settings.section.interface",
+            "settings.section.controls",
+            "settings.subsection.display",
+            "settings.subsection.quality",
+            "settings.subsection.water",
+            "settings.subsection.lighting",
+            "settings.subsection.hdr",
+            "settings.subsection.bloom",
+            "settings.subsection.world",
+            "settings.subsection.shadows",
+            "settings.section.audio",
+            "settings.section.advanced",
+        };
+        for (const char* key : sectionKeys)
+            mSectionList->addItem(arenaText(key));
+        mSectionList->setIndexSelected(0);
+        mSettingsTab->setIndexSelected(0);
 
 #ifndef WIN32
         // hide gamma controls since it currently does not work under Linux
@@ -415,6 +510,7 @@ namespace MWGui
         mMainWidget->castType<MyGUI::Window>()->eventWindowChangeCoord += MyGUI::newDelegate(this, &SettingsWindow::onWindowResize);
 
         mSettingsTab->eventTabChangeSelect += MyGUI::newDelegate(this, &SettingsWindow::onTabChanged);
+        mSectionList->eventListChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onSectionSelected);
         mOkButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onOkButtonClicked);
         mTextureFilteringButton->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTextureFilteringChanged);
         mResolutionList->eventListChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onResolutionSelected);
@@ -426,26 +522,56 @@ namespace MWGui
         mLightsResetButton->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onLightsResetButtonClicked);
         mMaxLights->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMaxLightsChanged);
 
+        for (const char* name : hdrTonemapperNames)
+            mHdrTonemapper->addItem(arenaText(name));
+        mHdrTonemapper->eventComboChangePosition += MyGUI::newDelegate(
+            this, &SettingsWindow::onHdrTonemapperChanged);
+        mHdrResetButton->eventMouseButtonClick += MyGUI::newDelegate(
+            this, &SettingsWindow::onHdrResetButtonClicked);
+
+        mTextureFilteringButton->removeAllItems();
+        mTextureFilteringButton->addItem(arenaText("value.bilinear"));
+        mTextureFilteringButton->addItem(arenaText("value.trilinear"));
+
+        mWaterTextureSize->removeAllItems();
+        mWaterTextureSize->addItem(arenaText("value.extra_low"));
+        mWaterTextureSize->addItem(arenaText("value.low"));
+        mWaterTextureSize->addItem(arenaText("value.medium"));
+        mWaterTextureSize->addItem(arenaText("value.high"));
+
+        mWaterReflectionDetail->removeAllItems();
+        mWaterReflectionDetail->addItem(arenaText("value.off"));
+        mWaterReflectionDetail->addItem(arenaText("value.terrain"));
+        mWaterReflectionDetail->addItem(arenaText("value.world"));
+        mWaterReflectionDetail->addItem(arenaText("value.objects"));
+        mWaterReflectionDetail->addItem(arenaText("value.actors"));
+        mWaterReflectionDetail->addItem(arenaText("settings.groundcover"));
+
         for (const char* name : weaponSpellBoxModeNames)
-            mWeaponSpellBoxMode->addItem(name);
+            mWeaponSpellBoxMode->addItem(arenaText(name));
         mWeaponSpellBoxMode->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWeaponSpellBoxModeChanged);
 
-        mQuickLootMode->addItem("Disabled");
-        mQuickLootMode->addItem("Container");
-        mQuickLootMode->addItem("Item");
+        mQuickLootMode->addItem(arenaText("value.disabled"));
+        mQuickLootMode->addItem(arenaText("value.container"));
+        mQuickLootMode->addItem(arenaText("value.item"));
         mQuickLootMode->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onQuickLootModeChanged);
 
         for (const char* name : terrainPresetNames)
-            mTerrainPreset->addItem(name);
+            mTerrainPreset->addItem(arenaText(name));
         mTerrainPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onTerrainPresetChanged);
 
+        for (const char* name : materialQualityNames)
+            mMaterialQuality->addItem(arenaText(name));
+        mMaterialQuality->eventComboChangePosition += MyGUI::newDelegate(
+            this, &SettingsWindow::onMaterialQualityChanged);
+
         for (const char* name : landOptimizationModeNames)
-            mLandOptimizationMode->addItem(name);
+            mLandOptimizationMode->addItem(arenaText(name));
         mLandOptimizationMode->eventComboChangePosition += MyGUI::newDelegate(
             this, &SettingsWindow::onLandOptimizationModeChanged);
 
         for (const char* name : shadowPresetNames)
-            mShadowPreset->addItem(name);
+            mShadowPreset->addItem(arenaText(name));
         mShadowPreset->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onShadowPresetChanged);
 
         for (size_t i = 0; i < shadowMapResolutions.size(); ++i)
@@ -503,7 +629,9 @@ namespace MWGui
         updateWeaponSpellBoxModeCombo();
         updateQuickLootModeCombo();
         updateTerrainPresetCombo();
+        updateMaterialQualityCombo();
         updateLandOptimizationModeCombo();
+        updateLandDistanceControls();
         updateShadowCombos();
 
         mWindowBorderButton->setEnabled(!Settings::Manager::getBool("fullscreen", "Video"));
@@ -512,8 +640,19 @@ namespace MWGui
         mControllerSwitch->setStateSelected(false);
     }
 
-    void SettingsWindow::onTabChanged(MyGUI::TabControl* /*_sender*/, size_t /*index*/)
+    void SettingsWindow::onTabChanged(MyGUI::TabControl* /*_sender*/, size_t index)
     {
+        if (index < mSectionList->getItemCount() && mSectionList->getIndexSelected() != index)
+            mSectionList->setIndexSelected(index);
+        configureWidgets(mMainWidget, false);
+        resetScrollbars();
+    }
+    void SettingsWindow::onSectionSelected(MyGUI::ListBox* /*_sender*/, size_t index)
+    {
+        if (index == MyGUI::ITEM_NONE || index >= mSectionList->getItemCount())
+            return;
+        mSettingsTab->setIndexSelected(index);
+        configureWidgets(mMainWidget, false);
         resetScrollbars();
     }
 
@@ -599,10 +738,12 @@ namespace MWGui
         if (pos == MyGUI::ITEM_NONE)
             return;
 
-        std::string message = "This change requires a restart to take effect.";
+        std::string message = arenaText("settings.restart_required");
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, {"#{sOK}"}, true);
 
-        Settings::Manager::setString("lighting method", "Shaders", _sender->getItemNameAt(pos));
+        if (pos >= mLightingMethodValues.size())
+            return;
+        Settings::Manager::setString("lighting method", "Shaders", mLightingMethodValues[pos]);
         apply();
     }
 
@@ -618,29 +759,69 @@ namespace MWGui
     void SettingsWindow::onLightsResetButtonClicked(MyGUI::Widget* _sender)
     {
         std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
-        std::string message = "Resets to default values, would you like to continue? Only changes to the lighting method require a restart.";
+        std::string message = arenaText("settings.reset_lights_confirm");
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons, true);
         int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
         if (selectedButton == 1 || selectedButton == -1)
             return;
 
-        constexpr std::array<const char*, 7> settings = {
+        constexpr std::array<const char*, 6> settings = {
             "light bounds multiplier",
             "maximum light distance",
             "light fade start",
             "minimum interior brightness",
             "max lights",
             "lighting method",
-            "hdr lighting",
         };
         for (const auto& setting : settings)
             Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);
 
-        mLightingMethodButton->setIndexSelected(mLightingMethodButton->findItemIndexWith(Settings::Manager::mDefaultSettings[{"Shaders", "lighting method"}]));
+        selectLightingMethod(Settings::Manager::mDefaultSettings[{"Shaders", "lighting method"}]);
         updateMaxLightsComboBox(mMaxLights);
 
         apply();
         configureWidgets(mMainWidget, false);
+    }
+
+    void SettingsWindow::onHdrTonemapperChanged(MyGUI::ComboBox* _sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        Settings::Manager::setInt("hdr tonemapper", "Shaders", static_cast<int>(std::min<size_t>(pos, 3)));
+        apply();
+    }
+
+    void SettingsWindow::updateHdrTonemapperCombo()
+    {
+        const int value = std::clamp(Settings::Manager::getInt("hdr tonemapper", "Shaders"), 0, 3);
+        mHdrTonemapper->setIndexSelected(static_cast<size_t>(value));
+    }
+
+    void SettingsWindow::onHdrResetButtonClicked(MyGUI::Widget* _sender)
+    {
+        std::vector<std::string> buttons = {"#{sYes}", "#{sNo}"};
+        MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
+            arenaText("settings.reset_hdr_confirm"), buttons, true);
+        const int selectedButton = MWBase::Environment::get().getWindowManager()->readPressedButton();
+        if (selectedButton == 1 || selectedButton == -1)
+            return;
+
+        constexpr std::array<const char*, 8> settings = {
+            "hdr lighting",
+            "hdr tonemapper",
+            "hdr exposure",
+            "hdr interior exposure",
+            "hdr night exposure",
+            "hdr gamma",
+            "hdr brightness",
+            "hdr saturation",
+        };
+        for (const char* setting : settings)
+            Settings::Manager::setString(setting, "Shaders", Settings::Manager::mDefaultSettings[{"Shaders", setting}]);
+
+        updateHdrTonemapperCombo();
+        configureWidgets(mMainWidget, false);
+        apply();
     }
 
     void SettingsWindow::onButtonToggled(MyGUI::Widget* _sender)
@@ -755,6 +936,21 @@ namespace MWGui
         mTerrainPreset->setIndexSelected(getTerrainPresetPosition());
     }
 
+    void SettingsWindow::updateMaterialQualityCombo()
+    {
+        const std::string mode = getMaterialQualityMode();
+        size_t position = 2;
+        for (size_t i = 0; i < materialQualityModes.size(); ++i)
+        {
+            if (mode == materialQualityModes[i])
+            {
+                position = i;
+                break;
+            }
+        }
+        mMaterialQuality->setIndexSelected(position);
+    }
+
     void SettingsWindow::updateLandOptimizationModeCombo()
     {
         const std::string mode = getLandOptimizationMode();
@@ -768,6 +964,13 @@ namespace MWGui
             }
         }
         mLandOptimizationMode->setIndexSelected(position);
+    }
+
+    void SettingsWindow::updateLandDistanceControls()
+    {
+        const bool optimized = getLandOptimizationMode() != "off";
+        mManualRenderDistanceBox->setVisible(!optimized);
+        mOptimizedRenderDistanceBox->setVisible(optimized);
     }
 
     void SettingsWindow::updateShadowCombos()
@@ -808,16 +1011,33 @@ namespace MWGui
         // These settings are hot-applied by RenderingManager. Distant land and
         // object paging are intentionally always enabled; the preset only changes
         // their detail/performance balance.
-        Settings::Manager::setBool("distant terrain", "Terrain", true);
-        Settings::Manager::setFloat("lod factor", "Terrain", terrainLod[pos]);
-        Settings::Manager::setInt("vertex lod mod", "Terrain", vertexLod[pos]);
-        Settings::Manager::setInt("composite map level", "Terrain", compositeLevel[pos]);
-        Settings::Manager::setInt("composite map resolution", "Terrain", compositeResolution[pos]);
-        Settings::Manager::setFloat("max composite geometry size", "Terrain", maxCompositeGeometrySize[pos]);
-        Settings::Manager::setBool("object paging", "Terrain", true);
-        Settings::Manager::setBool("object paging active grid", "Terrain", true);
-        Settings::Manager::setFloat("object paging merge factor", "Terrain", objectPagingMergeFactor[pos]);
-        Settings::Manager::setFloat("object paging min size", "Terrain", objectPagingMinSize[pos]);
+        applyTerrainPresetSettings(pos);
+
+        // Maximum PBR is intentionally tied to High/Ultra terrain. Lowering the
+        // terrain preset automatically falls back to the Quality PBR mode.
+        if (pos < highTerrainPresetIndex && getMaterialQualityMode() == "ultra")
+        {
+            applyMaterialQualitySettings(qualityMaterialQualityIndex);
+            mMaterialQuality->setIndexSelected(qualityMaterialQualityIndex);
+        }
+        apply();
+    }
+
+    void SettingsWindow::onMaterialQualityChanged(MyGUI::ComboBox*, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+        pos = std::min(pos, materialQualityModes.size() - 1);
+
+        // Selecting Maximum PBR automatically raises landscape detail to High.
+        // This keeps the expensive terrain POM/AO path from running on low-detail land.
+        if (pos == ultraMaterialQualityIndex && getTerrainPresetPosition() < highTerrainPresetIndex)
+        {
+            applyTerrainPresetSettings(highTerrainPresetIndex);
+            mTerrainPreset->setIndexSelected(highTerrainPresetIndex);
+        }
+
+        applyMaterialQualitySettings(pos);
         apply();
     }
 
@@ -827,6 +1047,10 @@ namespace MWGui
             return;
         pos = std::min(pos, landOptimizationModes.size() - 1);
         Settings::Manager::setString("optimization land", "Camera", landOptimizationModes[pos]);
+        if (pos != 0)
+            clampOptimizedLandDistance(Settings::Manager::getFloat("viewing distance", "Camera"));
+        updateLandDistanceControls();
+        configureWidgets(mMainWidget, false);
         apply();
     }
 
@@ -893,6 +1117,12 @@ namespace MWGui
                 Settings::Manager::setInt(getSettingName(scroller), getSettingCategory(scroller), pos);
                 valueStr = MyGUI::utility::toString(pos);
             }
+            if (scroller == mOptimizedRenderDistanceSlider)
+            {
+                const float distance = Settings::Manager::getFloat("viewing distance", "Camera");
+                clampOptimizedLandDistance(distance);
+            }
+
             updateSliderLabel(scroller, valueStr);
 
             apply();
@@ -975,28 +1205,48 @@ namespace MWGui
         layoutControlsBox();
     }
 
+    void SettingsWindow::selectLightingMethod(const std::string& value)
+    {
+        for (size_t i = 0; i < mLightingMethodValues.size(); ++i)
+        {
+            if (mLightingMethodValues[i] == value)
+            {
+                mLightingMethodButton->setIndexSelected(i);
+                return;
+            }
+        }
+        mLightingMethodButton->setIndexSelected(MyGUI::ITEM_NONE);
+    }
+
     void SettingsWindow::updateLightSettings()
     {
         auto lightingMethod = MWBase::Environment::get().getResourceSystem()->getSceneManager()->getLightingMethod();
-        std::string lightingMethodStr = SceneUtil::LightManager::getLightingMethodString(lightingMethod);
+        const std::string lightingMethodStr = SceneUtil::LightManager::getLightingMethodString(lightingMethod);
 
         mLightingMethodButton->removeAllItems();
+        mLightingMethodValues.clear();
 
-        std::array<SceneUtil::LightingMethod, 3> methods = {
-            SceneUtil::LightingMethod::FFP,
-            SceneUtil::LightingMethod::PerObjectUniform,
-            SceneUtil::LightingMethod::SingleUBO,
-        };
-
-        for (const auto& method : methods)
+        struct LightingChoice
         {
-            if (!MWBase::Environment::get().getResourceSystem()->getSceneManager()->isSupportedLightingMethod(method))
+            SceneUtil::LightingMethod mMethod;
+            const char* mLabelKey;
+        };
+        const std::array<LightingChoice, 3> methods = {{
+            { SceneUtil::LightingMethod::FFP, "value.lighting_legacy" },
+            { SceneUtil::LightingMethod::PerObjectUniform, "value.lighting_compatibility" },
+            { SceneUtil::LightingMethod::SingleUBO, "value.lighting_shaders" },
+        }};
+
+        for (const LightingChoice& choice : methods)
+        {
+            if (!MWBase::Environment::get().getResourceSystem()->getSceneManager()->isSupportedLightingMethod(choice.mMethod))
                 continue;
 
-            mLightingMethodButton->addItem(SceneUtil::LightManager::getLightingMethodString(method));
+            mLightingMethodValues.push_back(SceneUtil::LightManager::getLightingMethodString(choice.mMethod));
+            mLightingMethodButton->addItem(arenaText(choice.mLabelKey));
         }
 
-        mLightingMethodButton->setIndexSelected(mLightingMethodButton->findItemIndexWith(lightingMethodStr));
+        selectLightingMethod(lightingMethodStr);
     }
 
     void SettingsWindow::layoutControlsBox()
@@ -1062,10 +1312,13 @@ namespace MWGui
         highlightCurrentResolution();
         updateControlsBox();
         updateLightSettings();
+        updateHdrTonemapperCombo();
         updateWeaponSpellBoxModeCombo();
         updateQuickLootModeCombo();
         updateTerrainPresetCombo();
+        updateMaterialQualityCombo();
         updateLandOptimizationModeCombo();
+        updateLandDistanceControls();
         updateShadowCombos();
         resetScrollbars();
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mOkButton);
@@ -1073,6 +1326,11 @@ namespace MWGui
 
     void SettingsWindow::onWindowResize(MyGUI::Window *_sender)
     {
+        if (_sender->getWidth() != settingsWindowWidth || _sender->getHeight() != settingsWindowHeight)
+        {
+            _sender->setSize(settingsWindowWidth, settingsWindowHeight);
+            center();
+        }
         layoutControlsBox();
     }
 
@@ -1080,5 +1338,8 @@ namespace MWGui
     {
         mResolutionList->setScrollPosition(0);
         mControlsBox->setViewOffset(MyGUI::IntPoint(0, 0));
+        mInterfaceScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+        mDisplayScroll->setViewOffset(MyGUI::IntPoint(0, 0));
+        mHdrScroll->setViewOffset(MyGUI::IntPoint(0, 0));
     }
 }

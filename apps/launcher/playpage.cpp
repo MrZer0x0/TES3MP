@@ -292,6 +292,8 @@ void Launcher::PlayPage::setServerSettingsStatus(const QString& text, bool isErr
 
 void Launcher::PlayPage::populateFormFromConfig(const QString& text)
 {
+    if (QComboBox* serverLanguageComboBox = findChild<QComboBox*>(QStringLiteral("serverLanguageComboBox")))
+        loadComboBox(serverLanguageComboBox, text, QStringLiteral("serverLanguage"));
     loadLineEdit(gameModeEdit, text, QStringLiteral("gameMode"));
     loadLineEdit(dataPathEdit, text, QStringLiteral("dataPath"));
 
@@ -390,6 +392,12 @@ QString Launcher::PlayPage::updatedConfigFromForm(const QString& input) const
         text = replaceConfigAssignment(text, key, value ? QStringLiteral("true") : QStringLiteral("false"));
     };
 
+    const QComboBox* serverLanguageComboBox = findChild<QComboBox*>(QStringLiteral("serverLanguageComboBox"));
+    const QString serverLanguage = serverLanguageComboBox != nullptr
+        ? serverLanguageComboBox->currentData().toString()
+        : QStringLiteral("AUTO");
+    replaceString(QStringLiteral("serverLanguage"),
+        serverLanguage.isEmpty() ? QStringLiteral("AUTO") : serverLanguage);
     replaceString(QStringLiteral("gameMode"), gameModeEdit->text().trimmed());
 
     const QString dataPathValue = dataPathEdit->text().trimmed();

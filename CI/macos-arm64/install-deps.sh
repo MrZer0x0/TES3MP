@@ -13,7 +13,7 @@ fi
 echo "ArenaMP macOS: using bundled Bullet with double precision (Homebrew Bullet is intentionally disabled)"
 echo "ArenaMP macOS: pinning FFmpeg 4 because this OpenMW/TES3MP branch uses legacy FFmpeg APIs"
 
-brew install cmake ninja ccache qt@5 boost sdl2-compat openal-soft ffmpeg@4 \
+brew install cmake ninja ccache qt@5 boost sdl2-compat sdl3 openal-soft ffmpeg@4 \
   open-scene-graph webp lz4 unshield pkgconf luajit freetype
 
 if [[ -n "${GITHUB_PATH:-}" ]]; then
@@ -41,6 +41,7 @@ FFMPEG_PREFIX="$(brew --prefix ffmpeg@4)"
 OPENAL_PREFIX="$(brew --prefix openal-soft)"
 OSG_PREFIX="$(brew --prefix open-scene-graph)"
 SDL_PREFIX="$(brew --prefix sdl2-compat)"
+SDL3_PREFIX="$(brew --prefix sdl3)"
 WEBP_PREFIX="$(brew --prefix webp)"
 
 require_arm64_file "$QT_PREFIX/lib/QtCore.framework/Versions/5/QtCore" "QtCore"
@@ -48,6 +49,13 @@ require_arm64_file "$FFMPEG_PREFIX/lib/libavcodec.dylib" "FFmpeg libavcodec"
 require_arm64_file "$FFMPEG_PREFIX/lib/libavformat.dylib" "FFmpeg libavformat"
 require_arm64_file "$OPENAL_PREFIX/lib/libopenal.dylib" "OpenAL Soft"
 require_arm64_file "$SDL_PREFIX/lib/libSDL2.dylib" "SDL2 compatibility library"
+SDL3_LIBRARY="$SDL3_PREFIX/lib/libSDL3.dylib"
+if [[ ! -f "$SDL3_LIBRARY" ]]; then
+  echo "ERROR: SDL3 runtime library required by sdl2-compat was not found: $SDL3_LIBRARY" >&2
+  find "$SDL3_PREFIX/lib" -maxdepth 1 -print 2>/dev/null | sort >&2 || true
+  exit 1
+fi
+require_arm64_file "$SDL3_LIBRARY" "SDL3 runtime library"
 WEBP_LIBRARY="$(find "$WEBP_PREFIX/lib" -maxdepth 1 -type f -name 'libwebp*.dylib' -print -quit)"
 SHARPYUV_LIBRARY="$(find "$WEBP_PREFIX/lib" -maxdepth 1 -type f -name 'libsharpyuv*.dylib' -print -quit)"
 require_arm64_file "$WEBP_LIBRARY" "WebP runtime library"
@@ -136,4 +144,4 @@ fi
 
 echo "ArenaMP macOS: dependency architecture checks passed"
 echo "ArenaMP macOS: MyGUI installation verified at $MYGUI_INSTALL"
-brew list --versions cmake ninja ccache qt@5 boost sdl2-compat openal-soft ffmpeg@4 open-scene-graph webp lz4 luajit freetype
+brew list --versions cmake ninja ccache qt@5 boost sdl2-compat sdl3 openal-soft ffmpeg@4 open-scene-graph webp lz4 luajit freetype

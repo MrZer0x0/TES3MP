@@ -1105,6 +1105,12 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
     mEnvironment.setWorld( new MWWorld::World (mViewer, rootNode, mResourceSystem.get(), mWorkQueue.get(),
         mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder, mActivationDistanceOverride, mCellName,
         mStartupScript, mResDir.string(), mCfgMgr.getUserDataPath().string()));
+
+    // UI initialization can inspect or auto-equip inventory items. Register the
+    // mechanics system first so canBeEquipped() never dereferences a null manager.
+    MWMechanics::MechanicsManager* mechanics = new MWMechanics::MechanicsManager;
+    mEnvironment.setMechanicsManager (mechanics);
+
     mEnvironment.getWorld()->setupPlayer();
 
     window->setStore(mEnvironment.getWorld()->getStore());
@@ -1123,10 +1129,6 @@ void OMW::Engine::prepareEngine (Settings::Manager & settings)
 
     mEnvironment.setScriptManager (new MWScript::ScriptManager (mEnvironment.getWorld()->getStore(), *mScriptContext, mWarningsMode,
         mScriptBlacklistUse ? mScriptBlacklist : std::vector<std::string>()));
-
-    // Create game mechanics system
-    MWMechanics::MechanicsManager* mechanics = new MWMechanics::MechanicsManager;
-    mEnvironment.setMechanicsManager (mechanics);
 
     // Create dialog system
     mEnvironment.setJournal (new MWDialogue::Journal);

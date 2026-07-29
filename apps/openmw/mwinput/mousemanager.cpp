@@ -141,6 +141,17 @@ namespace MWInput
         if (arg.direction == SDL_MOUSEWHEEL_FLIPPED)
             wheelDirection = -wheelDirection;
 
+        // The Z animation menu owns the wheel anywhere on screen. It uses the
+        // same one-event/one-row cyclic navigation as QuickLoot.
+        if (!mBindingsManager->isDetectingBindingState() && wheelDirection != 0
+            && MWBase::Environment::get().getWindowManager()
+                ->handlePlayerAnimationMenuMouseWheel(wheelDirection))
+        {
+            input->setJoystickLastUsed(false);
+            input->resetIdleTime();
+            return;
+        }
+
         // QuickLoot owns the wheel while its overlay is visible. Do not pass the
         // same event to the regular bindings, where it would zoom the camera.
         if (!mBindingsManager->isDetectingBindingState() && wheelDirection != 0

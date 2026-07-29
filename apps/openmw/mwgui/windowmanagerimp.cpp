@@ -103,6 +103,7 @@
 #include "alchemywindow.hpp"
 #include "spellwindow.hpp"
 #include "quickkeysmenu.hpp"
+#include "playeranimationmenu.hpp"
 #include "loadingscreen.hpp"
 #include "levelupdialog.hpp"
 #include "waitdialog.hpp"
@@ -126,6 +127,7 @@
 #include "spellview.hpp"
 #include "draganddrop.hpp"
 #include "container.hpp"
+#include "arenalocalization.hpp"
 #include "controllers.hpp"
 #include "jailscreen.hpp"
 #include "itemchargeview.hpp"
@@ -165,6 +167,7 @@ namespace MWGui
       , mConfirmationDialog(nullptr)
       , mSpellWindow(nullptr)
       , mQuickKeysMenu(nullptr)
+      , mPlayerAnimationMenu(nullptr)
       , mLoadingScreen(nullptr)
       , mWaitDialog(nullptr)
       , mSoulgemDialog(nullptr)
@@ -209,6 +212,7 @@ namespace MWGui
 
         createTextures();
 
+        mArenaLocalization.reset(new ArenaLocalization(resourceSystem->getVFS(), encoding));
         MyGUI::LanguageManager::getInstance().eventRequestTag = MyGUI::newDelegate(this, &WindowManager::onRetrieveTag);
 
         // Load fonts
@@ -417,6 +421,10 @@ namespace MWGui
         mQuickKeysMenu = new QuickKeysMenu();
         mWindows.push_back(mQuickKeysMenu);
         mGuiModeStates[GM_QuickKeysMenu] = GuiModeState(mQuickKeysMenu);
+
+        mPlayerAnimationMenu = new PlayerAnimationMenu();
+        mWindows.push_back(mPlayerAnimationMenu);
+        mGuiModeStates[GM_PlayerAnimationMenu] = GuiModeState(mPlayerAnimationMenu);
 
         LevelupDialog* levelupDialog = new LevelupDialog();
         mWindows.push_back(levelupDialog);
@@ -1051,6 +1059,12 @@ namespace MWGui
         return mQuickLoot && mQuickLoot->activateSelected();
     }
 
+    bool WindowManager::handlePlayerAnimationMenuMouseWheel(int rel)
+    {
+        return mPlayerAnimationMenu && getMode() == GM_PlayerAnimationMenu
+            && mPlayerAnimationMenu->handleMouseWheel(rel);
+    }
+
     bool WindowManager::handleQuickLootMouseWheel(int rel)
     {
         return mQuickLoot && mQuickLoot->handleMouseWheel(rel);
@@ -1131,8 +1145,15 @@ namespace MWGui
 
         std::string tokenToFind = "sCell=";
         size_t tokenLength = tokenToFind.length();
-        
-        if(tag.compare(0, MyGuiPrefixLength, MyGuiPrefix) == 0)
+
+        const std::string arenaPrefix = "arenamp=";
+        if (tag.compare(0, arenaPrefix.length(), arenaPrefix) == 0)
+        {
+            _result = mArenaLocalization
+                ? mArenaLocalization->translate(tag.substr(arenaPrefix.length()))
+                : tag.substr(arenaPrefix.length());
+        }
+        else if(tag.compare(0, MyGuiPrefixLength, MyGuiPrefix) == 0)
         {
             tag = tag.substr(MyGuiPrefixLength, tag.length());
             size_t comma_pos = tag.find(',');
@@ -1255,6 +1276,11 @@ namespace MWGui
     bool WindowManager::isWindowVisible()
     {
         return mWindowVisible;
+    }
+
+    std::string WindowManager::getArenaLanguage() const
+    {
+        return mArenaLocalization ? mArenaLocalization->getLanguage() : "en";
     }
 
     void WindowManager::windowVisibilityChange(bool visible)

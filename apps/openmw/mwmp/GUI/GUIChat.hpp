@@ -19,12 +19,15 @@ namespace mwmp
     {
         friend class GUIController;
     public:
-        enum
+        enum ChatWindowState
         {
-            CHAT_DISABLED = 0,
-            CHAT_ENABLED,
-            CHAT_HIDDENMODE
-        } CHAT_WIN_STATE;
+            CHAT_VISIBLE = 0,
+            CHAT_TRANSPARENT_30,
+            CHAT_TRANSPARENT_60,
+            CHAT_AUTOHIDE,
+            CHAT_HIDDEN,
+            CHAT_STATE_COUNT
+        };
 
         MyGUI::EditBox* mCommandLine;
         MyGUI::EditBox* mHistory;
@@ -40,7 +43,7 @@ namespace mwmp
         GUIChat(int x, int y, int w, int h);
 
         void pressedChatMode(); //switch chat mode
-        void pressedSay(); // switch chat focus (if chat mode != CHAT_DISABLED)
+        void pressedSay(); // show chat input, including while the chat itself is hidden
         void setDelay(float newDelay);
         void setHistoryDisplayEnabled(bool enabled);
 
@@ -88,15 +91,24 @@ namespace mwmp
         void setEditState(bool state);
         void setHistoryReviewState(bool state);
         void scrollHistoryToBottom();
+        void refreshPresentation();
+        void revealTemporarily();
+        void showSmoothly(float targetAlpha);
+        void hideSmoothly();
+        void applyAlpha(float alpha);
+        float getRestingAlpha() const;
+        std::string getModeMessage() const;
 
-        int windowState;
+        ChatWindowState windowState;
         bool editState;
         bool historyReviewState;
         bool mainMenuOpen;
-        bool visibleBeforeMainMenu;
         bool historyDisplayEnabled;
+        bool hideAfterFade;
         float delay;
-        float curTime;
+        float revealTime;
+        float currentAlpha;
+        float targetAlpha;
     };
 }
 #endif //OPENMW_GUICHAT_HPP

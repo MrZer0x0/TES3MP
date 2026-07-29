@@ -9,7 +9,7 @@ namespace MWMechanics
     Actor::Actor(const MWWorld::Ptr &ptr, MWRender::Animation *animation)
     {
         mCharacterController.reset(new CharacterController(ptr, animation));
-        mDynamicIdle.mTimer = 6.f + Misc::Rng::rollProbability() * 18.f;
+        mDynamicIdle.mTimer = 4.f + Misc::Rng::rollProbability() * 10.f;
         mDynamicIdle.mActivationDistance = 1000.f + Misc::Rng::rollProbability() * 1000.f;
     }
 

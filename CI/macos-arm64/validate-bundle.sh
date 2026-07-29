@@ -80,7 +80,7 @@ BUNDLE_EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PL
 [[ -n "$BUNDLE_EXECUTABLE" ]] || fail "CFBundleExecutable is empty"
 [[ -x "$APP_PATH/Contents/MacOS/$BUNDLE_EXECUTABLE" ]] || fail "CFBundleExecutable does not exist: $BUNDLE_EXECUTABLE"
 
-for required in openmw-launcher tes3mp tes3mp-server tes3mp-browser; do
+for required in openmw-launcher openmw-wizard tes3mp tes3mp-server tes3mp-browser; do
   [[ -x "$APP_PATH/Contents/MacOS/$required" ]] || fail "required executable is missing: $required"
 done
 for required_server_file in \
@@ -126,6 +126,27 @@ find "$APP_PATH/Contents/PlugIns" -type f -path '*/platforms/*qcocoa*' -print -q
 find "$APP_PATH/Contents/Frameworks/MyGUIEngine.framework" -type f \
   -path '*/Versions/*/MyGUIEngine' -print -quit | grep -q . \
   || fail "fixed MyGUI framework is missing from Contents/Frameworks"
+SDL3_BUNDLED="$APP_PATH/Contents/Frameworks/libSDL3.dylib"
+[[ -f "$SDL3_BUNDLED" && ! -L "$SDL3_BUNDLED" ]] \
+  || fail "SDL3 runtime required by sdl2-compat is missing or is only a symlink in Contents/Frameworks"
+file -L "$SDL3_BUNDLED" | grep -q 'Mach-O' \
+  || fail "bundled SDL3 runtime is not a Mach-O dylib"
+lipo -archs "$SDL3_BUNDLED" | tr ' ' '\n' | grep -qx arm64 \
+  || fail "bundled SDL3 runtime does not contain arm64"
+SDL3_ID="$(otool -D "$SDL3_BUNDLED" 2>/dev/null | tail -n +2 | head -1)"
+[[ "$SDL3_ID" == '@rpath/libSDL3.dylib' ]] \
+  || fail "bundled SDL3 has an unexpected install name: $SDL3_ID"
+for alias in \
+    Contents/Frameworks/libSDL3.0.dylib \
+    Contents/Frameworks/libSDL3-3.0.dylib \
+    Contents/Frameworks/libSDL3-3.0.0.dylib \
+    Contents/MacOS/libSDL3.dylib \
+    Contents/MacOS/libSDL3.0.dylib \
+    Contents/MacOS/libSDL3-3.0.dylib \
+    Contents/MacOS/libSDL3-3.0.0.dylib; do
+  [[ -L "$APP_PATH/$alias" && -f "$APP_PATH/$alias" ]] \
+    || fail "SDL3 compatibility alias is missing or broken: $alias"
+done
 
 MACHO_LIST="$(mktemp)"
 trap 'rm -f "$MACHO_LIST"' EXIT

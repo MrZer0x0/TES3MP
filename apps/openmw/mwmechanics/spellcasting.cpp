@@ -159,6 +159,16 @@ namespace MWMechanics
                 MWBase::Environment::get().getWorld()->getStore().get<ESM::MagicEffect>().find (
                 effectIt->mEffectID);
 
+            const bool isHarmful = (magicEffect->mData.mFlags & ESM::MagicEffect::Harmful) != 0;
+
+            // Apply friendly fire per effect rather than per spell, so mixed
+            // spells may still heal or buff a protected player while their
+            // harmful components (damage, drain, absorb, paralysis, etc.) are
+            // discarded. This also covers touch, projectile, area, reflected,
+            // enchanted-weapon and damage-over-time spell applications.
+            if (isHarmful && !MechanicsHelper::isFriendlyFireAllowed(caster, target))
+                continue;
+
             // Re-casting a bound equipment effect has no effect if the spell is still active
             if (magicEffect->mData.mFlags & ESM::MagicEffect::NonRecastable && targetSpells.isSpellActive(mId))
             {
@@ -184,7 +194,6 @@ namespace MWMechanics
                 continue;
 
             // Notify the target actor they've been hit
-            bool isHarmful = magicEffect->mData.mFlags & ESM::MagicEffect::Harmful;
             if (target.getClass().isActor() && target != caster && !caster.isEmpty() && isHarmful)
                 target.getClass().onHit(target, 0.0f, true, MWWorld::Ptr(), caster, osg::Vec3f(), true);
 

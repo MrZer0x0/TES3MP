@@ -9,6 +9,7 @@ FFMPEG_PREFIX="$(brew --prefix ffmpeg@4)"
 OPENAL_PREFIX="$(brew --prefix openal-soft)"
 OSG_PREFIX="$(brew --prefix open-scene-graph)"
 SDL_PREFIX="$(brew --prefix sdl2-compat)"
+SDL3_PREFIX="$(brew --prefix sdl3)"
 LZ4_PREFIX="$(brew --prefix lz4)"
 LUAJIT_PREFIX="$(brew --prefix luajit)"
 BOOST_PREFIX="$(brew --prefix boost)"
@@ -76,6 +77,16 @@ if [[ ! -f "$OPENAL_LIBRARY" || ! -f "$OPENAL_INCLUDE_DIR/al.h" ]]; then
   exit 1
 fi
 
+# Homebrew sdl2-compat implements the SDL2 ABI on top of SDL3. The SDL3
+# runtime is therefore a required transitive dependency of every packaged
+# ArenaMP executable, even though the source code still includes SDL2 headers.
+SDL3_LIBRARY="$SDL3_PREFIX/lib/libSDL3.dylib"
+if [[ ! -f "$SDL3_LIBRARY" ]]; then
+  echo "ERROR: SDL3 runtime library required by sdl2-compat was not found: $SDL3_LIBRARY" >&2
+  find "$SDL3_PREFIX/lib" -maxdepth 1 -print 2>/dev/null | sort >&2 || true
+  exit 1
+fi
+
 WEBP_LIBRARY=""
 SHARPYUV_LIBRARY=""
 for candidate in "$WEBP_PREFIX"/lib/libwebp*.dylib; do
@@ -94,8 +105,8 @@ if [[ -z "$WEBP_LIBRARY" || -z "$SHARPYUV_LIBRARY" ]]; then
   exit 1
 fi
 
-PREFIX_PATH="${QT_PREFIX};${MYGUI_PREFIX};${BOOST_PREFIX};${OSG_PREFIX};${FFMPEG_PREFIX};${SDL_PREFIX};${OPENAL_PREFIX};${LZ4_PREFIX};${LUAJIT_PREFIX};${WEBP_PREFIX}"
-BUNDLE_SEARCH_DIRS="${MYGUI_PREFIX}/lib;${QT_PREFIX}/lib;${BOOST_PREFIX}/lib;${OSG_PREFIX}/lib;${OSG_PLUGIN_DIR};${FFMPEG_PREFIX}/lib;${SDL_PREFIX}/lib;${OPENAL_PREFIX}/lib;${LZ4_PREFIX}/lib;${LUAJIT_PREFIX}/lib;${WEBP_PREFIX}/lib"
+PREFIX_PATH="${QT_PREFIX};${MYGUI_PREFIX};${BOOST_PREFIX};${OSG_PREFIX};${FFMPEG_PREFIX};${SDL_PREFIX};${SDL3_PREFIX};${OPENAL_PREFIX};${LZ4_PREFIX};${LUAJIT_PREFIX};${WEBP_PREFIX}"
+BUNDLE_SEARCH_DIRS="${MYGUI_PREFIX}/lib;${QT_PREFIX}/lib;${BOOST_PREFIX}/lib;${OSG_PREFIX}/lib;${OSG_PLUGIN_DIR};${FFMPEG_PREFIX}/lib;${SDL_PREFIX}/lib;${SDL3_PREFIX}/lib;${OPENAL_PREFIX}/lib;${LZ4_PREFIX}/lib;${LUAJIT_PREFIX}/lib;${WEBP_PREFIX}/lib"
 
 # Keep keg-only and versioned Homebrew packages ahead of preinstalled SDK
 # copies. This prevents accidental use of system OpenAL or FFmpeg 8.
@@ -103,8 +114,8 @@ export MYGUI_HOME="$MYGUI_PREFIX"
 export FFMPEG_HOME="$FFMPEG_PREFIX"
 export SDL2DIR="$SDL_PREFIX"
 export PATH="$QT_PREFIX/bin:$FFMPEG_PREFIX/bin:$PATH"
-export PKG_CONFIG_PATH="$MYGUI_PREFIX/lib/pkgconfig:$FFMPEG_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$QT_PREFIX/lib/pkgconfig:$OPENAL_PREFIX/lib/pkgconfig:$LUAJIT_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export LDFLAGS="-L$MYGUI_PREFIX/lib -L$FFMPEG_PREFIX/lib -L$SDL_PREFIX/lib -L$QT_PREFIX/lib -L$OPENAL_PREFIX/lib -L$LUAJIT_PREFIX/lib ${LDFLAGS:-}"
+export PKG_CONFIG_PATH="$MYGUI_PREFIX/lib/pkgconfig:$FFMPEG_PREFIX/lib/pkgconfig:$SDL_PREFIX/lib/pkgconfig:$SDL3_PREFIX/lib/pkgconfig:$QT_PREFIX/lib/pkgconfig:$OPENAL_PREFIX/lib/pkgconfig:$LUAJIT_PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+export LDFLAGS="-L$MYGUI_PREFIX/lib -L$FFMPEG_PREFIX/lib -L$SDL_PREFIX/lib -L$SDL3_PREFIX/lib -L$QT_PREFIX/lib -L$OPENAL_PREFIX/lib -L$LUAJIT_PREFIX/lib ${LDFLAGS:-}"
 export CPPFLAGS="-I$MYGUI_INCLUDE_DIR -I$FFMPEG_PREFIX/include -I$SDL_PREFIX/include/SDL2 -I$QT_PREFIX/include -I$OPENAL_PREFIX/include -I$LUAJIT_PREFIX/include ${CPPFLAGS:-}"
 
 cat <<INFO
@@ -112,6 +123,7 @@ ArenaMP macOS configuration:
   Qt 5:                  $QT_PREFIX
   FFmpeg 4:              $FFMPEG_PREFIX
   SDL2 compatibility:   $SDL_PREFIX
+  SDL3 runtime:          $SDL3_LIBRARY
   OpenAL Soft:           $OPENAL_PREFIX
   MyGUI headers:         $MYGUI_INCLUDE_DIR
   MyGUI library:         $MYGUI_LIBRARY
@@ -145,7 +157,7 @@ cmake -S . -B build -G Ninja \
   -DOSGPlugins_LIB_DIR:PATH="$OSG_PLUGIN_DIR" \
   -DOSGPlugins_DONT_FIND_DEPENDENCIES:BOOL=ON \
   -DBUILD_OPENCS=OFF \
-  -DBUILD_WIZARD=OFF \
+  -DBUILD_WIZARD=ON \
   -DBUILD_UNITTESTS=OFF \
   -DBUILD_BENCHMARKS=OFF \
   -DBUILD_DOCS=OFF \
@@ -180,6 +192,7 @@ require_cache_exact "OPENAL_LIBRARY:FILEPATH=$OPENAL_LIBRARY" "CMake did not use
 require_cache_exact 'OPENMW_USE_SYSTEM_BULLET:BOOL=OFF' 'macOS configuration selected a system Bullet build.'
 require_cache_exact 'USE_DOUBLE_PRECISION:BOOL=ON' 'bundled Bullet is not configured for double precision.'
 require_cache_exact 'OPENMW_OSX_USE_IMAGEIO_PLUGIN:BOOL=ON' 'OpenSceneGraph ImageIO plugin mode is disabled.'
+require_cache_exact 'BUILD_WIZARD:BOOL=ON' 'macOS configuration disabled openmw-wizard.'
 require_cache_exact 'OSGPlugins_DONT_FIND_DEPENDENCIES:BOOL=ON' 'legacy JPEG/PNG plugin dependencies were not disabled.'
 
 if grep -Eq 'Boost_SYSTEM_LIBRARY[^=]*=(Boost_SYSTEM_LIBRARY[^-]|.*NOTFOUND)' "$CACHE"; then

@@ -91,6 +91,9 @@ public:
 
     void removeCell(const MWWorld::CellStore* store);
 
+    /// Rebuild object and actor shaders after a runtime material-profile change.
+    void recreateShaders();
+
     /// Updates containing cell for object rendering data
     void updatePtr(const MWWorld::Ptr &old, const MWWorld::Ptr &cur);
 

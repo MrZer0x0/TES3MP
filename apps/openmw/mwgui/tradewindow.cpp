@@ -6,6 +6,7 @@
 #include <MyGUI_ControllerRepeatClick.h>
 
 #include <components/widgets/numericeditbox.hpp>
+#include <components/settings/settings.hpp>
 
 /*
     Start of tes3mp addition
@@ -28,6 +29,9 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/containerstore.hpp"
 #include "../mwworld/esmstore.hpp"
+#include "../mwworld/interactionanimation.hpp"
+
+#include "../mwrender/animation.hpp"
 
 #include "../mwmechanics/actorutil.hpp"
 #include "../mwmechanics/creaturestats.hpp"
@@ -471,6 +475,25 @@ namespace MWGui
 
         /// end of EncoreMP xp gain system
 
+
+        if (mCurrentBalance != 0
+            && Settings::Manager::getBool("animated interactions", "GUI")
+            && Settings::Manager::getBool("animated barter handoff", "GUI"))
+        {
+            if (mCurrentBalance < 0)
+            {
+                MWWorld::InteractionAnimation::playOneShot("give-to-player",
+                    MWRender::Animation::BlendMask_UpperBody, 2.f, 0.8325f, 1,
+                    MWWorld::InteractionAnimation::Prop_Gold);
+            }
+            else
+            {
+                MWWorld::InteractionAnimation::playOneShot("loot1",
+                    MWRender::Animation::BlendMask_Torso
+                        | MWRender::Animation::BlendMask_RightArm,
+                    0.7f, 1.f);
+            }
+        }
 
         eventTradeDone();
 

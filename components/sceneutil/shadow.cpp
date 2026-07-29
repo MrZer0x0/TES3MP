@@ -1,5 +1,7 @@
 #include "shadow.hpp"
 
+#include <algorithm>
+
 #include <osgShadow/ShadowedScene>
 
 #include <components/misc/stringops.hpp>
@@ -74,6 +76,20 @@ namespace SceneUtil
     {
         mOutdoorShadowCastingMask = outdoorShadowCastingMask;
         mIndoorShadowCastingMask = indoorShadowCastingMask;
+    }
+
+    void ShadowManager::setMaximumShadowMapDistance(float distance)
+    {
+        if (!mShadowSettings.valid() || !mShadowTechnique.valid())
+            return;
+
+        distance = std::max(0.f, distance);
+        mShadowSettings->setMaximumShadowMapDistance(distance);
+        mShadowTechnique->setMaximumShadowMapDistance(distance);
+
+        const float fadeStart = std::clamp(
+            Settings::Manager::getFloat("shadow fade start", "Shadows"), 0.f, 1.f);
+        mShadowTechnique->setShadowFadeStart(distance * fadeStart);
     }
 
     void ShadowManager::disableShadowsForStateSet(osg::ref_ptr<osg::StateSet> stateset)

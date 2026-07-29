@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <exception>
 #include <numeric>
@@ -74,6 +75,8 @@ Launcher::GraphicsPage::GraphicsPage(Config::LauncherSettings& launcherSettings,
     connect(framerateLimitCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotFramerateLimitToggled(bool)));
     connect(shadowDistanceCheckBox, SIGNAL(toggled(bool)), this, SLOT(slotShadowDistLimitToggled(bool)));
     connect(qualityPresetComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(slotQualityPresetChanged(int)));
+    connect(terrainDetailComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(slotTerrainDetailChanged(int)));
+    connect(pbrQualityComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(slotPbrQualityChanged(int)));
     connect(applyQualityButton, SIGNAL(clicked()), this, SLOT(slotApplyQualityPreset()));
     connect(detectHardwareButton, SIGNAL(clicked()), this, SLOT(slotDetectHardware()));
 
@@ -164,12 +167,23 @@ void Launcher::GraphicsPage::syncGraphicsControls()
     if (fpsLimit != 0.f)
         framerateLimitSpinBox->setValue(fpsLimit);
 
+    // ArenaMP terrain and PBR controls. Maximum PBR is represented only with
+    // High/Ultra terrain, including profiles created by older builds.
+    int terrainIndex = terrainDetailIndexFromSettings();
+    const int pbrIndex = pbrQualityIndexFromSettings();
+    if (pbrIndex == 4 && terrainIndex < 4)
+        terrainIndex = 4;
+    terrainDetailComboBox->setCurrentIndex(terrainIndex);
+    pbrQualityComboBox->setCurrentIndex(pbrIndex);
+
     // Lighting
     int lightingMethod = 1;
     if (Settings::Manager::getString("lighting method", "Shaders") == "legacy")
         lightingMethod = 0;
     else if (Settings::Manager::getString("lighting method", "Shaders") == "shaders")
         lightingMethod = 2;
+    if (pbrIndex > 0 && lightingMethod == 0)
+        lightingMethod = 1;
     lightingMethodComboBox->setCurrentIndex(lightingMethod);
 
     // Shadows
@@ -261,9 +275,25 @@ void Launcher::GraphicsPage::saveSettings()
         Settings::Manager::setFloat("framerate limit", "Video", 0);
     }
 
-    // Lighting
+    int terrainIndex = std::max(0, std::min(5, terrainDetailComboBox->currentIndex()));
+    int pbrIndex = std::max(0, std::min(4, pbrQualityComboBox->currentIndex()));
+    if (pbrIndex == 4 && terrainIndex < 4)
+    {
+        terrainIndex = 4;
+        terrainDetailComboBox->setCurrentIndex(terrainIndex);
+    }
+    applyTerrainDetail(terrainIndex);
+    applyPbrQuality(pbrIndex);
+
+    // Lighting. PBR material maps require the shader-compatible backend.
     static std::array<std::string, 3> lightingMethodMap = {"legacy", "shaders compatibility", "shaders"};
-    Settings::Manager::setString("lighting method", "Shaders", lightingMethodMap[lightingMethodComboBox->currentIndex()]);
+    int lightingMethodIndex = lightingMethodComboBox->currentIndex();
+    if (pbrIndex > 0 && lightingMethodIndex == 0)
+    {
+        lightingMethodIndex = 1;
+        lightingMethodComboBox->setCurrentIndex(lightingMethodIndex);
+    }
+    Settings::Manager::setString("lighting method", "Shaders", lightingMethodMap[lightingMethodIndex]);
 
     // Shadows
     int cShadowDist = shadowDistanceCheckBox->checkState() != Qt::Unchecked ? shadowDistanceSpinBox->value() : 0;
@@ -320,6 +350,78 @@ void Launcher::GraphicsPage::saveSettings()
         autoSelectQualityCheckBox->isChecked() ? QStringLiteral("true") : QStringLiteral("false"));
     storeLauncherValue(QStringLiteral("General/Graphics/vendorOptimizations"),
         vendorOptimizationsCheckBox->isChecked() ? QStringLiteral("true") : QStringLiteral("false"));
+}
+
+int Launcher::GraphicsPage::terrainDetailIndexFromSettings() const
+{
+    static const std::array<float, 6> terrainLod = { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+    const float current = Settings::Manager::getFloat("lod factor", "Terrain");
+    int best = 0;
+    float bestDistance = std::abs(current - terrainLod[0]);
+    for (int i = 1; i < static_cast<int>(terrainLod.size()); ++i)
+    {
+        const float distance = std::abs(current - terrainLod[i]);
+        if (distance < bestDistance)
+        {
+            best = i;
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+int Launcher::GraphicsPage::pbrQualityIndexFromSettings() const
+{
+    std::string mode = Settings::Manager::getString("material quality", "Shaders");
+    std::transform(mode.begin(), mode.end(), mode.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (mode == "none") return 0;
+    if (mode == "simple") return 1;
+    if (mode == "quality") return 3;
+    if (mode == "ultra") return 4;
+    return 2;
+}
+
+void Launcher::GraphicsPage::applyTerrainDetail(int requestedIndex)
+{
+    const int index = std::max(0, std::min(5, requestedIndex));
+    static const float terrainLod[] = { 0.40f, 0.50f, 0.65f, 0.80f, 1.00f, 1.25f };
+    static const int vertexLod[] = { -2, -2, -1, -1, 0, 1 };
+    static const int compositeLevel[] = { -3, -3, -2, -2, -1, 0 };
+    static const int compositeResolution[] = { 1024, 1024, 1024, 2048, 2048, 4096 };
+    static const float maxCompositeGeometrySize[] = { 4.f, 4.f, 6.f, 8.f, 12.f, 16.f };
+    static const float objectPagingMergeFactor[] = { 100000.f, 75000.f, 50000.f, 30000.f, 15000.f, 8000.f };
+    static const float objectPagingMinSize[] = { 1.f, 0.85f, 0.65f, 0.50f, 0.35f, 0.25f };
+
+    Settings::Manager::setBool("distant terrain", "Terrain", true);
+    Settings::Manager::setFloat("lod factor", "Terrain", terrainLod[index]);
+    Settings::Manager::setInt("vertex lod mod", "Terrain", vertexLod[index]);
+    Settings::Manager::setInt("composite map level", "Terrain", compositeLevel[index]);
+    Settings::Manager::setInt("composite map resolution", "Terrain", compositeResolution[index]);
+    Settings::Manager::setFloat("max composite geometry size", "Terrain", maxCompositeGeometrySize[index]);
+    Settings::Manager::setBool("object paging", "Terrain", true);
+    Settings::Manager::setBool("object paging active grid", "Terrain", true);
+    Settings::Manager::setFloat("object paging merge factor", "Terrain", objectPagingMergeFactor[index]);
+    Settings::Manager::setFloat("object paging min size", "Terrain", objectPagingMinSize[index]);
+}
+
+void Launcher::GraphicsPage::applyPbrQuality(int requestedIndex)
+{
+    const int index = std::max(0, std::min(4, requestedIndex));
+    static const std::array<const char*, 5> modes = { "none", "simple", "balanced", "quality", "ultra" };
+    Settings::Manager::setString("material quality", "Shaders", modes[index]);
+
+    const bool normalMaps = index >= 1;
+    const bool specularMaps = index >= 2;
+    Settings::Manager::setBool("auto use object normal maps", "Shaders", normalMaps);
+    Settings::Manager::setBool("auto use terrain normal maps", "Shaders", normalMaps);
+    Settings::Manager::setBool("auto use object specular maps", "Shaders", specularMaps);
+    Settings::Manager::setBool("auto use terrain specular maps", "Shaders", specularMaps);
+    if (index > 0)
+    {
+        Settings::Manager::setBool("force shaders", "Shaders", true);
+        Settings::Manager::setBool("force per pixel lighting", "Shaders", index >= 2);
+        Settings::Manager::setString("lighting method", "Shaders", "shaders compatibility");
+    }
 }
 
 QString Launcher::GraphicsPage::HardwareInfo::signature() const
@@ -693,6 +795,26 @@ void Launcher::GraphicsPage::slotQualityPresetChanged(int)
         updateQualityDescription();
 }
 
+void Launcher::GraphicsPage::slotTerrainDetailChanged(int index)
+{
+    if (mInitializingQuality)
+        return;
+
+    if (index < 4 && pbrQualityComboBox->currentIndex() == 4)
+        pbrQualityComboBox->setCurrentIndex(3);
+}
+
+void Launcher::GraphicsPage::slotPbrQualityChanged(int index)
+{
+    if (mInitializingQuality)
+        return;
+
+    if (index == 4 && terrainDetailComboBox->currentIndex() < 4)
+        terrainDetailComboBox->setCurrentIndex(4);
+    if (index > 0 && lightingMethodComboBox->currentIndex() == 0)
+        lightingMethodComboBox->setCurrentIndex(1);
+}
+
 void Launcher::GraphicsPage::slotDetectHardware()
 {
     mHardwareInfo = detectHardware();
@@ -772,7 +894,8 @@ void Launcher::GraphicsPage::applyQualityLevel(int requestedLevel)
     int effectiveShadowResolution = shadowResolution[level];
     int effectiveShadowDistance = shadowDistance[level];
     int effectiveMaxLights = maxLights[level];
-    bool specularMaps = level >= 3;
+    static const int materialQuality[] = { 0, 1, 1, 2, 3, 4 };
+    int effectiveMaterialQuality = materialQuality[level];
 
     const QString rendererLower = mHardwareInfo.renderer.toLower();
     const bool intelArc = rendererLower.contains(QLatin1String("arc"));
@@ -782,7 +905,7 @@ void Launcher::GraphicsPage::applyQualityLevel(int requestedLevel)
         effectiveShadowResolution = std::min(effectiveShadowResolution, 1024);
         effectiveShadowDistance = std::min(effectiveShadowDistance, 4096);
         effectiveMaxLights = std::min(effectiveMaxLights, 16);
-        specularMaps = false;
+        effectiveMaterialQuality = std::min(effectiveMaterialQuality, 1);
     }
     else if (mHardwareInfo.vendor == QLatin1String("apple"))
     {
@@ -825,13 +948,17 @@ void Launcher::GraphicsPage::applyQualityLevel(int requestedLevel)
     Settings::Manager::setInt("anisotropy", "General", anisotropy[level]);
     Settings::Manager::setInt("antialiasing", "Video", effectiveAa);
 
+    static const std::array<const char*, 5> materialModes = { "none", "simple", "balanced", "quality", "ultra" };
+    const bool normalMaps = effectiveMaterialQuality >= 1;
+    const bool specularMaps = effectiveMaterialQuality >= 2;
+    Settings::Manager::setString("material quality", "Shaders", materialModes[effectiveMaterialQuality]);
     Settings::Manager::setBool("force shaders", "Shaders", true);
     Settings::Manager::setBool("force per pixel lighting", "Shaders", level >= 2);
     Settings::Manager::setBool("clamp lighting", "Shaders", level <= 1);
-    Settings::Manager::setBool("auto use object normal maps", "Shaders", level >= 1);
-    Settings::Manager::setBool("auto use terrain normal maps", "Shaders", level >= 1);
+    Settings::Manager::setBool("auto use object normal maps", "Shaders", normalMaps);
+    Settings::Manager::setBool("auto use terrain normal maps", "Shaders", normalMaps);
     Settings::Manager::setBool("auto use object specular maps", "Shaders", specularMaps);
-    Settings::Manager::setBool("auto use terrain specular maps", "Shaders", specularMaps && level >= 4);
+    Settings::Manager::setBool("auto use terrain specular maps", "Shaders", specularMaps);
     Settings::Manager::setInt("max lights", "Shaders", effectiveMaxLights);
     // All ArenaMP presets use the shader-compatible lighting backend. Legacy
     // lighting is never selected by a preset, including the minimum profile.

@@ -1,6 +1,8 @@
 #include "GUIChat.hpp"
 
+#include <algorithm>
 #include <MyGUI_EditBox.h>
+#include <MyGUI_LanguageManager.h>
 #include <MyGUI_ScrollBar.h>
 #include "apps/openmw/mwbase/environment.hpp"
 #include "apps/openmw/mwgui/windowmanagerimp.hpp"
@@ -14,20 +16,42 @@
 
 #include "../GUIController.hpp"
 
+namespace
+{
+    constexpr float sFullyVisibleAlpha = 1.f;
+    constexpr float sThirtyPercentTransparentAlpha = 0.7f;
+    constexpr float sSixtyPercentTransparentAlpha = 0.4f;
+    constexpr float sFadeSpeed = 4.f;
+
+    std::string localizeArena(const std::string& key)
+    {
+        return MyGUI::LanguageManager::getInstance().replaceTags("#{arenamp=" + key + "}");
+    }
+
+    float moveTowards(float value, float target, float maximumDelta)
+    {
+        if (value < target)
+            return std::min(value + maximumDelta, target);
+        return std::max(value - maximumDelta, target);
+    }
+}
+
 
 namespace mwmp
 {
     GUIChat::GUIChat(int x, int y, int w, int h)
             : WindowBase("tes3mp_chat.layout")
             , mHistoryScroll(nullptr)
-            , windowState(CHAT_DISABLED)
+            , windowState(CHAT_TRANSPARENT_30)
             , editState(false)
             , historyReviewState(false)
             , mainMenuOpen(false)
-            , visibleBeforeMainMenu(false)
             , historyDisplayEnabled(true)
+            , hideAfterFade(false)
             , delay(3.f)
-            , curTime(0.f)
+            , revealTime(0.f)
+            , currentAlpha(sThirtyPercentTransparentAlpha)
+            , targetAlpha(sThirtyPercentTransparentAlpha)
     {
         setCoord(x, y, w, h);
 
@@ -65,22 +89,16 @@ namespace mwmp
         mHistory->setNeedKeyFocus(false);
 
         mCommandLine->setVisible(false);
+        applyAlpha(currentAlpha);
     }
 
     void GUIChat::onOpen()
     {
-        // Give keyboard focus to the combo box whenever the console is
-        // turned on
-        setEditState(false);
-
-        if (windowState == CHAT_DISABLED)
-            windowState = CHAT_ENABLED;
+        applyAlpha(currentAlpha);
     }
 
     void GUIChat::onClose()
     {
-        setEditState(false);
-        setHistoryReviewState(false);
     }
 
     bool GUIChat::exit()
@@ -137,9 +155,6 @@ namespace mwmp
 
     void GUIChat::print(const std::string &msg, const std::string &color)
     {
-        if (historyDisplayEnabled && windowState == CHAT_HIDDENMODE && !mainMenuOpen && !isVisible())
-            setVisible(true);
-
         if(msg.size() == 0)
         {
             clean();
@@ -151,6 +166,11 @@ namespace mwmp
             if (!historyReviewState)
                 scrollHistoryToBottom();
             LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "%s", msg.c_str());
+
+            // A received message temporarily restores full opacity. Auto-hide mode also
+            // fades the chat in for the configured delay. Fully hidden chat stays hidden.
+            if (historyDisplayEnabled && windowState != CHAT_HIDDEN && !mainMenuOpen)
+                revealTemporarily();
         }
     }
 
@@ -187,34 +207,24 @@ namespace mwmp
         if (!historyDisplayEnabled)
         {
             MWBase::Environment::get().getWindowManager()->messageBox(
-                "Chat messages are hidden. The chat input remains available.");
+                localizeArena("chat.history_hidden"));
             return;
         }
 
-        windowState++;
-        if (windowState == 3) windowState = 0;
+        windowState = static_cast<ChatWindowState>((static_cast<int>(windowState) + 1) % CHAT_STATE_COUNT);
+        revealTime = windowState == CHAT_AUTOHIDE ? delay : 0.f;
 
-        std::string chatMode = windowState == CHAT_DISABLED ? "Chat hidden" :
-                               windowState == CHAT_ENABLED ? "Chat visible" :
-                               "Chat appearing when needed";
-
+        const std::string chatMode = getModeMessage();
         LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE, "Switch chat mode to %s", chatMode.c_str());
         MWBase::Environment::get().getWindowManager()->messageBox(chatMode);
 
-        switch (windowState)
+        if (windowState == CHAT_HIDDEN)
         {
-            case CHAT_DISABLED:
-                setHistoryReviewState(false);
-                setVisible(false);
-                setEditState(false);
-                break;
-            case CHAT_ENABLED:
-                setVisible(true);
-                break;
-            default: //CHAT_HIDDENMODE
-                setVisible(true);
-                curTime = 0;
+            setHistoryReviewState(false);
+            setEditState(false);
         }
+
+        refreshPresentation();
     }
 
     void GUIChat::setEditState(bool state)
@@ -224,9 +234,14 @@ namespace mwmp
 
         editState = state;
         mCommandLine->setVisible(editState);
-        if (!historyDisplayEnabled)
-            setVisible(editState && !mainMenuOpen);
         MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(editState ? mCommandLine : nullptr);
+
+        if (editState)
+            revealTime = 0.f;
+        else if (windowState == CHAT_AUTOHIDE)
+            revealTime = delay;
+
+        refreshPresentation();
     }
 
     void GUIChat::scrollHistoryToBottom()
@@ -272,9 +287,11 @@ namespace mwmp
             if (!mainMenuOpen)
                 MWBase::Environment::get().getInputManager()->changeInputMode(false);
             scrollHistoryToBottom();
-            if (windowState == CHAT_HIDDENMODE)
-                curTime = 0.f;
+            if (windowState == CHAT_AUTOHIDE)
+                revealTime = delay;
         }
+
+        refreshPresentation();
     }
 
     std::string GUIChat::getHistoryText() const
@@ -290,8 +307,6 @@ namespace mwmp
         mainMenuOpen = state;
         if (state)
         {
-            visibleBeforeMainMenu = isVisible();
-
             // The pause menu already owns keyboard/mouse focus. Close the live
             // chat controls without clearing the focus assigned to menu buttons.
             editState = false;
@@ -305,35 +320,20 @@ namespace mwmp
                 mHistoryScroll->setVisible(false);
                 mHistoryScroll->setNeedMouseFocus(false);
             }
+            currentAlpha = 0.f;
+            targetAlpha = 0.f;
+            hideAfterFade = false;
+            applyAlpha(0.f);
             setVisible(false);
         }
         else
-        {
-            if (!historyDisplayEnabled)
-                setVisible(editState);
-            else if (windowState == CHAT_ENABLED || (windowState == CHAT_HIDDENMODE && visibleBeforeMainMenu))
-                setVisible(true);
-            else
-                setVisible(false);
-
-            if (windowState == CHAT_HIDDENMODE)
-                curTime = 0.f;
-        }
+            refreshPresentation();
     }
 
     void GUIChat::pressedSay()
     {
-        if (windowState == CHAT_DISABLED && historyDisplayEnabled)
-            return;
-
         if (!mCommandLine->getVisible())
             LOG_MESSAGE_SIMPLE(TimedLog::LOG_VERBOSE, "Opening chat.");
-
-        if (!historyDisplayEnabled || windowState == CHAT_HIDDENMODE)
-        {
-            setVisible(true);
-            curTime = 0;
-        }
 
         setEditState(true);
     }
@@ -373,14 +373,133 @@ namespace mwmp
 
     void GUIChat::update(float dt)
     {
-        if (!mainMenuOpen && windowState == CHAT_HIDDENMODE && !editState && !historyReviewState && isVisible())
+        if (mainMenuOpen)
+            return;
+
+        if (revealTime > 0.f && !editState && !historyReviewState)
         {
-            curTime += dt;
-            if (curTime >= delay)
-            {
-                setEditState(false);
-                setVisible(false);
-            }
+            revealTime = std::max(0.f, revealTime - dt);
+            if (revealTime == 0.f)
+                refreshPresentation();
+        }
+
+        if (!isVisible())
+            return;
+
+        currentAlpha = moveTowards(currentAlpha, targetAlpha, std::max(0.f, dt) * sFadeSpeed);
+        applyAlpha(currentAlpha);
+
+        if (hideAfterFade && currentAlpha <= 0.001f)
+        {
+            currentAlpha = 0.f;
+            targetAlpha = 0.f;
+            hideAfterFade = false;
+            applyAlpha(0.f);
+            setVisible(false);
+        }
+    }
+
+    void GUIChat::refreshPresentation()
+    {
+        if (mainMenuOpen)
+            return;
+
+        if (!historyDisplayEnabled)
+        {
+            if (editState)
+                showSmoothly(sFullyVisibleAlpha);
+            else
+                hideSmoothly();
+            return;
+        }
+
+        if (editState || historyReviewState)
+        {
+            showSmoothly(sFullyVisibleAlpha);
+            return;
+        }
+
+        if (revealTime > 0.f && windowState != CHAT_HIDDEN)
+        {
+            showSmoothly(sFullyVisibleAlpha);
+            return;
+        }
+
+        const float restingAlpha = getRestingAlpha();
+        if (restingAlpha > 0.f)
+            showSmoothly(restingAlpha);
+        else
+            hideSmoothly();
+    }
+
+    void GUIChat::revealTemporarily()
+    {
+        revealTime = delay;
+        refreshPresentation();
+    }
+
+    void GUIChat::showSmoothly(float alpha)
+    {
+        targetAlpha = std::max(0.f, std::min(1.f, alpha));
+        hideAfterFade = false;
+
+        if (!isVisible())
+        {
+            currentAlpha = 0.f;
+            applyAlpha(0.f);
+            setVisible(true);
+        }
+    }
+
+    void GUIChat::hideSmoothly()
+    {
+        targetAlpha = 0.f;
+        hideAfterFade = isVisible();
+
+        if (!isVisible())
+        {
+            currentAlpha = 0.f;
+            hideAfterFade = false;
+        }
+    }
+
+    void GUIChat::applyAlpha(float alpha)
+    {
+        mHistory->setAlpha(alpha);
+        mCommandLine->setAlpha(alpha);
+    }
+
+    float GUIChat::getRestingAlpha() const
+    {
+        switch (windowState)
+        {
+            case CHAT_VISIBLE:
+                return sFullyVisibleAlpha;
+            case CHAT_TRANSPARENT_30:
+                return sThirtyPercentTransparentAlpha;
+            case CHAT_TRANSPARENT_60:
+                return sSixtyPercentTransparentAlpha;
+            default:
+                return 0.f;
+        }
+    }
+
+    std::string GUIChat::getModeMessage() const
+    {
+        switch (windowState)
+        {
+            case CHAT_VISIBLE:
+                return localizeArena("chat.mode.visible");
+            case CHAT_TRANSPARENT_30:
+                return localizeArena("chat.mode.opacity_30");
+            case CHAT_TRANSPARENT_60:
+                return localizeArena("chat.mode.opacity_60");
+            case CHAT_AUTOHIDE:
+                return localizeArena("chat.mode.autohide");
+            case CHAT_HIDDEN:
+                return localizeArena("chat.mode.hidden");
+            default:
+                return localizeArena("chat.mode.visible");
         }
     }
 
@@ -394,17 +513,16 @@ namespace mwmp
         {
             // Keep received messages in memory for logging/history, but never draw them.
             // Chat input remains available through the normal Say key.
-            windowState = CHAT_ENABLED;
             setHistoryReviewState(false);
-            if (!editState)
-                setVisible(false);
         }
-        else if (!mainMenuOpen && windowState == CHAT_ENABLED)
-            setVisible(true);
+
+        refreshPresentation();
     }
 
     void GUIChat::setDelay(float newDelay)
     {
-        this->delay = newDelay;
+        this->delay = std::max(0.f, newDelay);
+        if (revealTime > delay)
+            revealTime = delay;
     }
 }

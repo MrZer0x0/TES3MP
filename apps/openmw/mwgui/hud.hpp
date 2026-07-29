@@ -150,6 +150,7 @@ namespace MWGui
         void doorMarkerCreated(MyGUI::Widget* marker) override;
 
         void updateEnemyHealthBar();
+        bool isFocusedTargetTooClose() const;
 
         void updatePositions();
     };

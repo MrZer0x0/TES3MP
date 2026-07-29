@@ -10,6 +10,7 @@
 #include <MyGUI_Gui.h>
 #include <MyGUI_ImageBox.h>
 #include <MyGUI_InputManager.h>
+#include <MyGUI_LanguageManager.h>
 #include <MyGUI_RenderManager.h>
 #include <MyGUI_TextBox.h>
 #include <MyGUI_Widget.h>
@@ -44,6 +45,7 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/inventorystore.hpp"
+#include "../mwworld/interactionanimation.hpp"
 #include "../mwworld/player.hpp"
 
 #include "containeritemmodel.hpp"
@@ -56,6 +58,11 @@
 
 namespace
 {
+    std::string arenaText(const std::string& key)
+    {
+        return MyGUI::LanguageManager::getInstance().replaceTags("#{arenamp=" + key + "}");
+    }
+
     std::string getQuickLootMode()
     {
         const auto modeKey = std::make_pair(std::string("GUI"), std::string("quick loot mode"));
@@ -227,14 +234,14 @@ namespace MWGui
                 row.mWeight->setVisible(false);
                 row.mValue->setVisible(false);
                 row.mName->setVisible(true);
-                row.mName->setCaption(mContainerName.empty() ? std::string("Container") : mContainerName);
+                row.mName->setCaption(mContainerName.empty() ? arenaText("quickloot.container") : mContainerName);
             }
             else
             {
                 const ItemStack item = mSortModel->getItem(entryIndex - 1);
                 std::string name = item.mBase.getClass().getName(item.mBase);
                 if (name.empty())
-                    name = "Item";
+                    name = arenaText("quickloot.item");
 
                 // Compact order: selection marker, icon, item name, stack count.
                 row.mMarker->setCaption(selected ? ">" : "");
@@ -352,6 +359,7 @@ namespace MWGui
         ItemModel* playerModel = MWBase::Environment::get().getWindowManager()->getInventoryWindow()->getModel();
         mModel->update();
         MWWorld::Ptr movedItem = mModel->moveItem(item, count, playerModel);
+        MWWorld::InteractionAnimation::playQuickLoot(mFocusObject, false);
         MWBase::Environment::get().getWindowManager()->getInventoryWindow()->updateItemView();
 
         if (MyGUI::InputManager::getInstance().isControlPressed())
@@ -484,6 +492,7 @@ namespace MWGui
 
         mModel->update();
         const std::size_t itemCount = mModel->getItemCount();
+        bool tookAny = false;
         for (std::size_t i = 0; i < itemCount; ++i)
         {
             const ItemStack item = mModel->getItem(static_cast<int>(i));
@@ -498,8 +507,11 @@ namespace MWGui
             if (!mModel->onTakeItem(item.mBase, count))
                 break;
             mModel->moveItem(item, count, playerModel);
+            tookAny = true;
         }
 
+        if (tookAny)
+            MWWorld::InteractionAnimation::playQuickLoot(mFocusObject, true);
         MWBase::Environment::get().getWindowManager()->getInventoryWindow()->updateItemView();
         mModel->update();
         mSortModel->update();

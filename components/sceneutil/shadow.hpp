@@ -22,6 +22,8 @@ namespace SceneUtil
         void setupShadowSettings();
         void setShadowCastingMasks(unsigned int outdoorShadowCastingMask, unsigned int indoorShadowCastingMask);
 
+        void setMaximumShadowMapDistance(float distance);
+
         Shader::ShaderManager::DefineMap getShadowDefines();
 
         void enableIndoorMode();

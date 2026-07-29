@@ -7,6 +7,7 @@
 #include <components/sceneutil/unrefqueue.hpp>
 #include <components/sceneutil/occlusionculling.hpp>
 #include <components/settings/settings.hpp>
+#include <components/resource/scenemanager.hpp>
 
 #include "../mwworld/ptr.hpp"
 #include "../mwworld/class.hpp"
@@ -189,6 +190,18 @@ void Objects::removeCell(const MWWorld::CellStore* store)
         if (mUnrefQueue.get())
             mUnrefQueue->push(cell->second);
         mCellSceneNodes.erase(cell);
+    }
+}
+
+void Objects::recreateShaders()
+{
+    for (const auto& entry : mCellSceneNodes)
+    {
+        osg::ref_ptr<osg::Group> node = entry.second;
+        if (!node)
+            continue;
+        mResourceSystem->getSceneManager()->reinstateRemovedState(node);
+        mResourceSystem->getSceneManager()->recreateShaders(node);
     }
 }
 

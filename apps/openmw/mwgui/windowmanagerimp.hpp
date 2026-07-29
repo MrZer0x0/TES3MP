@@ -107,6 +107,7 @@ namespace MWGui
   class SettingsWindow;
   class AlchemyWindow;
   class QuickKeysMenu;
+  class PlayerAnimationMenu;
   class LoadingScreen;
   class LevelupDialog;
   class WaitDialog;
@@ -124,6 +125,7 @@ namespace MWGui
   class DebugWindow;
   class JailScreen;
   class KeyboardNavigation;
+  class ArenaLocalization;
 
   class WindowManager :
       public MWBase::WindowManager
@@ -325,6 +327,7 @@ namespace MWGui
 
     void showCrosshair(bool show) override;
     bool activateQuickLoot() override;
+    bool handlePlayerAnimationMenuMouseWheel(int rel) override;
     bool handleQuickLootMouseWheel(int rel) override;
     bool handleQuickLootKeyPress(MyGUI::KeyCode key) override;
     bool isQuickLootVisible() const override;
@@ -379,6 +382,7 @@ namespace MWGui
     void windowResized(int x, int y) override;
     void windowClosed() override;
     bool isWindowVisible() override;
+    std::string getArenaLanguage() const override;
 
     void watchActor(const MWWorld::Ptr& ptr) override;
     MWWorld::Ptr getWatchedActor() const override;
@@ -531,6 +535,7 @@ namespace MWGui
     ConfirmationDialog* mConfirmationDialog;
     SpellWindow* mSpellWindow;
     QuickKeysMenu* mQuickKeysMenu;
+    PlayerAnimationMenu* mPlayerAnimationMenu;
     LoadingScreen* mLoadingScreen;
     WaitDialog* mWaitDialog;
     SoulgemDialog* mSoulgemDialog;
@@ -622,6 +627,7 @@ namespace MWGui
     int mShowOwned;
 
     ToUTF8::FromType mEncoding;
+    std::unique_ptr<ArenaLocalization> mArenaLocalization;
 
     std::string mVersionDescription;
 

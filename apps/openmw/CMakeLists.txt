@@ -30,9 +30,9 @@ add_openmw_dir (mwinput
     )
 
 add_openmw_dir (mwgui
-    layout textinput widgets race class birth review windowmanagerimp console dialogue
+    layout textinput widgets race class birth review windowmanagerimp arenalocalization console dialogue
     windowbase statswindow messagebox journalwindow charactercreation
-    mapwindow windowpinnablebase tooltips quickloot scrollwindow bookwindow resourceskin
+    mapwindow windowpinnablebase tooltips quickloot playeranimationmenu scrollwindow bookwindow resourceskin
     formatting inventorywindow container hud countdialog tradewindow settingswindow
     confirmationdialog alchemywindow referenceinterface spellwindow mainmenu quickkeysmenu
     itemselection spellbuyingwindow loadingscreen levelupdialog waitdialog spellcreationdialog
@@ -67,7 +67,7 @@ add_openmw_dir (mwworld
     actionequip timestamp actionalchemy cellstore actionapply actioneat
     store esmstore recordcmp fallback actionrepair actionsoulgem livecellref actiondoor
     contentloader esmloader actiontrap cellreflist cellref weather projectilemanager
-    cellpreloader datetimemanager
+    cellpreloader datetimemanager interactionanimation
     )
 
 add_openmw_dir (mwphysics
@@ -100,7 +100,7 @@ add_openmw_dir (mwbase
     )
 
 add_openmw_dir (mwmp Main Networking LocalSystem LocalPlayer DedicatedPlayer PlayerList LocalActor DedicatedActor ActorList
-    ObjectList Worldstate Cell CellController GUIController MechanicsHelper RecordHelper ScriptController
+    ObjectList Worldstate Cell CellController GUIController MechanicsHelper RecordHelper ScriptController InteractionAnimationSync
     )
 
 add_openmw_dir (mwmp/GUI GUIChat GUILogin PlayerMarkerCollection GUIDialogList TextInputDialog

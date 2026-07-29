@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <new>
 #include "worldimp.hpp"
 
@@ -2304,8 +2305,14 @@ namespace MWWorld
 
     MWWorld::Ptr World::getFacedObject(float maxDistance, bool ignorePlayer)
     {
-        const float camDist = mRendering->getCamera()->getCameraDistance();
-        maxDistance += camDist;
+        const float camDist = std::max(0.f, mRendering->getCamera()->getCameraDistance());
+        // The activation ray starts at the third-person camera rather than at the
+        // player. Compensate for that offset and add a small capped reach margin,
+        // so over-the-shoulder framing does not require touching an NPC or item.
+        const float thirdPersonGrace = camDist > 0.f
+            ? std::min(96.f, std::max(24.f, camDist * 0.25f))
+            : 0.f;
+        maxDistance += camDist + thirdPersonGrace;
         MWWorld::Ptr facedObject;
         MWRender::RenderingManager::RayResult rayToObject;
 
@@ -2328,7 +2335,7 @@ namespace MWWorld
             }
         }
         if (rayToObject.mHit)
-            mDistanceToFacedObject = (rayToObject.mRatio * maxDistance) - camDist;
+            mDistanceToFacedObject = (rayToObject.mRatio * maxDistance) - camDist - thirdPersonGrace;
         else
             mDistanceToFacedObject = -1;
         return facedObject;

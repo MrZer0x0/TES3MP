@@ -217,7 +217,9 @@ void Main::updateWorld(float dt) const
     if (init)
     {
         init = false;
-        LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "Sending ID_PLAYER_BASEINFO to server");
+        getLocalPlayer()->updateLanguage();
+        LOG_MESSAGE_SIMPLE(TimedLog::LOG_INFO, "Sending ID_PLAYER_BASEINFO to server (language %s)",
+            getLocalPlayer()->language.c_str());
 
         mNetworking->getPlayerPacket(ID_PLAYER_BASEINFO)->setPlayer(getLocalPlayer());
         mNetworking->getPlayerPacket(ID_LOADED)->setPlayer(getLocalPlayer());

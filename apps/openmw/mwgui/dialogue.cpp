@@ -19,6 +19,7 @@
 #include <components/debug/debuglog.hpp>
 #include <components/esm/loadarmo.hpp>
 #include <components/esm/loadligh.hpp>
+#include <components/esm/loadnpc.hpp>
 #include <components/misc/rng.hpp>
 #include <components/widgets/list.hpp>
 #include <components/translation/translation.hpp>
@@ -126,72 +127,6 @@ namespace MWGui
         DialogueWindow* mWindow;
         bool mNeedMargin;
     };
-
-    PersuasionDialog::PersuasionDialog(ResponseCallback* callback)
-        : WindowModal("openmw_persuasion_dialog.layout")
-        , mCallback(callback)
-    {
-        getWidget(mCancelButton, "CancelButton");
-        getWidget(mAdmireButton, "AdmireButton");
-        getWidget(mIntimidateButton, "IntimidateButton");
-        getWidget(mTauntButton, "TauntButton");
-        getWidget(mBribe10Button, "Bribe10Button");
-        getWidget(mBribe100Button, "Bribe100Button");
-        getWidget(mBribe1000Button, "Bribe1000Button");
-        getWidget(mGoldLabel, "GoldLabel");
-
-        mCancelButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onCancel);
-        mAdmireButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-        mIntimidateButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-        mTauntButton->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-        mBribe10Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-        mBribe100Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-        mBribe1000Button->eventMouseButtonClick += MyGUI::newDelegate(this, &PersuasionDialog::onPersuade);
-    }
-
-    void PersuasionDialog::onCancel(MyGUI::Widget *sender)
-    {
-        setVisible(false);
-    }
-
-    void PersuasionDialog::onPersuade(MyGUI::Widget *sender)
-    {
-        MWBase::MechanicsManager::PersuasionType type;
-        if (sender == mAdmireButton) type = MWBase::MechanicsManager::PT_Admire;
-        else if (sender == mIntimidateButton) type = MWBase::MechanicsManager::PT_Intimidate;
-        else if (sender == mTauntButton) type = MWBase::MechanicsManager::PT_Taunt;
-        else if (sender == mBribe10Button)
-            type = MWBase::MechanicsManager::PT_Bribe10;
-        else if (sender == mBribe100Button)
-            type = MWBase::MechanicsManager::PT_Bribe100;
-        else /*if (sender == mBribe1000Button)*/
-            type = MWBase::MechanicsManager::PT_Bribe1000;
-
-        MWBase::Environment::get().getDialogueManager()->persuade(type, mCallback.get());
-        mCallback->updateTopics();
-
-        setVisible(false);
-    }
-
-    void PersuasionDialog::onOpen()
-    {
-        center();
-
-        MWWorld::Ptr player = MWMechanics::getPlayer();
-        int playerGold = player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId);
-
-        mBribe10Button->setEnabled (playerGold >= 10);
-        mBribe100Button->setEnabled (playerGold >= 100);
-        mBribe1000Button->setEnabled (playerGold >= 1000);
-
-        mGoldLabel->setCaptionWithReplacing("#{sGold}: " + MyGUI::utility::toString(playerGold));
-        WindowModal::onOpen();
-    }
-
-    MyGUI::Widget* PersuasionDialog::getDefaultKeyFocus()
-    {
-        return mAdmireButton;
-    }
 
     // --------------------------------------------------------------------------------------------------
 
@@ -340,7 +275,7 @@ namespace MWGui
         : WindowBase("openmw_dialogue_window.layout")
         , mIsCompanion(false)
         , mGoodbye(false)
-        , mPersuasionDialog(new ResponseCallback(this))
+        , mPersuasionMode(false)
         , mHistoryWasDragged(false)
         , mDialogueCameraActive(false)
         , mDynamicDialogueActorActive(false)
@@ -358,8 +293,6 @@ namespace MWGui
     {
         // Centre dialog
         center();
-
-        mPersuasionDialog.setVisible(false);
 
         // History view
         getWidget(mHistory, "History");
@@ -420,6 +353,12 @@ namespace MWGui
 
     bool DialogueWindow::exit()
     {
+        if (mPersuasionMode)
+        {
+            closePersuasionPane();
+            return false;
+        }
+
         if ((MWBase::Environment::get().getDialogueManager()->isInChoice()))
         {
             return false;
@@ -454,9 +393,6 @@ namespace MWGui
 
     bool DialogueWindow::handleKeyPress(MyGUI::KeyCode key, bool repeat)
     {
-        if (mPersuasionDialog.isVisible())
-            return false;
-
         switch (key.getValue())
         {
             case MyGUI::KeyCode::W:
@@ -514,6 +450,14 @@ namespace MWGui
 
         MWMechanics::CreatureStats& stats = mPtr.getClass().getCreatureStats(mPtr);
         if (stats.isDead() || stats.getAiSequence().isInCombat())
+            return;
+
+        // A model assigned directly to the NPC record is the Construction Set
+        // mechanism used by Animated Morrowind-style actors (fishers, workers,
+        // etc.). Their authored controller owns both pose and facing, so do not
+        // inject dialogue gestures or rotate them toward the player.
+        const MWWorld::LiveCellRef<ESM::NPC>* npc = mPtr.get<ESM::NPC>();
+        if (npc && !npc->mBase->mModel.empty())
             return;
 
         MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr);
@@ -583,8 +527,12 @@ namespace MWGui
             { "readypose", MWRender::Animation::BlendMask_UpperBody, 0.66f, 8 },
             { "posealma3", MWRender::Animation::BlendMask_UpperBody, 0.80f, 4 },
             { "idle2_copy", MWRender::Animation::BlendMask_UpperBody, 0.88f, 1 },
+            { "idle3_copy", MWRender::Animation::BlendMask_UpperBody, 0.78f, 1 },
+            { "idle6_copy", MWRender::Animation::BlendMask_UpperBody, 0.72f, 1 },
             { "idle7_copy", MWRender::Animation::BlendMask_UpperBody, 0.92f, 1 },
             { "idle8_copy", MWRender::Animation::BlendMask_UpperBody, 0.92f, 1 },
+            { "armsgesture", MWRender::Animation::BlendMask_UpperBody, 0.88f, 1 },
+            { "armssunshield", MWRender::Animation::BlendMask_UpperBody, 0.65f, 1 },
         };
 
         std::vector<const DialogueAnimation*> available;
@@ -745,9 +693,6 @@ namespace MWGui
         if (!mDynamicDialogueActorAnimation.empty()
             && dynamicActorLeftArmOccupied(mPtr) != mDynamicDialogueActorLeftArmProtected)
         {
-            // A shield or torch may be equipped while the dialogue is open.
-            // Rebuild the pose immediately so its left-arm tracks can no longer
-            // override the equipment animation.
             animation->disable(mDynamicDialogueActorAnimation);
             mDynamicDialogueActorAnimation.clear();
             mDynamicDialogueActorAnimationEnding = false;
@@ -832,12 +777,11 @@ namespace MWGui
                 if (MWRender::Animation* animation = MWBase::Environment::get().getWorld()->getAnimation(mPtr))
                     animation->setLoopingEnabled(mDynamicDialogueActorAnimation, false);
             }
-            if (mDynamicDialogueActorHasOriginalYaw)
-            {
-                const ESM::Position& position = mPtr.getRefData().getPosition();
-                MWBase::Environment::get().getWorld()->rotateObject(mPtr,
-                    position.rot[0], position.rot[1], mDynamicDialogueActorOriginalYaw);
-            }
+            // Keep the final dialogue-facing direction. Restoring the original
+            // yaw here made the NPC snap back or turn away as soon as the window
+            // closed, which made the dialogue movement look as if it never
+            // happened. The normal AI controller can rotate the NPC again after
+            // dialogue when its package requires it.
         }
 
         mDynamicDialogueActorActive = false;
@@ -917,9 +861,97 @@ namespace MWGui
 
     void DialogueWindow::onChoiceListItem(const std::string& choice, int id)
     {
+        if (mPersuasionMode)
+        {
+            performPersuasion(id);
+            return;
+        }
+
         if (id < 0 || static_cast<std::size_t>(id) >= mChoices.size())
             return;
         onChoiceActivated(mChoices[static_cast<std::size_t>(id)].second);
+    }
+
+    void DialogueWindow::rebuildPersuasionChoices()
+    {
+        mPersuasionChoices.clear();
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Admire);
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Intimidate);
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Taunt);
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Bribe10);
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Bribe100);
+        mPersuasionChoices.push_back(MWBase::MechanicsManager::PT_Bribe1000);
+    }
+
+    void DialogueWindow::openPersuasionPane()
+    {
+        if (mPtr.isEmpty() || !mPtr.getClass().isNpc() || mGoodbye
+            || MWBase::Environment::get().getDialogueManager()->isInChoice())
+            return;
+
+        mPersuasionMode = true;
+        updateHistory();
+        selectInitialItem();
+    }
+
+    void DialogueWindow::closePersuasionPane()
+    {
+        if (!mPersuasionMode)
+            return;
+
+        mPersuasionMode = false;
+        mPersuasionChoices.clear();
+        updateHistory();
+        selectInitialItem();
+    }
+
+    void DialogueWindow::performPersuasion(int index)
+    {
+        if (!mPersuasionMode || index < 0
+            || static_cast<std::size_t>(index) >= mPersuasionChoices.size())
+            return;
+
+        const int type = mPersuasionChoices[static_cast<std::size_t>(index)];
+        int goldCost = 0;
+        if (type == MWBase::MechanicsManager::PT_Bribe10)
+            goldCost = 10;
+        else if (type == MWBase::MechanicsManager::PT_Bribe100)
+            goldCost = 100;
+        else if (type == MWBase::MechanicsManager::PT_Bribe1000)
+            goldCost = 1000;
+
+        if (goldCost > 0)
+        {
+            const MWWorld::Ptr player = MWMechanics::getPlayer();
+            const int playerGold
+                = player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId);
+            if (playerGold < goldCost)
+            {
+                const MWWorld::Store<ESM::GameSetting>& gmst
+                    = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
+                MWBase::Environment::get().getWindowManager()->messageBox(
+                    gmst.find("sGold")->mValue.getString() + ": "
+                    + MyGUI::utility::toString(playerGold) + " / "
+                    + MyGUI::utility::toString(goldCost));
+                return;
+            }
+        }
+
+        MWBase::DialogueManager* dialogueManager = MWBase::Environment::get().getDialogueManager();
+        dialogueManager->persuade(type, mCallback.get());
+        mCallback->updateTopics();
+
+        // A persuasion result script is allowed to start a regular answer choice
+        // or end the conversation. Those states take priority over the embedded
+        // persuasion list. Otherwise keep persuasion open for another attempt.
+        mChoices = dialogueManager->getChoices();
+        mGoodbye = dialogueManager->isGoodbye();
+        if (!mChoices.empty() || mGoodbye)
+            mPersuasionMode = false;
+
+        updateHistory();
+        updateDisposition();
+        selectInitialItem();
     }
 
     void DialogueWindow::updateChoicePane()
@@ -929,11 +961,43 @@ namespace MWGui
         const int contentBottom = std::max(132, mSelectButton->getTop() - 8);
 
         mChoicesList->clear();
-        for (const auto& choice : mChoices)
-            mChoicesList->addItem(choice.first);
+        if (mPersuasionMode)
+        {
+            rebuildPersuasionChoices();
+
+            const MWWorld::Store<ESM::GameSetting>& gmst
+                = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
+            for (const int type : mPersuasionChoices)
+            {
+                if (type == MWBase::MechanicsManager::PT_Admire)
+                    mChoicesList->addItem(gmst.find("sAdmire")->mValue.getString());
+                else if (type == MWBase::MechanicsManager::PT_Intimidate)
+                    mChoicesList->addItem(gmst.find("sIntimidate")->mValue.getString());
+                else if (type == MWBase::MechanicsManager::PT_Taunt)
+                    mChoicesList->addItem(gmst.find("sTaunt")->mValue.getString());
+                else if (type == MWBase::MechanicsManager::PT_Bribe10)
+                    mChoicesList->addItem(gmst.find("sBribe 10 Gold")->mValue.getString());
+                else if (type == MWBase::MechanicsManager::PT_Bribe100)
+                    mChoicesList->addItem(gmst.find("sBribe 100 Gold")->mValue.getString());
+                else if (type == MWBase::MechanicsManager::PT_Bribe1000)
+                    mChoicesList->addItem(gmst.find("sBribe 1000 Gold")->mValue.getString());
+            }
+
+            const MWWorld::Ptr player = MWMechanics::getPlayer();
+            const int playerGold = player.getClass().getContainerStore(player).count(MWWorld::ContainerStore::sGoldId);
+            mChoicesLabel->setCaption(gmst.find("sPersuasionMenuTitle")->mValue.getString()
+                + " - " + gmst.find("sGold")->mValue.getString() + ": "
+                + MyGUI::utility::toString(playerGold));
+        }
+        else
+        {
+            for (const auto& choice : mChoices)
+                mChoicesList->addItem(choice.first);
+            mChoicesLabel->setCaption("");
+        }
         mChoicesList->adjustSize();
 
-        const bool hasChoices = !mChoices.empty();
+        const bool hasChoices = mPersuasionMode || !mChoices.empty();
         mChoicesLabel->setVisible(hasChoices);
         mChoicesList->setVisible(hasChoices);
         mChoicesList->setEnabled(hasChoices);
@@ -946,9 +1010,13 @@ namespace MWGui
 
         if (hasChoices)
         {
-            const int choicesTop = 68;
+            // The disposition bar occupies the top of the right pane. Keep the
+            // embedded persuasion title and options below it; ordinary scripted
+            // answers retain their compact original placement.
+            const int choicesLabelTop = mPersuasionMode ? 68 : 44;
+            const int choicesTop = mPersuasionMode ? 92 : 68;
             const int choicesHeight = std::max(80, contentBottom - choicesTop);
-            mChoicesLabel->setCoord(rightX, 44, rightWidth, 18);
+            mChoicesLabel->setCoord(rightX, choicesLabelTop, rightWidth, 18);
             mChoicesList->setCoord(rightX, choicesTop, rightWidth, choicesHeight);
         }
         else
@@ -1013,6 +1081,12 @@ namespace MWGui
 
     void DialogueWindow::onByeClicked(MyGUI::Widget* _sender)
     {
+        if (mPersuasionMode)
+        {
+            closePersuasionPane();
+            return;
+        }
+
         if (exit())
         {
             MWBase::Environment::get().getWindowManager()->removeGuiMode(GM_Dialogue);
@@ -1059,7 +1133,7 @@ namespace MWGui
                 MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mGoodbyeButton);
         }
         else if (topic == sPersuasion)
-            mPersuasionDialog.setVisible(true);
+            openPersuasionPane();
         else if (topic == sCompanionShare)
             MWBase::Environment::get().getWindowManager()->pushGuiMode(GM_Companion, mPtr);
         else if (!dialogueManager->checkServiceRefused(mCallback.get()))
@@ -1114,7 +1188,7 @@ namespace MWGui
             onTopicActivated(topic);
         }
         else if (dialogueChoiceType == mwmp::DialogueChoiceType::PERSUASION)
-            mPersuasionDialog.setVisible(true);
+            openPersuasionPane();
         else if (dialogueChoiceType == mwmp::DialogueChoiceType::COMPANION_SHARE)
             MWBase::Environment::get().getWindowManager()->pushGuiMode(GM_Companion, mPtr);
         else
@@ -1176,6 +1250,8 @@ namespace MWGui
 
         mPtr = actor;
         mGoodbye = false;
+        mPersuasionMode = false;
+        mPersuasionChoices.clear();
         mTopicsList->setEnabled(true);
 
         if (!MWBase::Environment::get().getDialogueManager()->startDialogue(actor, mGreetingCallback.get()))
@@ -1250,6 +1326,8 @@ namespace MWGui
             return;
         stopDynamicDialogueActor();
         stopDialogueCamera();
+        mPersuasionMode = false;
+        mPersuasionChoices.clear();
         // Reset history
         for (DialogueText* text : mHistoryContents)
             delete text;
@@ -1363,6 +1441,11 @@ namespace MWGui
 
         mChoices = MWBase::Environment::get().getDialogueManager()->getChoices();
         mGoodbye = MWBase::Environment::get().getDialogueManager()->isGoodbye();
+        if ((!mChoices.empty() || mGoodbye) && mPersuasionMode)
+        {
+            mPersuasionMode = false;
+            mPersuasionChoices.clear();
+        }
         updateChoicePane();
 
         TypesetBook::Ptr book = typesetter->complete();
@@ -1385,13 +1468,21 @@ namespace MWGui
             onScrollbarMoved(mScrollBar, 0);
         }
 
-        bool goodbyeEnabled = !MWBase::Environment::get().getDialogueManager()->isInChoice() || mGoodbye;
+        const MWWorld::Store<ESM::GameSetting>& gmst
+            = MWBase::Environment::get().getWorld()->getStore().get<ESM::GameSetting>();
+        mGoodbyeButton->setCaption(mPersuasionMode
+            ? gmst.find("sBack")->mValue.getString()
+            : gmst.find("sGoodbye")->mValue.getString());
+
+        bool goodbyeEnabled = mPersuasionMode
+            || !MWBase::Environment::get().getDialogueManager()->isInChoice() || mGoodbye;
         bool goodbyeWasEnabled = mGoodbyeButton->getEnabled();
         mGoodbyeButton->setEnabled(goodbyeEnabled);
         if (goodbyeEnabled && !goodbyeWasEnabled)
             MWBase::Environment::get().getWindowManager()->setKeyFocusWidget(mGoodbyeButton);
 
-        bool topicsEnabled = !MWBase::Environment::get().getDialogueManager()->isInChoice() && !mGoodbye;
+        bool topicsEnabled = !mPersuasionMode
+            && !MWBase::Environment::get().getDialogueManager()->isInChoice() && !mGoodbye;
         mTopicsList->setEnabled(topicsEnabled);
         selectInitialItem();
     }

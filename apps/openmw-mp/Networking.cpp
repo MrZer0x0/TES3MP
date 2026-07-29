@@ -186,6 +186,8 @@ void Networking::processPlayerPacket(RakNet::Packet *packet)
 
         myPacket->setPlayer(player);
         myPacket->Read();
+        player->language = player->language == "RU" ? "RU" : "EN";
+        LOG_APPEND(TimedLog::LOG_INFO, "- Client language: %s", player->language.c_str());
         myPacket->Send(true);
     }
 

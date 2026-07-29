@@ -518,7 +518,8 @@ namespace MWGui
         const bool focusedTargetAlive = !mFocusActor.isEmpty()
             && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead();
         const bool dialogueOpen = MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
-        const bool focusedTargetPanel = targetInfoPanel && focusedTargetAlive && !dialogueOpen;
+        const bool focusedTargetPanel = targetInfoPanel && focusedTargetAlive && !dialogueOpen
+            && !isFocusedTargetTooClose();
 
         mEnemyHealthTimer -= dt;
         if (mEnemyHealth->getVisible() && mEnemyHealthTimer < 0 && !focusedTargetPanel)
@@ -929,7 +930,8 @@ namespace MWGui
 
         const bool focusedTargetPanel = Settings::Manager::getBool("target info panel", "GUI")
             && !mFocusActor.isEmpty()
-            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
+            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue)
+            && !isFocusedTargetTooClose();
         if (!focusedTargetPanel && mEnemyHealthTimer < 0.f)
         {
             mEnemyHealth->setVisible(false);
@@ -946,12 +948,23 @@ namespace MWGui
         mFocusActorScreenY = min_y;
     }
 
+    bool HUD::isFocusedTargetTooClose() const
+    {
+        if (mFocusActor.isEmpty())
+            return false;
+
+        const float distance = MWBase::Environment::get().getWorld()->getDistanceToFacedObject();
+        const float faceToFaceDistance = MWBase::Environment::get().getWorld()->getMaxActivationDistance() * 0.45f;
+        return distance >= 0.f && distance <= faceToFaceDistance;
+    }
+
     void HUD::updateEnemyHealthBar()
     {
         const bool usingFocusActor = Settings::Manager::getBool("target info panel", "GUI")
             && !mFocusActor.isEmpty()
             && !mFocusActor.getClass().getCreatureStats(mFocusActor).isDead()
-            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue);
+            && !MWBase::Environment::get().getWindowManager()->containsMode(GM_Dialogue)
+            && !isFocusedTargetTooClose();
 
         MWWorld::Ptr enemy;
         if (usingFocusActor)
@@ -1029,10 +1042,23 @@ namespace MWGui
                 viewSize.width - horizontalMargin - totalWidth);
             const int maximumTop = std::max(verticalMargin,
                 viewSize.height - verticalMargin - totalHeight);
+
+            // Follow the hovered actor, but keep the panel in a stable upper-centre
+            // HUD band. Its centre can travel only 20% of the screen width to either
+            // side, so an actor near an edge cannot drag the nameplate far away.
+            const int screenCenterX = viewSize.width / 2;
+            const int horizontalTravel = std::max(0, viewSize.width / 5);
+            const int constrainedCenterX = std::max(screenCenterX - horizontalTravel,
+                std::min(centerX, screenCenterX + horizontalTravel));
             const int panelLeft = std::max(horizontalMargin,
-                std::min(centerX - totalWidth / 2, maximumLeft));
+                std::min(constrainedCenterX - totalWidth / 2, maximumLeft));
+
+            // Keep the top of the complete panel within the upper 30% of the view.
+            // It still reacts to the actor's projected height inside this band.
+            const int upperBandBottom = std::max(verticalMargin,
+                std::min(maximumTop, static_cast<int>(viewSize.height * 0.30f)));
             const int baseY = std::max(verticalMargin,
-                std::min(anchorTop - totalHeight, maximumTop));
+                std::min(anchorTop - totalHeight, upperBandBottom));
 
             if (mEnemyName)
                 mEnemyName->setPosition(panelLeft + (totalWidth - nameWidth) / 2, baseY);

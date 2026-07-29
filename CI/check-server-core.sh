@@ -192,4 +192,6 @@ for widget in \
   grep -q "$widget" "$root/apps/launcher/playpage.cpp"
 done
 
+bash "$root/CI/check-lua-api-bindings.sh" "$root"
+
 echo "ArenaMP bundled server core validation passed"

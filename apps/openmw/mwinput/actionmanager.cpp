@@ -298,6 +298,9 @@ namespace MWInput
         case A_QuickKeysMenu:
             showQuickKeysMenu();
             break;
+        case A_PlayerAnimationMenu:
+            showPlayerAnimationMenu();
+            break;
         case A_ToggleHUD:
             windowManager->toggleHud();
             break;
@@ -610,6 +613,20 @@ namespace MWInput
                 MWBase::Environment::get().getWindowManager()->exitCurrentModal();
             }
             MWBase::Environment::get().getWindowManager()->exitCurrentGuiMode(); //And handle the actual main window
+        }
+    }
+
+    void ActionManager::showPlayerAnimationMenu()
+    {
+        MWBase::WindowManager* windowManager = MWBase::Environment::get().getWindowManager();
+        if (!windowManager->isGuiMode()
+            && MWBase::Environment::get().getWorld()->getGlobalFloat("chargenstate") == -1)
+        {
+            windowManager->pushGuiMode(MWGui::GM_PlayerAnimationMenu);
+        }
+        else if (windowManager->getMode() == MWGui::GM_PlayerAnimationMenu)
+        {
+            windowManager->exitCurrentGuiMode();
         }
     }
 

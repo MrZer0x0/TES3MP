@@ -362,6 +362,9 @@ namespace MWBase
             /// Let the normal Activate action use the selected QuickLoot row.
             virtual bool activateQuickLoot() = 0;
 
+            /// Consume the mouse wheel while the player animation menu is visible.
+            virtual bool handlePlayerAnimationMenuMouseWheel(int rel) = 0;
+
             /// Consume the mouse wheel while QuickLoot is visible so it cannot zoom the camera.
             virtual bool handleQuickLootMouseWheel(int rel) = 0;
 
@@ -455,6 +458,10 @@ namespace MWBase
             void windowResized(int x, int y) override = 0;
             void windowClosed() override = 0;
             virtual bool isWindowVisible() = 0;
+
+            /// Return the normalized ArenaMP interface language used by this client.
+            /// The result is currently "ru" or "en".
+            virtual std::string getArenaLanguage() const = 0;
 
             virtual void watchActor(const MWWorld::Ptr& ptr) = 0;
             virtual MWWorld::Ptr getWatchedActor() const = 0;

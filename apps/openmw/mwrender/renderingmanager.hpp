@@ -21,6 +21,7 @@ namespace osg
 {
     class Group;
     class PositionAttitudeTransform;
+    class Uniform;
 }
 
 namespace osgUtil
@@ -74,6 +75,7 @@ namespace MWRender
 {
     class GroundcoverUpdater;
     class StateUpdater;
+    class BloomProcessor;
 
     class EffectManager;
     class ScreenshotManager;
@@ -256,6 +258,8 @@ namespace MWRender
         void updateAmbient();
         void setFogColor(const osg::Vec4f& color);
         void updateThirdPersonViewMode();
+        void updateHdrSettings();
+        void updateHdrEnvironment();
 
         void reportStats() const;
 
@@ -300,6 +304,7 @@ namespace MWRender
         std::unique_ptr<ScreenshotManager> mScreenshotManager;
         std::unique_ptr<EffectManager> mEffectManager;
         std::unique_ptr<SceneUtil::ShadowManager> mShadowManager;
+        std::unique_ptr<BloomProcessor> mBloomProcessor;
         osg::ref_ptr<NpcAnimation> mPlayerAnimation;
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> mPlayerNode;
         std::unique_ptr<Camera> mCamera;
@@ -307,6 +312,15 @@ namespace MWRender
         osg::Vec3f mCurrentCameraPos;
 
         osg::ref_ptr<StateUpdater> mStateUpdater;
+        osg::ref_ptr<osg::Uniform> mHdrTonemapperUniform;
+        osg::ref_ptr<osg::Uniform> mHdrExposureUniform;
+        osg::ref_ptr<osg::Uniform> mHdrInteriorExposureUniform;
+        osg::ref_ptr<osg::Uniform> mHdrNightExposureUniform;
+        osg::ref_ptr<osg::Uniform> mHdrGammaUniform;
+        osg::ref_ptr<osg::Uniform> mHdrBrightnessUniform;
+        osg::ref_ptr<osg::Uniform> mHdrSaturationUniform;
+        osg::ref_ptr<osg::Uniform> mHdrIsInteriorUniform;
+        osg::ref_ptr<osg::Uniform> mHdrNightFactorUniform;
 
         osg::Vec4f mAmbientColor;
         float mMinimumAmbientLuminance;

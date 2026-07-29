@@ -13,6 +13,10 @@
 #include <winsock2.h>
 #endif
 
+#ifndef SCRIPT_API_ENTRY
+#define SCRIPT_API_ENTRY(name, function) {name, function}
+#endif
+
 #ifdef _WIN32
 typedef HMODULE lib_t;
 #else

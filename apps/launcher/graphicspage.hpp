@@ -33,6 +33,8 @@ namespace Launcher
         void slotFramerateLimitToggled(bool checked);
         void slotShadowDistLimitToggled(bool checked);
         void slotQualityPresetChanged(int index);
+        void slotTerrainDetailChanged(int index);
+        void slotPbrQualityChanged(int index);
         void slotApplyQualityPreset();
         void slotDetectHardware();
 
@@ -65,6 +67,10 @@ namespace Launcher
         HardwareInfo detectHardware() const;
         int recommendQuality(const HardwareInfo& info) const;
         void applyQualityLevel(int level);
+        void applyTerrainDetail(int index);
+        void applyPbrQuality(int index);
+        int terrainDetailIndexFromSettings() const;
+        int pbrQualityIndexFromSettings() const;
         void applyVendorOptimizations(int level);
         void updateQualityDescription();
         void updateHardwareLabels();

@@ -27,6 +27,10 @@
 
 #include <apps/openmw-mp/Script/Script.hpp>
 
+#ifdef ENABLE_LUA
+#include <apps/openmw-mp/Script/LangLua/LangLua.hpp>
+#endif
+
 #ifdef ENABLE_BREAKPAD
 #include <handler/exception_handler.h>
 #endif

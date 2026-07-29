@@ -26,6 +26,20 @@ namespace MWMechanics
     {
         friend class Actors;
 
+        enum class CollisionAvoidancePhase
+        {
+            None,
+            Turning,
+            Stepping
+        };
+
+        struct CollisionAvoidanceState
+        {
+            CollisionAvoidancePhase mPhase{CollisionAvoidancePhase::None};
+            float mTimer{0.f};
+            float mTargetAngle{0.f};
+        };
+
         struct DynamicIdleState
         {
             float mTimer{0.f};
@@ -68,6 +82,7 @@ namespace MWMechanics
         GreetingState mGreetingState{Greet_None};
         bool mIsTurningToPlayer{false};
         Misc::DeviatingPeriodicTimer mEngageCombat{1.0f, 0.25f, Misc::Rng::deviate(0, 0.25f)};
+        CollisionAvoidanceState mCollisionAvoidance;
         DynamicIdleState mDynamicIdle;
     };
 

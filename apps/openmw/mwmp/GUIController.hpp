@@ -24,7 +24,7 @@ namespace mwmp
     public:
         enum GM
         {
-            GM_VR_MetaMenu = MWGui::GM_QuickKeysMenu + 1, // Put this dummy GuiMode here because it's used in VR
+            GM_VR_MetaMenu = MWGui::GM_PlayerAnimationMenu + 1, // Put this dummy GuiMode here because it's used in VR
             GM_TES3MP_InputBox,
             GM_TES3MP_ListBox
 

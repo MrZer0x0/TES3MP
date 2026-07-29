@@ -2,7 +2,7 @@
 #define OPENMW_VERSION_HPP
 
 #define TES3MP_VERSION "0.8.1"
-#define TES3MP_PROTO_VERSION 805
+#define TES3MP_PROTO_VERSION 806
 
 // Official/vanilla TES3MP 0.8.1 build identity used by older servers.
 // Source version file:
